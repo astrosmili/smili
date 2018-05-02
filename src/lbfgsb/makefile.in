@@ -1,0 +1,56 @@
+.SUFFIXES: .f .o
+#-------------------------------------------------------------------------------
+# Check OS
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+  OSTYPE="LINUX"
+else
+  ifeq ($(UNAME_S),Darwin)
+    OSTYPE="OSX"
+	else
+	  OSTYPE="OSX"
+	endif
+endif
+#-------------------------------------------------------------------------------
+# Fortran Compiler
+FC=@FC@
+
+# Optimization Flag
+ifeq ($(OSTYPE),"LINUX")
+  FCFLAGS_OPT=-O3 -march=native
+else
+  FCFLAGS_OPT=-O3 -march=core2
+endif
+
+# command options for Debugging
+DBG_FLAG=@dbg_flag@
+ifeq ($(DBG_FLAG),True)
+	FCFLAGS_DBG=-g -Wall -pedantic -fbounds-check -O -Wuninitialized -ffpe-trap=invalid,zero,overflow -fbacktrace
+else
+	FCFLAGS_DBG=
+endif
+
+FCFLAGS_OMP=-fopenmp
+
+# set command options
+FCFLAGS=-fPIC $(FCFLAGS_DBG) $(FCFLAGS_OPT) @FCFLAGS@ @LDFLAGS@ @OPENBLAS_CFLAGS@ 
+FCLIBS=@OPENBLAS_LIBS@ $(FCFLAGS_OMP)
+
+#-------------------------------------------------------------------------------
+all: liblbfgsb.a
+
+liblbfgsb.a: lbfgsb.o linpack.o timer.o
+	ar rsc liblbfgsb.a lbfgsb.o linpack.o timer.o
+
+.f.o:
+	$(FC) $(FCFLAGS) -c $< $(FCLIBS)
+
+lbfgsb.o: linpack.o timer.o
+
+install: all
+
+clean:
+	rm -f *.o *.a
+
+uninstall: clean
+	rm -f makefile
