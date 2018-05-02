@@ -17,7 +17,7 @@ setup(
     description = "Sparse Modeling Imaging library for Interferometry",
     long_description = long_description,
     url = "https://smili.github.io/smili",
-    author = "Kazu Akiyama",
+    author = "Kazunori Akiyama",
     author_email = "kakiyama@mit.edu",
     license = "GPL ver 3.0",
     keywords = "imaging astronomy EHT",
