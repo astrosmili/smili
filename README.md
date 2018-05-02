@@ -1,4 +1,4 @@
-# Sparselab
+# Smili
 Sparse Modeling Imaging Library for Interferometry
 **Please contact to [Kazu Akiyama](http://kazuakiyama.github.io/) at MIT Haystack Observatory, if you would like to try the library**.
 
