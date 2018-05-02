@@ -9,7 +9,5 @@ This module wrap up functions for imaging using various optimizers.
 '''
 __author__ = "Smili Developer Team"
 
-from . import lbfgs_dft
-from . import lbfgs_fft
-from . import mfista_dft
-from . import mfista_fft
+from . import lbfgs
+from . import mfista
