@@ -16,9 +16,5 @@ from . import uvdata
 from . import imaging
 from . import geomodel
 
-# Faraday Tomography
-from . import ft
-from . import mfista_ft
-
 # Common module
 from . import util

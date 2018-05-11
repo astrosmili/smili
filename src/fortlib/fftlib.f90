@@ -136,10 +136,10 @@ subroutine NUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
   integer,  intent(in) :: Nx, Ny, Nuv
   real(dp), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
                                          ! multiplied by 2*pi*dx, 2*pi*dy
-  complex(dpc), intent(in) :: Vreal(Nuv)  ! Complex Visibility
-  complex(dpc), intent(in) :: Vimag(Nuv)  ! Complex Visibility
-  complex(dpc), intent(out):: Ireal(Nx*Ny) ! Two Dimensional Image
-  complex(dpc), intent(out):: Iimag(Nx*Ny) ! Two Dimensional Image
+  real(dp), intent(in) :: Vreal(Nuv)  ! Complex Visibility
+  real(dp), intent(in) :: Vimag(Nuv)  ! Complex Visibility
+  real(dp), intent(out):: Ireal(Nx*Ny) ! Two Dimensional Image
+  real(dp), intent(out):: Iimag(Nx*Ny) ! Two Dimensional Image
 
   ! Some Other Parameters for FINUFFT
   !   Sign of the exponent in the adjoint Fourier Transformation

@@ -1,1 +1,15 @@
 .DS_Store
+config.status
+config.log
+setup_files.log
+build
+*.so
+smili.egg-info
+dist
+*.o
+src/fortlib/makefile
+src/*/makefile
+*.o2
+*.a
+smili/fortlib.so.dSYM
+src/fortlib/fortlib.so.dSYM
