@@ -19,7 +19,7 @@ contains
 subroutine imaging(&
   Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   u,v,&
-  lambl1,lambtv,lambtsv,lambmem,lambcom,&
+  lambl1,lambtv,lambtsv,lambmem,lambcom,doweight,&
   Niter,nonneg,transtype,transprm,pcom,&
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,&
   isamp,uvidxamp,Vamp,Varamp,&
@@ -50,6 +50,7 @@ subroutine imaging(&
   real(dp), intent(in) :: lambtsv ! Regularization Parameter for TSV
   real(dp), intent(in) :: lambmem ! Regularization Parameter for MEM
   real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
+  integer,  intent(in) :: doweight ! if postive, reweight images
 
   ! Imaging Parameter
   integer,  intent(in) :: Niter     ! iteration number
@@ -97,6 +98,10 @@ subroutine imaging(&
   !
   ! Output Image
   real(dp), intent(out) :: Iout(Npix)
+
+  ! Reweighting factor for Images
+  real(dp), allocatable :: l1_w(:), tv_w(:), tsv_w(:), I2d(:,:)
+  real(dp) :: l1_w_norm, tv_w_norm, tsv_w_norm
 
   ! full complex visibilities to be used for calculations
   complex(dpc), allocatable :: Vfcv(:)
@@ -167,6 +172,36 @@ subroutine imaging(&
     !$OMP END PARALLEL DO
     !write(*,*) 'Vfcv after ',Vfcv(1)
   end if
+
+
+  !-------------------------------------
+  ! Reweighting factor for l1, tv, tsv
+  !-------------------------------------
+  allocate(l1_w(Npix),tv_w(Npix),tsv_w(Npix))
+  l1_w = 1
+  tv_w = 1
+  tsv_w = 1
+
+  if (doweight > 0 ) then
+    write(*,*) 'Calculating re-weighting factor for l1, tv, tsv regularizations'
+    allocate(I2d(Nx,Ny))
+    call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
+    l1_w_norm=0
+    tv_w_norm=0
+    tsv_w_norm=0
+    do i=1, Npix
+      l1_w(i) = 1/(l1_e(Iin(i))+zeroeps)
+      tv_w(i) = 1/(tv_e(xidx(i),yidx(i),I2d,Nx,Ny)+zeroeps)
+      tsv_w(i) = 1/(l1_e(Iin(i)*Iin(i))+zeroeps)
+      l1_w_norm = l1_w_norm + l1_e(Iin(i))*l1_w(i)
+      tv_w_norm = tv_w_norm + tv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tv_w(i)
+      tsv_w_norm = tsv_w_norm + tsv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tsv_w(i)
+    end do
+    l1_w = l1_w/l1_w_norm
+    tv_w = tv_w/tv_w_norm
+    tsv_w = tsv_w/tsv_w_norm
+    deallocate(I2d)
+  end if
   !-------------------------------------
   ! L-BFGS-B
   !-------------------------------------
@@ -205,6 +240,7 @@ subroutine imaging(&
         Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
         u,v,&
         lambl1,lambtv,lambtsv,lambmem,lambcom,&
+        doweight,l1_w,tv_w,tsv_w,&
         fnorm,transtype,transprm,pcom,&
         isfcv,uvidxfcv,Vfcv,Varfcv,&
         isamp,uvidxamp,Vamp,Varamp,&
@@ -242,6 +278,7 @@ subroutine imaging(&
   ! deallocate arrays
   deallocate(Vfcv)
   deallocate(iwa,wa,lower,upper,nbd)
+  deallocate(l1_w,tv_w,tsv_w)
   !where(abs(Iout)<zeroeps) Iout=0d0
 end subroutine
 !
@@ -253,6 +290,7 @@ subroutine calc_cost(&
   Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   u,v,&
   lambl1,lambtv,lambtsv,lambmem,lambcom,&
+  doweight,l1_w,tv_w,tsv_w,&
   fnorm,transtype,transprm,pcom,&
   isfcv,uvidxfcv,Vfcv,Varfcv,&
   isamp,uvidxamp,Vamp,Varamp,&
@@ -281,6 +319,10 @@ subroutine calc_cost(&
   real(dp), intent(in) :: lambtsv ! Regularization Parameter for TSV
   real(dp), intent(in) :: lambmem ! Regularization Parameter for MEM
   real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
+
+  ! Reweighting
+  integer,  intent(in) :: doweight ! if postive, reweight l1,tsv,tv terms
+  real(dp), intent(in) :: l1_w(Npix), tv_w(Npix), tsv_w(Npix) ! reweight
 
   ! Imaging Parameter
   real(dp), intent(in) :: fnorm     ! normalization factor for chisquare
@@ -454,32 +496,52 @@ subroutine calc_cost(&
   ! Compute regularization term
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Npix, Iin_reg, lambl1, lambmem, lambtv, lambtsv,&
-  !$OMP                I2d, xidx, yidx) &
+  !$OMP                I2d, xidx, yidx, l1_w, tv_w, tsv_w) &
   !$OMP   PRIVATE(ipix) &
   !$OMP   REDUCTION(+: reg, gradreg)
   do ipix=1, Npix
-    ! L1
-    if (lambl1 > 0) then
-      reg = reg + lambl1 * l1_e(Iin_reg(ipix))
-      gradreg(ipix) = gradreg(ipix) + lambl1 * l1_grade(Iin_reg(ipix))
+    if (doweight > 0) then
+      ! L1
+      if (lambl1 > 0) then
+        reg = reg + lambl1 * l1_w(ipix) * l1_e(Iin_reg(ipix))
+        gradreg(ipix) = gradreg(ipix) + lambl1 * l1_w(ipix) * l1_grade(Iin_reg(ipix))
+      end if
+
+      ! TV
+      if (lambtv > 0) then
+        reg = reg + lambtv * tv_w(ipix) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradreg(ipix) = gradreg(ipix) + lambtv * tv_w(ipix) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      end if
+
+      ! TSV
+      if (lambtsv > 0) then
+        reg = reg + lambtsv * tsv_w(ipix) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradreg(ipix) = gradreg(ipix) + lambtsv * tsv_w(ipix) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      end if
+    else
+      ! L1
+      if (lambl1 > 0) then
+        reg = reg + lambl1 * l1_e(Iin_reg(ipix))
+        gradreg(ipix) = gradreg(ipix) + lambl1 * l1_grade(Iin_reg(ipix))
+      end if
+
+      ! TV
+      if (lambtv > 0) then
+        reg = reg + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradreg(ipix) = gradreg(ipix) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      end if
+
+      ! TSV
+      if (lambtsv > 0) then
+        reg = reg + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradreg(ipix) = gradreg(ipix) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      end if
     end if
 
     ! MEM
     if (lambmem > 0) then
       reg = reg + lambmem * mem_e(Iin_reg(ipix))
       gradreg(ipix) = gradreg(ipix) + lambmem * mem_grade(Iin_reg(ipix))
-    end if
-
-    ! TV
-    if (lambtv > 0) then
-      reg = reg + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-      gradreg(ipix) = gradreg(ipix) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-    end if
-
-    ! TSV
-    if (lambtsv > 0) then
-      reg = reg + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-      gradreg(ipix) = gradreg(ipix) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
     end if
   end do
   !$OMP END PARALLEL DO

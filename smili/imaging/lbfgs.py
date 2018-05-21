@@ -46,6 +46,7 @@ def imaging(
         imregion=None,
         vistable=None,amptable=None, bstable=None, catable=None,
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambcom=-1.,normlambda=True,
+        reweight=False,
         niter=1000,
         nonneg=True,
         compower=1.,
@@ -82,6 +83,8 @@ def imaging(
         normlambda (boolean,default=True):
             If normlabda=True, lambl1, lambtv, lambtsv, and lambmem are normalized
             with totalflux and the number of data points.
+        reweight (boolean, default=False):
+            If true, applying reweighting scheme (experimental)
         niter (int,defalut=100):
             The number of iterations.
         nonneg (boolean,default=True):
@@ -270,7 +273,7 @@ def imaging(
         varfcv[0] = np.square(fcvtable.loc[0, "amp"] / (Ndata - 1.))
 
     # Normalize Lambda
-    if normlambda:
+    if (normlambda is True) and (reweight is not True):
         fluxscale = np.float64(totalflux)
 
         # convert Flux Scaling Factor
@@ -302,6 +305,12 @@ def imaging(
     u *= 2*np.pi*dx_rad
     v *= 2*np.pi*dy_rad
 
+    # Reweighting
+    if reweight:
+        doweight=1
+    else:
+        doweight=-1
+
     # run imaging
     Iout = fortlib.fftim2d.imaging(
         # Images
@@ -321,6 +330,7 @@ def imaging(
         lambtsv=np.float64(lambtsv_sim),
         lambmem=np.float64(lambmem_sim),
         lambcom=np.float64(lambcom_sim),
+        doweight=np.int32(doweight),
         # Imaging Parameter
         niter=np.int32(niter),
         nonneg=nonneg,
@@ -365,6 +375,7 @@ def statistics(
         imregion=None,
         vistable=None,amptable=None, bstable=None, catable=None,
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambmem=-1.,lambcom=-1.,normlambda=True,
+        reweight=False,
         niter=1000,
         nonneg=True,
         compower=1.,
