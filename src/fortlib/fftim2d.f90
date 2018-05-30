@@ -19,7 +19,7 @@ contains
 subroutine imaging(&
   Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   u,v,&
-  lambl1,lambtv,lambtsv,lambmem,lambcom,doweight,&
+  lambl1,lambtv,lambtsv,lambmem,lambcom,doweight,tgtdyrange,&
   Niter,nonneg,transtype,transprm,pcom,&
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,&
   isamp,uvidxamp,Vamp,Varamp,&
@@ -51,6 +51,7 @@ subroutine imaging(&
   real(dp), intent(in) :: lambmem ! Regularization Parameter for MEM
   real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
   integer,  intent(in) :: doweight ! if postive, reweight images
+  real(dp), intent(in) :: tgtdyrange ! target dynamic range for reweighting
 
   ! Imaging Parameter
   integer,  intent(in) :: Niter     ! iteration number
@@ -190,9 +191,9 @@ subroutine imaging(&
     tv_w_norm=0
     tsv_w_norm=0
     do i=1, Npix
-      l1_w(i) = 1/(l1_e(Iin(i))+zeroeps)
-      tv_w(i) = 1/(tv_e(xidx(i),yidx(i),I2d,Nx,Ny)+zeroeps)
-      tsv_w(i) = 1/(l1_e(Iin(i)*Iin(i))+zeroeps)
+      l1_w(i) = 1/(l1_e(Iin(i))+maxval(Iin)/tgtdyrange)
+      tv_w(i) = 1/(tv_e(xidx(i),yidx(i),I2d,Nx,Ny)+maxval(Iin)/tgtdyrange)
+      tsv_w(i) = 1/l1_e(Iin(i)*Iin(i))
       l1_w_norm = l1_w_norm + l1_e(Iin(i))*l1_w(i)
       tv_w_norm = tv_w_norm + tv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tv_w(i)
       tsv_w_norm = tsv_w_norm + tsv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tsv_w(i)

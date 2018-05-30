@@ -46,7 +46,7 @@ def imaging(
         imregion=None,
         vistable=None,amptable=None, bstable=None, catable=None,
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambcom=-1.,normlambda=True,
-        reweight=False,
+        reweight=False, dyrange=1e6,
         niter=1000,
         nonneg=True,
         compower=1.,
@@ -85,6 +85,8 @@ def imaging(
             with totalflux and the number of data points.
         reweight (boolean, default=False):
             If true, applying reweighting scheme (experimental)
+        dyrange (boolean, default=1e2):
+            The target dynamic range of reweighting techniques.
         niter (int,defalut=100):
             The number of iterations.
         nonneg (boolean,default=True):
@@ -331,6 +333,7 @@ def imaging(
         lambmem=np.float64(lambmem_sim),
         lambcom=np.float64(lambcom_sim),
         doweight=np.int32(doweight),
+        tgtdyrange=np.float64(dyrange),
         # Imaging Parameter
         niter=np.int32(niter),
         nonneg=nonneg,
@@ -375,7 +378,7 @@ def statistics(
         imregion=None,
         vistable=None,amptable=None, bstable=None, catable=None,
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambmem=-1.,lambcom=-1.,normlambda=True,
-        reweight=False,
+        reweight=False, dyrange=1e6,
         niter=1000,
         nonneg=True,
         compower=1.,
