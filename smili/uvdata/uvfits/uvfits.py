@@ -1171,6 +1171,9 @@ class UVFITS(object):
                 ant2_itime   = self.visdata.coord.ant2.values[idx_utc][idx_flag]
                 Ndata_itime  = len(ant1_itime)
 
+                if Ndata_itime == 0:
+                    continue
+
                 # non-redundant set of antenna ids
                 antset_itime = sorted(set(ant1_itime.tolist()+ant2_itime.tolist()))
                 Nant_itime = len(antset_itime)
