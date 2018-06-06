@@ -568,18 +568,18 @@ end subroutine
 !
 !
 !-------------------------------------------------------------------------------!
-subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,I2d,cost,gradcost,Npix,Nz)
+subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz)
   implicit none
   !
   integer, intent(in) :: Npix,Nz
   integer, intent(in) :: xidx(1:Npix), yidx(1:Npix)
   real(dp),intent(in) :: alpha
   real(dp),intent(in) :: Nxref, Nyref
-  real(dp),intent(in) :: I2d(Npix,Nz)
+  real(dp),intent(in) :: Iin(Npix,Nz)
   real(dp),intent(inout) :: cost
   real(dp),intent(inout) :: gradcost(Npix,Nz)
   !
-  real(dp) :: dix, diy, Ip,Ipz
+  real(dp) :: dix, diy, Ip, Isum(Npix)
   real(dp) :: sumx, sumy, sumI
   real(dp) :: gradsumx, gradsumy, gradsumI
   real(dp) :: reg
@@ -590,28 +590,25 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,I2d,cost,gradcost,Npix,Nz)
   sumy = 0d0
   sumI = 0d0
 
+  ! Take summation
+  Isum = sum(Iin,2)
+
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I2d,Npix) &
+  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix,Nz) &
   !$OMP   PRIVATE(ipix, dix, diy, Ip) &
   !$OMP   REDUCTION(+: sumx, sumy, sumI)
+  do ipix=1, Npix
+    ! pixel from the reference pixel
+    dix = xidx(ipix) - Nxref
+    diy = yidx(ipix) - Nyref
 
-  do ipixz=1, Npix
-    Ipz  = 0d0
-    do iz=1, Nz
-      call ixy2ixiy(ipixz,ipix,iz,Npix)
-      ! pixel from the reference pixel
-      dix = xidx(ipix) - Nxref
-      diy = yidx(ipix) - Nyref
-
-      ! calculate iz part
-      Ipz = Ipz+l1_e(I2d(ipix,iz))
-
-    end do
+    ! take a alpha
     if (abs(alpha-1)<zeroeps) then
-      Ip = Ipz
+      Ip = l1_e(Isum(ipix))
     else
-      Ip = Ipz**alpha
+      Ip = l1_e(Isum(ipix))**alpha
     end if
+
     ! calculate sum
     sumx = sumx + Ip * dix
     sumy = sumy + Ip * diy
@@ -627,38 +624,33 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,I2d,cost,gradcost,Npix,Nz)
   reg = sqrt((sumx/(sumI))**2+(sumy/(sumI))**2+zeroeps)
   cost = cost + reg
 
+
   ! calculate gradient of cost function
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I2d,Npix,sumx,sumy,sumI,reg) &
+  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix,sumx,sumy,sumI,reg) &
   !$OMP   PRIVATE(ipix,dix,diy,gradsumI,gradsumx,gradsumy) &
   !$OMP   REDUCTION(+:gradcost)
   do ipix=1, Npix
     ! pixel from the reference pixel
     dix = xidx(ipix) - Nxref
     diy = yidx(ipix) - Nyref
-    Ipz = 0d0
 
-    do iz=1, Nz
-      Ipz = Ipz+l1_e(I2d(ipix,iz))
-    end do
-    do iz=1, Nz
-      ! gradient of sum
-      if (abs(alpha-1)<zeroeps) then
-        gradsumI = l1_grade(I2d(ipix,iz))
-      else
-        gradsumI = alpha*l1_e(Ipz)**(alpha-1)*l1_grade(I2d(ipix,iz))
-      end if
+    ! gradient of sum
+    if (abs(alpha-1)<zeroeps) then
+      gradsumI = l1_grade(Isum(ipix))
+    else
+      gradsumI = alpha*l1_e(Isum(ipix))**(alpha-1)*l1_grade(Iin(ipix,iz))   ! <----
+    end if
 
-      gradsumx = gradsumI*dix
-      gradsumy = gradsumI*diy
+    gradsumx = gradsumI*dix
+    gradsumy = gradsumI*diy
 
-      ! gradient of sumx/sumI or sumy/sumI
-      gradsumx = (sumI*gradsumx - gradsumI*sumx)/sumI**2
-      gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
+    ! gradient of sumx/sumI or sumy/sumI
+    gradsumx = (sumI*gradsumx - gradsumI*sumx)/sumI**2
+    gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
 
-      ! calculate gradint of cost function
-      gradcost(ipix,iz) = gradcost(ipix,iz) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
-    end do
+    ! calculate gradint of cost function
+    gradcost(ipix,:) = gradcost(ipix,:) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
   end do
   !$OMP END PARALLEL DO
 end subroutine
