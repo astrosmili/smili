@@ -8,7 +8,7 @@ Requirements
 Smili consists of python modules and Fortran/C internal libraries called from python modules.
 Here, we summarize required python packages and external packages for Smili.
 
-You will also need **autoconf** and `ds9`_ for compiling the library.
+You will also need `ds9`_ for compiling the library.
 
 .. _ds9: http://ds9.si.edu/site/Home.html
 
@@ -176,7 +176,7 @@ You can download the code from github.
 .. code-block:: Bash
 
   # Clone the repository
-  git clone https://github.com/eht-jp/smili
+  git clone https://github.com/astrosmili/smili
 
 Installing Smili
 --------------------
