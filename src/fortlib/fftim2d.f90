@@ -412,22 +412,22 @@ subroutine calc_cost(&
 
   ! Full complex visibility
   if (isfcv .eqv. .True.) then
-    call chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,dble(Nfcv*2),chisq,Vresre,Vresim,Nuv,Nfcv)
+    call chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,fnorm,chisq,Vresre,Vresim,Nuv,Nfcv)
   end if
 
   ! Amplitudes
   if (isamp .eqv. .True.) then
-    call chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,dble(Namp),chisq,Vresre,Vresim,Nuv,Namp)
+    call chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,fnorm,chisq,Vresre,Vresim,Nuv,Namp)
   end if
 
   ! Log closure amplitudes
   if (isca .eqv. .True.) then
-    call chisq_ca(Vcmp,uvidxca,CA,Varca,dble(Nca),chisq,Vresre,Vresim,Nuv,Nca)
+    call chisq_ca(Vcmp,uvidxca,CA,Varca,fnorm,chisq,Vresre,Vresim,Nuv,Nca)
   end if
 
   ! Closure phases
   if (iscp .eqv. .True.) then
-    call chisq_cp(Vcmp,uvidxcp,CP,Varcp,dble(Ncp),chisq,Vresre,Vresim,Nuv,Ncp)
+    call chisq_cp(Vcmp,uvidxcp,CP,Varcp,fnorm,chisq,Vresre,Vresim,Nuv,Ncp)
   end if
   deallocate(Vcmp)
 
