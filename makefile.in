@@ -15,9 +15,16 @@ clean:
 	cd src/finufft; make clean
 	cd src/fortlib; make clean
 	cd src/mfista; make clean
-	rm -f sparselab/*.pyf
-	rm -f sparselab/*.pyc
-	rm -rf sparselab/*.so*
+	rm -f smili/*.pyf
+	rm -f smili/*.pyc
+	rm -rf smili/*.so*
+	rm -f smili/*/*.pyf
+	rm -f smili/*/*.pyc
+	rm -rf smili/*/*.so*
+	rm -f smili/*/*/*.pyf
+	rm -f smili/*/*/*.pyc
+	rm -rf smili/*/*/*.so*
+
 
 uninstall: clean
 	cd src/lbfgsb; make uninstall
@@ -29,5 +36,5 @@ uninstall: clean
 	rm -f config.status
 	rm -f aclocal.m4
 	rm makefile
-	cat setup_files.log|grep sparselab|xargs rm -rf
+	cat setup_files.log|grep smili|xargs rm -rf
 	rm -rf setup_files.log *egg* *build* *dist*
