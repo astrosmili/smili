@@ -584,7 +584,7 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz)
   real(dp) :: gradsumx, gradsumy, gradsumI
   real(dp) :: reg
   !
-  integer  :: ipixz,ipix,iz
+  integer  :: ipix,iz
 
   sumx = 0d0
   sumy = 0d0
@@ -631,26 +631,28 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz)
   !$OMP   PRIVATE(ipix,dix,diy,gradsumI,gradsumx,gradsumy) &
   !$OMP   REDUCTION(+:gradcost)
   do ipix=1, Npix
-    ! pixel from the reference pixel
-    dix = xidx(ipix) - Nxref
-    diy = yidx(ipix) - Nyref
+    do iz=1,Nz
+      ! pixel from the reference pixel
+      dix = xidx(ipix) - Nxref
+      diy = yidx(ipix) - Nyref
 
-    ! gradient of sum
-    if (abs(alpha-1)<zeroeps) then
-      gradsumI = l1_grade(Isum(ipix))
-    else
-      gradsumI = alpha*l1_e(Isum(ipix))**(alpha-1)*l1_grade(Iin(ipix,iz))   ! <----
-    end if
+      ! gradient of sum
+      if (abs(alpha-1)<zeroeps) then
+        gradsumI = l1_grade(Iin(ipix,iz))
+      else
+        gradsumI = alpha*l1_e(Isum(ipix))**(alpha-1)*l1_grade(Iin(ipix,iz))   ! <----
+      end if
 
-    gradsumx = gradsumI*dix
-    gradsumy = gradsumI*diy
+      gradsumx = gradsumI*dix
+      gradsumy = gradsumI*diy
 
-    ! gradient of sumx/sumI or sumy/sumI
-    gradsumx = (sumI*gradsumx - gradsumI*sumx)/sumI**2
-    gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
+      ! gradient of sumx/sumI or sumy/sumI
+      gradsumx = (sumI*gradsumx - gradsumI*sumx)/sumI**2
+      gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
 
-    ! calculate gradint of cost function
-    gradcost(ipix,:) = gradcost(ipix,:) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
+      ! calculate gradint of cost function
+      gradcost(ipix,iz) = gradcost(ipix,iz) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
+    end do
   end do
   !$OMP END PARALLEL DO
 end subroutine

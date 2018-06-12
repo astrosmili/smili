@@ -10,7 +10,7 @@ module fftim3d
                    tv_e, tv_grade,&
                    tsv_e, tsv_grade,&
                    mem_e, mem_grade,&
-                   comreg, zeroeps
+                   comreg3d, zeroeps
   use image3d, only: d2, dkl, rt_d2grad, rt_dklgrad,&
                      ri_d2grad, ri_dklgrad
   implicit none
@@ -343,6 +343,11 @@ subroutine calc_cost(&
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),I2dl(:,:),I2du(:,:),Iin_reg(:)
   real(dp), allocatable :: Iavg(:), Iavg2d(:,:), Ij(:), Itmp(:), Itmp2d(:,:)
+
+  ! modifiy
+  real(dp), allocatable :: Iavgin(:,:)
+  real(dp), allocatable :: gradreg_tmpin(:,:)
+
   real(dp), allocatable :: gradchisq2d(:,:)
   real(dp), allocatable :: gradreg(:), gradreg_tmp(:)
   real(dp), allocatable :: Vresre(:),Vresim(:)
@@ -488,43 +493,80 @@ subroutine calc_cost(&
     ! initialize
     !   scalars
     reg = 0d0
-    !   allocatable arrays
-    allocate(gradreg_tmp(Npix))
+
+!    !   allocatable arrays
+!    allocate(gradreg_tmp(Npix))
+!    allocate(gradreg(Nparm))
+!    allocate(Iavg(Npix))
+!    Iavg(:) = 0d0
+!    gradreg_tmp(:) = 0d0
+!    gradreg(:) = 0d0
+
+    !  allocatable arrays (modify)
+    allocate(Iavgin(Npix,Nz))
+    allocate(gradreg_tmpin(Npix,Nz))
     allocate(gradreg(Nparm))
-    allocate(Iavg(Npix))
-    Iavg(:) = 0d0
-    gradreg_tmp(:) = 0d0
+    Iavgin(:,:)        = 0d0
+    gradreg_tmpin(:,:) = 0d0
     gradreg(:) = 0d0
+
     !
     ! Averaged Image
+!    do iz=1, Nz
+!      Iavg = Iavg + Iin((iz-1)*Npix+1:iz*Npix)
+!    end do
+!    do ipix=1,Npix
+!      Iavg(ipix) = Iavg(ipix)/Nz
+!    end do
+
+    ! Averaged Image (modify)
     do iz=1, Nz
-      Iavg = Iavg + Iin((iz-1)*Npix+1:iz*Npix)
-    end do
-    do ipix=1,Npix
-      Iavg(ipix) = Iavg(ipix)/Nz
+      do ipix=1,Npix
+        Iavgin(ipix,iz)=Iin((iz-1)*Npix+ipix)
+       end do
     end do
     !
     ! calc cost and its gradient
-    call comreg(xidx,yidx,Nxref,Nyref,pcom,Iavg,reg,gradreg_tmp,Npix)
+    ! call comreg(xidx,yidx,Nxref,Nyref,pcom,Iavg,reg,gradreg_tmp,Npix)
+
+    ! calc cost and its gradient (modify)
+    call comreg3d(xidx,yidx,Nxref,Nyref,pcom,Iavgin,reg,gradreg_tmpin,Npix,Nz)
+
     cost = cost + lambcom * reg
     !
     !$OMP PARALLEL DO DEFAULT(SHARED) &
     !$OMP   FIRSTPRIVATE(Npix,Nz,gradreg_tmp) &
     !$OMP   PRIVATE(iz, ipix, istart) &
     !$OMP   REDUCTION(+: gradreg)
+
+!    do iz=1, Nz
+!      istart = (iz-1)*Npix+1
+!      !iend = iz*Npix
+!      do ipix=1,Npix
+!        gradreg(istart+ipix-1) = gradreg_tmp(ipix)/Nz
+!      end do
+!    end do
+
+    ! modify
     do iz=1, Nz
       istart = (iz-1)*Npix+1
       !iend = iz*Npix
       do ipix=1,Npix
-        gradreg(istart+ipix-1) = gradreg_tmp(ipix)/Nz
+        gradreg(istart+ipix-1) = gradreg_tmpin(ipix,iz)
       end do
     end do
+
     !$OMP END PARALLEL DO
     call daxpy(Nparm, lambcom, gradreg, 1, gradcost, 1) ! gradcost := lambcom * gradreg + gradcost
     ! deallocate array
-    deallocate(gradreg_tmp)
+    !deallocate(gradreg_tmp)
+    !deallocate(gradreg)
+    !deallocate(Iavg)
+
+    ! deallocate array (modify)
+    deallocate(gradreg_tmpin)
     deallocate(gradreg)
-    deallocate(Iavg)
+    deallocate(Iavgin)
   end if
 
   !------------------------------------

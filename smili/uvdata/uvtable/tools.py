@@ -16,7 +16,6 @@ import numpy as np
 
 def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1e-2):
     '''
-
     '''
     if ((fcvtable is None) and (amptable is None) and
             (bstable is None) and (catable is None)):
@@ -133,3 +132,91 @@ def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1
         uvidxca = uvidx[Nfcv + Namp + 3 * Ncp:Nfcv + Namp + 3 *
                         Ncp + 4 * Nca].reshape([Nca, 4], order="F").transpose()
     return (u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca)
+
+
+def get_uvlist_loop(Nf, fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=None):
+    '''
+    '''
+    if ((fcvconcat is None) and (ampconcat is None) and
+            (bsconcat is None) and (caconcat is None)):
+        print("Error: No data are input.")
+        return -1
+
+    u, v = [], []
+    uvidxfcv, uvidxamp, uvidxcp, uvidxca = [], [], [], []
+    Nuvs = []
+
+    idxcon = 0
+    for i in xrange(Nf):
+        fcvsingle, ampsingle, bssingle, casingle = None, None, None, None
+        if fcvconcat is not None:
+            frmid = fcvconcat["frmidx"] == i
+            idx = np.where(frmid == True)
+            if idx[0] != []:
+                fcvsingle = fcvconcat.loc[idx[0], :]
+
+        if ampconcat is not None:
+            frmid = ampconcat["frmidx"] == i
+            idx = np.where(frmid == True)
+            if idx[0] != []:
+                ampsingle = ampconcat.loc[idx[0], :]
+
+        if bsconcat is not None:
+            frmid = bsconcat["frmidx"] == i
+            idx = np.where(frmid == True)
+            if idx[0] != []:
+                bssingle = bsconcat.loc[idx[0], :]
+
+        if caconcat is not None:
+            frmid = caconcat["frmidx"] == i
+            idx = np.where(frmid == True)
+            if idx[0] != []:
+                casingle = caconcat.loc[idx[0], :]
+
+        if ((fcvsingle is None) and (ampsingle is None) and
+            (bssingle is None)  and (casingle is None)):
+            Nuvs.append(0)
+        else:
+            u0, v0, uvidxfcv0, uvidxamp0, uvidxcp0, uvidxca0 = get_uvlist(
+                fcvtable=fcvsingle, amptable=ampsingle, bstable=bssingle, catable=casingle)
+            u.append(u0)
+            v.append(v0)
+            Nuvs.append(len(u0))
+            if fcvsingle is not None:
+                uvidxfcv0 = np.sign(uvidxfcv0) * (np.abs(uvidxfcv0)+idxcon)
+                uvidxfcv.append(uvidxfcv0)
+            if ampsingle is not None:
+                uvidxamp0 = np.sign(uvidxamp0) * (np.abs(uvidxamp0)+idxcon)
+                uvidxamp.append(uvidxamp0)
+            if bssingle is not None:
+                uvidxcp0 = np.sign(uvidxcp0) * (np.abs(uvidxcp0)+idxcon)
+                uvidxcp.append(uvidxcp0)
+            if casingle is not None:
+                uvidxca0 = np.sign(uvidxca0) * (np.abs(uvidxca0)+idxcon)
+                uvidxca.append(uvidxca0)
+            idxcon += len(u0)
+
+    u = np.concatenate(u)
+    v = np.concatenate(v)
+
+    if fcvconcat is not None:
+        uvidxfcv = np.concatenate(uvidxfcv)
+    else:
+        uvidxfcv = np.zeros(1, dtype=np.int32)
+
+    if ampconcat is not None:
+        uvidxamp = np.concatenate(uvidxamp)
+    else:
+        uvidxamp = np.zeros(1, dtype=np.int32)
+
+    if bsconcat is not None:
+        uvidxcp = np.hstack(uvidxcp)
+    else:
+        uvidxcp = np.zeros([3, 1], dtype=np.int32, order="F")
+
+    if caconcat is not None:
+        uvidxca = np.hstack(uvidxca)
+    else:
+        uvidxca = np.zeros([4, 1], dtype=np.int32, order="F")
+
+    return (u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs)

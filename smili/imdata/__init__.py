@@ -11,3 +11,4 @@ __author__ = "Smili Developer Team"
 # -------------------------------------------------------------------------
 from .imdata import *
 from .imregion import IMRegion, read_imregion
+from .movie import MOVIE
