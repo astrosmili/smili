@@ -25,97 +25,137 @@ from astropy.convolution import convolve_fft
 # matplotlib
 import matplotlib.pyplot as plt
 
+# for to_movie
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.animation as manimation
+
+# for lightcurve
+import itertools
 # internal
 from .. import fortlib, util
-
+from . import imdata
 #-------------------------------------------------------------------------
 # IMAGEFITS (Manupulating FITS FILES)
 #-------------------------------------------------------------------------
 class MOVIE(object):
-    def __init__(self, Nf=0, #tstart='2000-01-01T00:00:00', init2dim=None,
-                 tint=60, tintunit="sec",
-                 dtable=None, **tabs):
+    def __init__(self, tstart=None, tend=None, Nt=None, tint=None, tunit="sec", **imgprm):
         '''
         Args:
             tstart (datetime):
                 start time
+            tend (datetime):
+                end time
             tint (float):
                 constant time span of each frame (sec)
-            tintunit (string):
+            tunit (string):
                 unit of time difference (sec, min, hrs, day)
-            Nf (integer):
+            Nt (integer):
                 number of frames
             init2dim (imdata.IMFITS object):
                 initial image
-            dtable:
-                vistable, amptable, bstable, catable
         Returns:
             imdata.MOVIE object
         '''
-        # formatting the input tstart
-        #self.tstart = at.Time(tstart)
-        # formatting the input tint
-        if tintunit == "sec":
-            self.tint = at.TimeDelta(tint, format='sec')
-        elif tintunit == "min":
-            self.tint = at.TimeDelta(tint*60, format='sec')
-        elif tintunit == "hrs":
-            self.tint = at.TimeDelta(tint*3600, format='sec')
-        elif tintunit == "day":
-            self.tint = at.TimeDelta(tint*3600*24, format='sec')
-        # assigning the input Nf
-        self.Nf = Nf
-        # dataframe tables
-        self.dtable = dtable
-        # initial 2D image
-        #self.init2dim = init2dim
 
-    def tabconcat(self):
-        '''
-        concatenate table
-        '''
-        if (self.dtable is None) or (self.dtable is [None]):
-            print("DataFrame table is not given.")
-            return -1
-        # concatenate the multiple tables in a list
-        if type(self.dtable) == list:
-            tablist = self.dtable
+        if (tint is not None):
+            if tunit == "sec":
+                self.tint = at.TimeDelta(tint, format='sec')
+            elif tunit == "min":
+                self.tint = at.TimeDelta(tint*60, format='sec')
+            elif tunit == "hrs":
+                self.tint = at.TimeDelta(tint*3600, format='sec')
+            elif tunit == "day":
+                self.tint = at.TimeDelta(tint*3600*24, format='sec')
+        # assigning the input Nt
+
+        # Check tstart
+        if tstart is None:
+            raise ValueError("tstart is not specified.")
         else:
-            tablist = list([self.dtable])
-        frmtable = None
-        for tab in tablist:
-            if frmtable is not None:
-                frmtable = pd.concat((frmtable, tab), ignore_index=True)
-            else:
-                frmtable = tab
-        return frmtable
-
-    def tinfo(self):
-        frmtable = self.tabconcat()
-        tstart = min(frmtable["utc"])
-        tend = max(frmtable["utc"])
-        tdif = (at.Time(tend) - at.Time(tstart))
-        Nf = int(tdif.sec/self.tint.value) + 1
-        tintv = self.tint
-        return tstart, tend, Nf, tintv
-
-    def timetable(self):
-        frmtable = self.tabconcat()
-        tstart, tend = self.tinfo()[:2]
-        if self.Nf == 0:
-            Nfr = self.tinfo()[2]
+            self.tstart = at.Time(tstart)
+        # Check tend
+        if (tend is not None) and (Nt is not None) and (tint is not None):
+            raise ValueError("All of tend, Nt and tint are specified. We need only two of them.")
+        elif (tend is None) and (Nt is not None) and (tint is not None):
+            self.Nt   = Nt
+            self.tint = self.tint
+        elif (tend is not None) and (Nt is None) and (tint is not None):
+            self.tint = self.tint
+            # Guess Nt
+            tdif = (at.Time(tend) - self.tstart)
+            self.Nt = int(tdif.sec/self.tint.value) + 1
+        elif (tend is not None) and (Nt is not None) and (tint is None):
+            self.Nt = Nt
+            tend    = at.Time(tend)
+            # Guess tint
+            self.tint = (tend-self.tstart)/Nt
         else:
-            Nfr = self.Nf
+            raise ValueError("Two of tend, Nt and tint must be specifed.")
 
         tmtable = pd.DataFrame()
-        tmtable["frame"] = np.zeros(Nfr, dtype='int32')
-        tmtable["utc"] = np.zeros(Nfr)
-        tmtable["gsthour"] = np.zeros(Nfr)
-        tmtable["tint(sec)"] = np.zeros(Nfr)
-        for i in np.arange(Nfr):
+        tmtable["utc"] = np.zeros(self.Nt)
+        for it in xrange(self.Nt):
+            tmtable.loc[it, "utc"] = it*self.tint+self.tstart
+        self.timetable = tmtable
+
+        # Initialize images
+        self.images = [imdata.IMFITS(**imgprm) for i in xrange(self.Nt)]
+
+        # Test images
+        #beamprm={}
+        #u'minsize': 13.109819596064836, u'pa': 35.655022685947685, u'majsize': 13.109819596064836, u'angunit': 'uas'}
+        #self.images = [imdata.IMFITS(**imgprm).add_gauss(x0=0., totalflux=1., **beamprm) for i in xrange(self.Nt)]
+
+#    def add_gauss(self,**beamprm):
+#        '''
+#        add gayssian model to the initial movie
+#        '''
+#        outfits=[self.images[it].add_gauss(**beamprm) for it in xrange(self.Nt)]
+#        self.images = outfits
+#        #return outfits
+
+    def add_gauss(self,**beamprm):
+        '''
+        add gayssian model to the initial movie
+        '''
+        outfits=copy.deepcopy(self.images)
+        for it in xrange(self.Nt):
+            outfits[it]=self.images[it].add_gauss(**beamprm)
+            outfits[it].update_fits()
+        return outfits
+
+#    def winmod(self,imregion,**winargs):
+#        '''
+#        clear brightness distribution outside regions
+#        '''
+#        outfits=[self.images[it].winmod(imregion,**winargs) for it in xrange(self.Nt)]
+#        self.images = outfits
+#        #return outfits
+
+    def winmod(self,imregion,save_totalflux=False):
+        '''
+        clear brightness distribution outside regions
+        '''
+        outfits=copy.deepcopy(self.images)
+        for it in xrange(self.Nt):
+            outfits[it]=self.images[it].winmod(imregion,save_totalflux)
+            outfits[it].update_fits()
+        return outfits
+
+
+    def timetable2(self): # ilje型
+        tstart = self.tstart # at.TImeで変換済み
+        Ntr    = self.Nt
+
+        tmtable = pd.DataFrame()
+        tmtable["frame"] = np.zeros(self.Nt, dtype='int32')
+        tmtable["utc"] = np.zeros(self.Nt)
+        tmtable["gsthour"] = np.zeros(self.Nt)
+        tmtable["tint(sec)"] = np.zeros(self.Nt)
+        for i in np.arange(Ntr):
             tmtable.loc[i, "frame"] = int(i)
-            #centime = self.tstart + (self.tint/2) + self.tint*i
-            centime = at.Time(tstart) + self.tint*i
+            centime = tstart + self.tint*i
             utctime = centime.datetime
             gsthour = centime.sidereal_time("apparent", "greenwich").hour
             tmtable.loc[i, "utc"] = utctime
@@ -150,18 +190,98 @@ class MOVIE(object):
         frmtable = frmtable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         return frmtable
 
-    def tplot(self):
-        utcbnd = self.timetable()["utc"]
-        for t in utcbnd:
-            plt.axvline(x=t, c='b', ls='-')
-        concatab = self.fridx()
-        tmtable = np.asarray(concatab["utc"], np.str)
-        tmtable = at.Time(tmtable).datetime
-        frmidx = concatab["frmidx"]
-        plt.plot(tmtable, frmidx, 'k.')
+
+    def to_movie(self, filename, **imshowprm):
+        '''
+        Args:
+            movie_list list(Nt*(IMFITS))?:
+            logscale
+            xregion, yregion
+            filename
+        Returns:
+            movie.mp4
+        '''
+
+        FFMpegWriter = manimation.writers['ffmpeg']
+        #metadata = dict(title='Movie', artist='Matplotlib',
+        #                comment='Movie support!')
+        metadata = dict(title='Movie')
+        writer = FFMpegWriter(fps=15, metadata=metadata)
+
+        fig = plt.figure()
+#        plt.xlim(-xregion, xregion) # xrange
+#        plt.ylim(-yregion, yregion) # yrange
+
+        with writer.saving(fig, filename+".mp4", 100):  # 最後の数字が解像度?
+            for it in xrange(self.Nt):  # 回数
+                self.images[it].imshow(**imshowprm)
+                writer.grab_frame()
+
+
+    #========================
+    def to_fits(self,filename="snapshot"):
+        '''
+        Args:
+            filename
+        Returns:
+            filename+"%03d.fits"%(it)
+        '''
+        for it in xrange(self.Nt):
+            self.images[it].save_fits(filename+"%03d.fits"%(it))
+
+    def average(self):
+        '''
+        Args:
+            movie_image (IMFITS):
+            filename
+        Returns:
+            ave_movie (np.array)
+        '''
+        outimage = copy.deepcopy(self.images[0])
+        aveimage = self.images[0].data[0,0,:,:]
+        for it in xrange(self.Nt):
+            aveimage += self.images[it].data[0,0,:,:]
+        aveimage /= self.Nt
+        outimage.data[0,0] = aveimage
+        outimage.update_fits()
+        return outimage
+
+    def to_3darray(self):
+        '''
+        Output 3-dimensional array for movie. Its dimension will be [Nt, Ny, Nx].
+
+        Returns:
+            3d ndarray object contains 3-dimensional images
+        '''
+        return np.asarray([self.images[i].data[0,0] for i in xrange(self.Nt)])
+
+    def lightcurve(self):
+        '''
+        Args:
+            movie_list
+        Returns:
+        '''
+        movie = self.to_3darray()
+        lightcurve = movie.sum(axis=2)
+        lightcurve = lightcurve.sum(axis=1)
+        return lightcurve
+
+    def plot_lc(self):
+        Nt = self.Nt
+        lightcurve=self.lightcurve()
+
+        time = np.zeros(Nt)
+        for it in xrange(Nt):
+            time[it]=it*self.tint.value
+        plt.plot(time,lightcurve)
+
+
+    def imshow(self,it,**imshowprm):
+        image=self.images[it]
+        image.imshow(**imshowprm)
 
 
     def initimlist(self):
         pass
-        #mul2dim = list([self.init2dim])*Nf
+        #mul2dim = list([self.init2dim])*Nt
         #return mul2dim
