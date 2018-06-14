@@ -134,7 +134,7 @@ def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1
     return (u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca)
 
 
-def get_uvlist_loop(Nf, fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=None):
+def get_uvlist_loop(Nt, fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=None):
     '''
     '''
     if ((fcvconcat is None) and (ampconcat is None) and
@@ -147,7 +147,7 @@ def get_uvlist_loop(Nf, fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=
     Nuvs = []
 
     idxcon = 0
-    for i in xrange(Nf):
+    for i in xrange(Nt):
         fcvsingle, ampsingle, bssingle, casingle = None, None, None, None
         if fcvconcat is not None:
             frmid = fcvconcat["frmidx"] == i

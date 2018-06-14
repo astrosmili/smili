@@ -32,6 +32,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # internal modules
 from .. import util, imdata, fortlib, uvdata
+tools = uvdata.uvtable.tools
 
 #-------------------------------------------------------------------------
 # Default Parameters
@@ -47,9 +48,7 @@ lbfgsbprms = {
 # Reconstract static imaging
 #-------------------------------------------------------------------------
 def imaging3d(
-        #initimage,
-        initimlist,
-        Nf=1, #Nfps=1,
+        initimovie,
         imagewin=None,
         vistable=None,amptable=None, bstable=None, catable=None,
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambmem=-1.,lambcom=-1.,
@@ -64,27 +63,20 @@ def imaging3d(
         output='list'):
     '''
     '''
-    # Sanity Check: Initial Image list
-    if type(initimlist) == list:
-        if len(initimlist) != Nf:
-            print("Error: The number of initial image list is different with given Nf")
-            return -1
-
     # Sanity Check: Data
     if ((vistable is None) and (amptable is None) and
-            (bstable is None) and (catable is None)):
-        print("Error: No data are input.")
-        return -1
+        (bstable is None) and (catable is None)):
+        raise ValueError("No input data")
 
     # Sanity Check: Sort
     if vistable is not None:
         vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
     if amptable is not None:
         amptable = amptable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-    #if bstable is not None:
-    #    bstable = bstable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-    #if catable is not None:
-    #    catable = catable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+    if bstable is not None:
+        bstable = bstable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+    if catable is not None:
+        catable = catable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
 
     # Sanity Check: Total Flux constraint
     dofluxconst = False
@@ -101,37 +93,42 @@ def imaging3d(
         dofluxconst = True
 
     # Sanity Check: Transform
-    if transform is None:
-        print("No transform will be applied to regularization functions.")
-        transtype = np.int32(0)
-        transprm = np.float64(0)
-    elif transform == "log":
-        print("log transform will be applied to regularization functions.")
-        transtype = np.int32(1)
-        if transprm is None:
-            transprm = 1e-10
-        elif transprm <= 0:
-            raise ValueError("transprm must be positive.")
-        else:
-            transprm = np.float64(transprm)
-        print("  threshold of log transform: %g"%(transprm))
-    elif transform == "gamma":
-        print("Gamma transform will be applied to regularization functions.")
-        transtype = np.int32(2)
-        if transprm is None:
-            transprm = 1/2.2
-        elif transprm <= 0:
-            raise ValueError("transprm must be positive.")
-        else:
-            transprm = np.float64(transprm)
-        print("  Power of Gamma correction: %g"%(transprm))
+    transform = None
+    transtype = np.int32(0)
+    transprm = np.float64(0)
+    # if transform is None:
+    #     print("No transform will be applied to regularization functions.")
+    #     transtype = np.int32(0)
+    #     transprm = np.float64(0)
+    # elif transform == "log":
+    #     print("log transform will be applied to regularization functions.")
+    #     transtype = np.int32(1)
+    #     if transprm is None:
+    #         transprm = 1e-10
+    #     elif transprm <= 0:
+    #         raise ValueError("transprm must be positive.")
+    #     else:
+    #         transprm = np.float64(transprm)
+    #     print("  threshold of log transform: %g"%(transprm))
+    # elif transform == "gamma":
+    #     print("Gamma transform will be applied to regularization functions.")
+    #     transtype = np.int32(2)
+    #     if transprm is None:
+    #         transprm = 1/2.2
+    #     elif transprm <= 0:
+    #         raise ValueError("transprm must be positive.")
+    #     else:
+    #         transprm = np.float64(transprm)
+    #     print("  Power of Gamma correction: %g"%(transprm))
+
+    # Sanity Check: number of frames
+    Nt = initmovie.Nt
+    if Nt<2:
+        ValueError("The number of frame must be larger than 1")
 
     # get initial images
-    #Iin = np.float64(initimage.data[istokes, ifreq])
-    Iin = []
-    for im in initimlist:
-        Iin.append(np.float64(im.data[istokes, ifreq]))
-    initimage = initimlist[0]
+    Iin = [initmovie.images[i].data[istokes, ifreq] for i in xrange(Nt)]
+    initimage = initmovie.images[0]
 
     # size of images
     Nx = initimage.header["nx"]
@@ -151,8 +148,7 @@ def imaging3d(
     # apply the imaging area
     if imagewin is None:
         print("Imaging Window: Not Specified. We solve the image on all the pixels.")
-        for i in range(len(Iin)):
-            #Iin = Iin.reshape(Nyx)
+        for i in xrange(len(Iin)):
             Iin[i] = Iin[i].reshape(Nyx)
         x = x.reshape(Nyx)
         y = y.reshape(Nyx)
@@ -161,8 +157,7 @@ def imaging3d(
     else:
         print("Imaging Window: Specified. Images will be solved on specified pixels.")
         idx = np.where(imagewin)
-        for i in range(len(Iin)):
-            #Iin = Iin[idx]
+        for i in xrange(len(Iin)):
             Iin[i] = Iin[i][idx]
         x = x[idx]
         y = y[idx]
@@ -259,20 +254,20 @@ def imaging3d(
 
         # convert Flux Scaling Factor
         fluxscale = np.abs(fluxscale) / Nyx
-        if   transform=="log":   # log correction
-            fluxscale = np.log(fluxscale+transprm)-np.log(transprm)
-        elif transform=="gamma": # gamma correction
-            fluxscale = (fluxscale)**transprm
+        #if   transform=="log":   # log correction
+        #    fluxscale = np.log(fluxscale+transprm)-np.log(transprm)
+        #elif transform=="gamma": # gamma correction
+        #    fluxscale = (fluxscale)**transprm
 
         lambl1_sim = lambl1 / (fluxscale * Nyx)
         lambtv_sim = lambtv / (4 * fluxscale * Nyx)
         lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx)
-        lambmem_sim = lambmem / np.abs(fluxscale*np.log(fluxscale) * Nyx)
+        #lambmem_sim = lambmem / np.abs(fluxscale*np.log(fluxscale) * Nyx)
     else:
         lambl1_sim = lambl1
         lambtv_sim = lambtv
         lambtsv_sim = lambtsv
-        lambmem_sim = lambmem
+    lambmem_sim = -1
 
     # Center of Mass regularization
     lambcom_sim = lambcom # No normalization for COM regularization
@@ -283,25 +278,16 @@ def imaging3d(
     lambrs_sim = lambrs # No normalization for Rs regularization
 
     # get uv coordinates and uv indice
-    uvtools = uvdata.uvtable.tools
-    if Nf == 1:
-        u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = uvtools.get_uvlist(
-            fcvtable=fcvtable, amptable=amptable, bstable=bstable, catable=catable
-        )
-        Nuvs = [len(u)]
-    elif Nf > 1:
-        u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = uvtools.get_uvlist_loop(Nf=Nf,
-            fcvconcat=fcvtable, ampconcat=amptable, bsconcat=bstable, caconcat=catable
-        )
+    u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = tools.get_uvlist_loop(
+        Nt=Nt,fcvconcat=fcvtable, ampconcat=amptable, bsconcat=bstable, caconcat=catable
+    )
 
     # normalize u, v coordinates
     u *= 2*np.pi*dx_rad
     v *= 2*np.pi*dy_rad
 
     # copy the initimage to the number of frames
-    if Nf > 1:
-        #Iin = np.concatenate([Iin]*Nf)
-        Iin = np.concatenate(Iin)
+    Iin = np.concatenate(Iin)
 
     # run imaging
     Iout = fortlib.fftim3d.imaging(
@@ -314,7 +300,7 @@ def imaging3d(
         nx=np.int32(Nx),
         ny=np.int32(Ny),
         # 3D frames
-        nz=np.int32(Nf),
+        nz=np.int32(Nt),
         # UV coordinates,
         u=u,
         v=v,
@@ -360,41 +346,22 @@ def imaging3d(
         pgtol=np.float64(lbfgsbprms["pgtol"])
     )
 
-    # multiple outimage
-    if output == 'list':
-        outimlist = []
-        ipix = 0
-        iz = 0
-        while iz < Nf:
-            outimage = copy.deepcopy(initimage)
-            outimage.data[istokes, ifreq] = 0.
-            for i in np.arange(Nyx):
-                outimage.data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[ipix+i]
-            outimage.update_fits()
-            outimlist.append(outimage)
-            ipix += Nyx
-            iz += 1
-        return outimlist
-
-    if output == 'movfrm':
-        outimintp = []
-        ipix = 0
-        iz = 0
-        Ifrm = frminp(Iout, Nyx, Nf, Nfps)
-        totalframe = (Nf-1)*(Nfps+1)+1
-        while iz < totalframe:
-            outimage = copy.deepcopy(initimage)
-            outimage.data[istokes, ifreq] = 0.
-            for i in np.arange(Nyx):
-                outimage.data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Ifrm[ipix+i]
-            outimage.update_fits()
-            outimintp.append(outimage)
-            ipix += Nyx
-            iz += 1
-        return outimintp
+    outimlist = []
+    ipix = 0
+    iz = 0
+    while iz < Nt:
+        outimage = copy.deepcopy(initimage)
+        outimage.data[istokes, ifreq] = 0.
+        for i in np.arange(Nyx):
+            outimage.data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[ipix+i]
+        outimage.update_fits()
+        outimlist.append(outimage)
+        ipix += Nyx
+        iz += 1
+    return outimlist
 
 def statistics(
-        initimlist, Nf=1, imagewin=None,
+        initimlist, Nt=1, imagewin=None,
         vistable=None, amptable=None, bstable=None, catable=None,
         # 2D regularizers
         lambl1=1., lambtv=-1, lambtsv=1, lambmem=-1.,lambcom=-1.,
@@ -410,8 +377,8 @@ def statistics(
     '''
     # Sanity Check: Initial Image list
     if type(initimlist) == list:
-        if len(initimlist) != Nf:
-            print("Error: The number of initial image list is different with given Nf")
+        if len(initimlist) != Nt:
+            print("Error: The number of initial image list is different with given Nt")
             return -1
 
     # Sanity Check: Data
@@ -483,7 +450,7 @@ def statistics(
                                                    amptable=False,
                                                    istokes=istokes,
                                                    ifreq=ifreq,
-                                                   Nf=Nf)
+                                                   Nt=Nt)
         Ndata += len(vistable)*2
 
     # Visibility Amplitude
@@ -498,7 +465,7 @@ def statistics(
                                                    amptable=True,
                                                    istokes=istokes,
                                                    ifreq=ifreq,
-                                                   Nf=Nf)
+                                                   Nt=Nt)
         Ndata += len(amptable)
 
     # Closure Phase
@@ -512,7 +479,7 @@ def statistics(
                                                 mask=imagewin,
                                                 istokes=istokes,
                                                 ifreq=ifreq,
-                                                Nf=Nf)
+                                                Nt=Nt)
         Ndata += len(bstable)
 
     # Closure Amplitude
@@ -526,7 +493,7 @@ def statistics(
                                                 mask=imagewin,
                                                 istokes=istokes,
                                                 ifreq=ifreq,
-                                                Nf=Nf)
+                                                Nt=Nt)
         Ndata += len(catable)
 
     # size of images
@@ -1455,22 +1422,22 @@ def pipeline(
 # ------------------------------------------------------------------------------
 # Subfunctions
 # ------------------------------------------------------------------------------
-def frminp(Iout, Npix, Nf, Nfps):
+def frminp(Iout, Npix, Nt, Ntps):
     '''
-    Nfps: the number of interpolated frames in a frame
+    Ntps: the number of interpolated frames in a frame
     '''
-    if len(Iout) != Npix*Nf:
+    if len(Iout) != Npix*Nt:
         return -1
 
-    totalframe = (Nf-1)*(Nfps+1)+1
-    frames = np.linspace(0, Nf-1, totalframe)
+    totalframe = (Nt-1)*(Ntps+1)+1
+    frames = np.linspace(0, Nt-1, totalframe)
 
-    print("\n\n Interpolating %s frames to %s frames" %(Nf, totalframe))
+    print("\n\n Interpolating %s frames to %s frames" %(Nt, totalframe))
     begin = time.time()
 
     fstack = []
     for ipix in range(Npix):
-        pixinp = interpolate.interp1d(np.arange(Nf), Iout[ipix::Npix])
+        pixinp = interpolate.interp1d(np.arange(Nt), Iout[ipix::Npix])
         fstack.append(pixinp(frames))
 
     fstack = np.array(fstack)
