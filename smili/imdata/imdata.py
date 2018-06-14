@@ -19,6 +19,7 @@ import pandas as pd
 import scipy.ndimage as sn
 import astropy.coordinates as coord
 import astropy.io.fits as pyfits
+import astropy.time as at
 from astropy.convolution import convolve_fft
 
 # matplotlib
@@ -33,7 +34,7 @@ from .. import fortlib, util
 #-------------------------------------------------------------------------
 class IMFITS(object):
     # Initialization
-    def __init__(self, fitsfile=None, uvfitsfile=None, source=None,
+    def __init__(self, fitsfile=None, fitstype="standard", uvfitsfile=None, source=None,
                  dx=2., dy=None, nx=100, ny=None, nxref=None, nyref=None,
                  angunit="uas", **args):
         '''
@@ -48,29 +49,39 @@ class IMFITS(object):
             5 other parameters (weakest).
 
         Args:
-            fitsfile (string):
-                input FITS file
-            uvfitsfile (string):
-                input uv-fits file
-            source (string):
+            fitsfile (string or hdulist, optional):
+                If specified, image will be loaded from the specified image fits file
+                or specified HDUlist object.
+            fitstype (string, optional, default="standard"):
+                Type of FITS images to be load. Currently we have three choices:
+                    standard: assuming a format close to the AIPS IMAGE FITS format.
+                              It can read images from AIPS, DIFMAP and CASA.
+                    aipscc: same to standard but loading brightness informations
+                            from the associated AIPS CC table.
+                    ehtim: assuming a format close to that adopted in EHT imaging Library
+                           which does not have a lot of header information.
+            uvfitsfile (string, optional):
+                If specified, date, source and frequency information will be loaded
+                from header information of the input uvfits file
+            source (string, optional):
                The source of the image RA and Dec will be obtained from CDS
-            dx (float):
+            dx (float, optional, default=2.):
                The pixel size along the RA axis. If dx > 0, the sign of dx
                will be switched.
-            dy (float; default=abs(dx)):
+            dy (float, optional, default=abs(dx)):
                The pixel size along the Dec axis.
-            nx (integer):
+            nx (integer, optional, default=100):
                 the number of pixels in the RA axis.
-            ny (integer; default=ny):
+            ny (integer, optional, default=ny):
                 the number of pixels in the Dec axis.
                 Default value is same to nx.
-            nxref (float, default=(nx+1)/2.):
+            nxref (float, optional, default=(nx+1)/2.):
                 The reference pixel in RA direction.
                 "1" will be the left-most pixel.
-            nyref (float, default=(ny+1)/2.):
+            nyref (float, optional, default=(ny+1)/2.):
                 the reference pixel of the DEC axis.
                 "1" will be the bottom pixel.
-            angunit (string):
+            angunit (string, optional, default="uas"):
                 angular unit for fov, x, y, dx and dy.
 
             **args: you can also specify other header information.
@@ -153,7 +164,14 @@ class IMFITS(object):
 
         # Initialize from fitsfile
         if fitsfile is not None:
-            self.read_fits(fitsfile)
+            if fitstype=="standard":
+                self.read_fits_standard(fitsfile)
+            elif fitstype=="ehtim":
+                self.read_fits_ehtim(fitsfile)
+            elif fitstype=="aipscc":
+                self.read_fits_aipscc(fitsfile)
+            else:
+                raise ValueError("fitstype must be standard, ehtim or aipscc")
 
         # Set source coordinates
         if source is not None:
@@ -237,7 +255,7 @@ class IMFITS(object):
         self.update_fits()
 
     # Read data from an image fits file
-    def read_fits(self, fitsfile):
+    def read_fits_standard(self, fitsfile):
         '''
         Read data from the image FITS file
 
@@ -249,42 +267,34 @@ class IMFITS(object):
 
         keyname = "OBJECT"
         try:
-            self.header["object"] = self.header_dtype["object"](
-                hdulist[0].header.get(keyname))
+            self.header["object"] = self.header_dtype["object"](hdulist[0].header.get(keyname))
         except:
-            print("warning: FITS file doesn't have a header info of '%s'"
-                  % (keyname))
+            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
 
         keyname = "TELESCOP"
         try:
-            self.header["telescope"] = self.header_dtype["telescope"](
-                hdulist[0].header.get(keyname))
+            self.header["telescope"] = self.header_dtype["telescope"](hdulist[0].header.get(keyname))
         except:
-            print("warning: FITS file doesn't have a header info of '%s'"
-                  % (keyname))
+            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
 
         keyname = "INSTRUME"
         try:
-            self.header["instrument"] = self.header_dtype["instrument"](
-                hdulist[0].header.get(keyname))
+            self.header["instrument"] = self.header_dtype["instrument"](hdulist[0].header.get(keyname))
         except:
-            print("warning: FITS file doesn't have a header info of '%s'"
-                  % (keyname))
+            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
 
         keyname = "OBSERVER"
         try:
-            self.header["observer"] = self.header_dtype["observer"](
-                hdulist[0].header.get(keyname))
+            self.header["observer"] = self.header_dtype["observer"](hdulist[0].header.get(keyname))
         except:
-            print("warning: FITS file doesn't have a header info of '%s'"
-                  % (keyname))
+            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
 
         keyname = "DATE-OBS"
         try:
             self.header["dateobs"] = \
                 self.header_dtype["dateobs"](hdulist[0].header.get(keyname))
         except:
-            print("warning: FITS file doesn't have a header info of '%s'" % (keyname))
+            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
 
         isx = False
         isy = False
@@ -354,6 +364,58 @@ class IMFITS(object):
 
         self.data = hdulist[0].data.reshape(
             [self.header["ns"], self.header["nf"], self.header["ny"], self.header["nx"]])
+
+        self.update_fits()
+
+    def read_fits_aipscc(self, fitsfile):
+        # Load FITS File
+        self.read_fits_standard(fitsfile)
+        self.header["nf"] = 1
+        self.header["ns"] = 1
+        Nx = self.header["nx"]
+        Ny = self.header["ny"]
+        self.data = np.zeros([1,1,Ny,Nx])
+
+        # Get AIPS CC Table
+        aipscc = pyfits.open(fitsfile)["AIPS CC"]
+        flux = aipscc.data["FLUX"]
+        deltax = aipscc.data["DELTAX"]
+        deltay = aipscc.data["DELTAY"]
+        checkmtype = np.abs(np.unique(aipscc.data["TYPE OBJ"]))<1.0
+        if False in checkmtype.tolist():
+            raise ValueError("Input FITS file has non point-source CC components, which are not currently supported.")
+        ix = np.int64(np.round(deltax/self.header["dx"] + self.header["nxref"] - 1))
+        iy = np.int64(np.round(deltay/self.header["dy"] + self.header["nyref"] - 1))
+        for i in xrange(len(flux)):
+            self.data[0,0,iy[i],ix[i]] = flux[i]
+        self.update_fits()
+
+    def read_fits_ehtim(self, fitsfile):
+        '''
+        Read data from the image FITS file
+
+        Args:
+          fitsfile (string): input image FITS file
+        '''
+        import ehtim as eh
+        im = eh.image.load_fits(filename)
+        obsdate = at.Time(im.mjd, format="mjd")
+        obsdate = "%04d-%02d-%02d"%(obsdate.datetime.year,obsdate.datetime.month,obsdate.datetime.day)
+        self.header["object"] = im.source
+        self.header["nx"] = im.xdim
+        self.header["ny"] = im.ydim
+        self.header["x"] = im.ra * 12
+        self.header["y"] = im.dec
+        self.header["dx"] = im.psize * util.angconv("rad","deg")
+        self.header["dy"] = im.psize * util.angconv("rad","deg")
+        self.header["f"] = im.rf
+        self.header["dateobs"]=obsdate
+        self.header["telescope"]="EHT"
+        self.header["instrument"]="EHT"
+        self.header["observer"]="EHT"
+        self.data = np.flipud(im.imvec.reshape([header["ny"],header["nx"]])).reshape([1,1,header["ny"],header["nx"]])
+
+        self.update_fits()
 
     def read_uvfitsheader(self, infits):
         '''
@@ -436,20 +498,12 @@ class IMFITS(object):
         else:
             print("Warning: No image data along the Frequency axis.")
 
-        '''
-        This is for EHT imaging Library
-        for axistype in ["x,y,f"]:
-            if np.isnan(self.header[axistype]):
-                self.header[axistype] = 0.
-            if np.isnan(self.header[axistype]):
-                self.header["d%s"%(axistype)] = 0.
-            if np.isnan(self.header[axistype]):
-                self.header["n%sref"%(axistype)] = self.header["n%d"%(axistype)]/2+1
-        '''
-
         self.update_fits()
 
-    def update_fits(self,cctab=True,threshold=None, relative=True,
+    def update_fits(self,
+                    cctab=True,
+                    threshold=None,
+                    relative=True,
                     istokes=0, ifreq=0):
         '''
         Reflect current self.data / self.header info to the image FITS data.
