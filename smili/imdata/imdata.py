@@ -746,7 +746,7 @@ class IMFITS(object):
         '''
         return self.data[istokes, ifreq].sum()
 
-    def mad(self, istokes=0, ifreq=0):
+    def mad(self, imregion=None, istokes=0, ifreq=0):
         '''
         calculate the median absolute deviation of the image
 
@@ -754,7 +754,11 @@ class IMFITS(object):
           istokes (integer): index for Stokes Parameter at which l1-norm will be calculated
           ifreq (integer): index for Frequency at which l1-norm will be calculated
         '''
-        return np.median(np.abs(self.data[istokes,ifreq] - np.median(self.data[istokes,ifreq])))
+        image = self.data[istokes,ifreq]
+        if imregion is not None:
+            maskimage = imregion.maskimage(self)
+            image = image[np.where(maskimage > 0.5)]
+        return np.median(np.abs(image - np.median(image)))
 
     def imagecost(self, func, out, istokes=0, ifreq=0, compower=1.0):
         '''
