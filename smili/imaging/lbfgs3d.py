@@ -48,7 +48,7 @@ lbfgsbprms = {
 # Reconstract static imaging
 #-------------------------------------------------------------------------
 def imaging3d(
-        initimovie,
+        initmovie,
         imagewin=None,
         vistable=None,amptable=None, bstable=None, catable=None,
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambmem=-1.,lambcom=-1.,
@@ -345,26 +345,25 @@ def imaging3d(
         m=np.int32(lbfgsbprms["m"]), factr=np.float64(lbfgsbprms["factr"]),
         pgtol=np.float64(lbfgsbprms["pgtol"])
     )
+    print("before outimage is done")
 
-    outimlist = []
+
+    outmovie = copy.deepcopy(initmovie)
+    print("before import outimlist")
     ipix = 0
-    iz = 0
-    while iz < Nt:
-        outimage = copy.deepcopy(initimage)
-        outimage.data[istokes, ifreq] = 0.
+    for it in xrange(Nt):
         for i in np.arange(Nyx):
-            outimage.data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[ipix+i]
-        outimage.update_fits()
-        outimlist.append(outimage)
+            outmovie.images[it].data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[ipix+i]
+        outmovie.images[it].update_fits()
         ipix += Nyx
-        iz += 1
-    return outimlist
+    return outmovie
+
 
 def statistics(
-        initimlist, Nt=1, imagewin=None,
+        initmovie, imagewin=None,
         vistable=None, amptable=None, bstable=None, catable=None,
         # 2D regularizers
-        lambl1=1., lambtv=-1, lambtsv=1, lambmem=-1.,lambcom=-1.,
+        lambl1=-1., lambtv=-1, lambtsv=-1, lambmem=-1.,lambcom=-1.,
         # 3D regularizers
         lambrt=-1.,lambri=-1.,lambrs=-1,
         normlambda=True,
@@ -376,11 +375,12 @@ def statistics(
 
     '''
     # Sanity Check: Initial Image list
-    if type(initimlist) == list:
-        if len(initimlist) != Nt:
-            print("Error: The number of initial image list is different with given Nt")
-            return -1
+    #if type(initimlist) == list:
+    #    if len(initimlist) != Nt:
+    #        print("Error: The number of initial image list is different with given Nt")
+    #        return -1
 
+    Nt = initmovie.Nt
     # Sanity Check: Data
     if ((vistable is None) and (amptable is None) and
             (bstable is None) and (catable is None)):
@@ -445,7 +445,7 @@ def statistics(
         rchisqfcv = 0.
     else:
         isfcv = True
-        chisqfcv, rchisqfcv = vistable.chisq_image3d(imfitslist=initimlist,
+        chisqfcv, rchisqfcv = vistable.chisq_image3d(imfitslist=initmovie.images,
                                                    mask=imagewin,
                                                    amptable=False,
                                                    istokes=istokes,
@@ -460,7 +460,7 @@ def statistics(
         rchisqamp = 0.
     else:
         isamp = True
-        chisqamp, rchisqamp = amptable.chisq_image3d(imfitslist=initimlist,
+        chisqamp, rchisqamp = amptable.chisq_image3d(imfitslist=initmovie.images,
                                                    mask=imagewin,
                                                    amptable=True,
                                                    istokes=istokes,
@@ -475,7 +475,7 @@ def statistics(
         rchisqcp = 0.
     else:
         iscp = True
-        chisqcp, rchisqcp = bstable.chisq_image3d(imfitslist=initimlist,
+        chisqcp, rchisqcp = bstable.chisq_image3d(imfitslist=initmovie.images,
                                                 mask=imagewin,
                                                 istokes=istokes,
                                                 ifreq=ifreq,
@@ -489,7 +489,7 @@ def statistics(
         rchisqca = 0.
     else:
         isca = True
-        chisqca, rchisqca = catable.chisq_image3d(imfitslist=initimlist,
+        chisqca, rchisqca = catable.chisq_image3d(imfitslist=initmovie.images,
                                                 mask=imagewin,
                                                 istokes=istokes,
                                                 ifreq=ifreq,
@@ -497,7 +497,7 @@ def statistics(
         Ndata += len(catable)
 
     # size of images
-    initimage = initimlist[0]
+    initimage = initmovie.images[0]
     Nx = np.int32(initimage.header["nx"])
     Ny = np.int32(initimage.header["ny"])
     Nyx = Nx * Ny
@@ -548,7 +548,7 @@ def statistics(
     # cost calculation
     l1, tv, tsv, mem, com = 0, 0, 0, 0, 0
     rt, ri, rs = 0, 0, 0
-    for im in initimlist:
+    for im in initmovie.images:
         l1 += im.imagecost(func="l1",out="cost",istokes=istokes,
                           ifreq=ifreq)
         tv += im.imagecost(func="tv",out="cost",istokes=istokes,
@@ -605,7 +605,7 @@ def statistics(
 
     # Cost and Chisquares
     stats = collections.OrderedDict()
-    stats["cost"] = l1cost + tvcost + tsvcost + memcost + comcost
+    stats["cost"] =  com #l1cost + tvcost + tsvcost + memcost + comcost
     stats["chisq"] = chisqfcv + chisqamp + chisqcp + chisqca
     stats["rchisq"] = stats["chisq"] / Ndata
     stats["isfcv"] = isfcv
@@ -650,59 +650,6 @@ def statistics(
 
     return stats
 
-def iterative_imaging(initimlist, imageprm, Niter=10,
-                      dothres=True, threstype="hard", threshold=0.3,
-                      doshift=True, shifttype="peak",
-                      dowinmod=False, imageregion=None,
-                      doconv=True, convprm={},
-                      save_totalflux=False):
-    oldimlist = imaging3d(initimlist,output='list',**imageprm)
-    oldcost = statistics(oldimlist, fulloutput=False, **imageprm)["cost"]
-
-    for i in np.arange(Niter - 1):
-        newimtmp = []
-        for oldimage in oldimlist:
-            newimage = copy.deepcopy(oldimage)
-
-            if dothres:
-                if threstype == "soft":
-                    newimage = newimage.soft_threshold(threshold=threshold,
-                                                       save_totalflux=save_totalflux)
-                else:
-                    newimage = newimage.hard_threshold(threshold=threshold,
-                                                       save_totalflux=save_totalflux)
-            if doshift:
-                if shifttype == "com":
-                    newimage = newimage.comshift(save_totalflux=save_totalflux)
-                else:
-                    newimage = newimage.peakshift(save_totalflux=save_totalflux)
-
-            # Edit Images
-            if dowinmod and imageregion is not None:
-                newimage = imageregion.editimage(newimage,
-                                                 save_totalflux=save_totalflux)
-
-            if doconv:
-                newimage = newimage.gauss_convolve(
-                    save_totalflux=save_totalflux, **convprm)
-
-            newimtmp.append(newimage)
-
-        # Imaging Again
-        newimlist = imaging3d(newimtmp,output='list',**imageprm)
-        newcost = statistics(newimlist, fulloutput=False, **imageprm)["cost"]
-
-        print("\n Costs: ")
-        print(" Oldcost = %6.4f" %(oldcost))
-        print(" Newcost = %6.4f \n" %(newcost))
-
-        if oldcost < newcost:
-            print("No improvement in cost fucntions. Don't update image.\n")
-        else:
-            print("Cost fucntions and image can be more improved.\n")
-            oldcost = newcost
-            oldimlist = newimlist
-    return oldimlist
 
 def plots(outimage, imageprm={}, filename=None,
                      angunit="mas", uvunit="ml", plotargs={'ms': 1., }):
@@ -1041,383 +988,7 @@ def plots(outimage, imageprm={}, filename=None,
         matplotlib.use(backend)
 
 
-def pipeline(
-        initimage,
-        imagefunc=iterative_imaging,
-        imageprm={},
-        imagefargs={},
-        lambl1s=[-1.],
-        lambtvs=[-1.],
-        lambtsvs=[-1.],
-        lambmems=[-1.],
-        lambcoms=[-1.],
-        lambrts=[-1.],
-        lambris=[-1.],
-        lambrss=[-1.],
-        workdir="./",
-        skip=False,
-        sumtablefile="summary.csv",
-        docv=False,
-        seed=1,
-        nfold=10,
-        cvsumtablefile="summary.cv.csv",
-        angunit="uas",
-        uvunit="gl"):
-    '''
-    A pipeline imaging function using imaging and related fucntions.
 
-    Args:
-        initimage (imdata.IMFITS object):
-            initial image
-        imagefunc (function; default=uvdata.iterative_imaging):
-            Function of imageing. It should be defined as
-                def imagefunc(initimage, imageprm, **imagefargs)
-        imageprm (dict-like; default={}):
-            parameter sets for each imaging
-        imagefargs (dict-like; default={}):
-            parameter sets for imagefunc
-        workdir (string; default = "./"):
-            The directory where images and summary files will be output.
-        sumtablefile (string; default = "summary.csv"):
-            The name of the output csv file that summerizes results.
-        docv (boolean; default = False):
-            Do cross validation
-        seed (integer; default = 1):
-            Random seed to make CV data sets.
-        nfold (integer; default = 10):
-            Number of folds in CV.
-        cvsumtablefile (string; default = "cvsummary.csv"):
-            The name of the output csv file that summerizes results of CV.
-        angunit (string; default = None):
-            Angular units for plotting results.
-        uvunit (string; default = None):
-            Units of baseline lengths for plotting results.
-
-    Returns:
-        sumtable:
-            pd.DataFrame table summerising statistical quantities of each
-            parameter set.
-        cvsumtable (if docv=True):
-            pd.DataFrame table summerising results of cross validation.
-    '''
-    if not os.path.isdir(workdir):
-        os.makedirs(workdir)
-
-    cvworkdir = os.path.join(workdir,"cv")
-    if docv:
-        if not os.path.isdir(cvworkdir):
-            os.makedirs(cvworkdir)
-
-    # Lambda Parameters
-    lambl1s = -np.sort(-np.asarray(lambl1s))
-    lambtvs = -np.sort(-np.asarray(lambtvs))
-    lambtsvs = -np.sort(-np.asarray(lambtsvs))
-    lambmems = -np.sort(-np.asarray(lambmems))
-    lambcoms = -np.sort(-np.asarray(lambcoms))
-    lambrts = -np.sort(-np.asarray(lambrts))
-    lambris = -np.sort(-np.asarray(lambris))
-    lambrss = -np.sort(-np.asarray(lambrss))
-    nl1 = len(lambl1s)
-    ntv = len(lambtvs)
-    ntsv = len(lambtsvs)
-    nmem = len(lambmems)
-    ncom = len(lambcoms)
-    nrt = len(lambrts)
-    nri = len(lambris)
-    nrs = len(lambrss)
-
-    # Summary Data
-    sumtable = pd.DataFrame()
-    if docv:
-        cvsumtable = pd.DataFrame()
-        isvistable = False
-        isamptable = False
-        isbstable = False
-        iscatable = False
-        if "vistable" in imageprm.keys():
-            if imageprm["vistable"] is not None:
-                isvistable = True
-                vistables = imageprm["vistable"].gencvtables(nfold=nfold, seed=seed)
-        if "amptable" in imageprm.keys():
-            if imageprm["amptable"] is not None:
-                isamptable = True
-                amptables = imageprm["amptable"].gencvtables(nfold=nfold, seed=seed)
-        if "bstable" in imageprm.keys():
-            if imageprm["bstable"] is not None:
-                isbstable = True
-                bstables = imageprm["bstable"].gencvtables(nfold=nfold, seed=seed)
-        if "catable" in imageprm.keys():
-            if imageprm["catable"] is not None:
-                iscatable = True
-                catables = imageprm["catable"].gencvtables(nfold=nfold, seed=seed)
-
-    # Start Imaging
-    for itsv, itv, il1, imem, icom, irt, iri, irs in itertools.product(
-            np.arange(ntsv),
-            np.arange(ntv),
-            np.arange(nl1),
-            np.arange(nmem),
-            np.arange(ncom),
-            np.arange(nrt),
-            np.arange(nri),
-            np.arange(nrs) ):
-
-        # output
-        imageprm["lambl1"] = lambl1s[il1]
-        imageprm["lambtv"] = lambtvs[itv]
-        imageprm["lambtsv"] = lambtsvs[itsv]
-        imageprm["lambmem"] = lambmems[imem]
-        imageprm["lambcom"] = lambcoms[icom]
-        imageprm["lambrt"] = lambrts[irt]
-        imageprm["lambri"] = lambris[iri]
-        imageprm["lambrs"] = lambrss[irs]
-
-        header = "tsv%02d.tv%02d.l1%02d.mem%02d.com%02d.rt%02d.ri%02d.rs%02d" % (
-                  itsv, itv, il1, imem, icom, irt, iri, irs)
-        if imageprm["lambtsv"] <= 0.0:
-            place = header.find("tsv")
-            header = header[:place] + header[place+6:]
-        if imageprm["lambtv"] <= 0.0:
-            place = header.find("tv")
-            header = header[:place] + header[place+5:]
-        if imageprm["lambl1"] <= 0.0:
-            place = header.find("l1")
-            header = header[:place] + header[place+5:]
-        if imageprm["lambmem"] <= 0.0:
-            place = header.find("mem")
-            header = header[:place] + header[place+6:]
-        if imageprm["lambcom"] <= 0.0:
-            place = header.find("com")
-            header = header[:place] + header[place+6:]
-        if imageprm["lambrt"] <= 0.0:
-            place = header.find("rt")
-            header = header[:place] + header[place+6:]
-        if imageprm["lambri"] <= 0.0:
-            place = header.find("ri")
-            header = header[:place] + header[place+6:]
-        if imageprm["lambrs"] <= 0.0:
-            place = header.find("rs")
-            header = header[:place] + header[place+6:]
-        header = header.strip(".")
-        if header is "":
-            header = "noregularizar"
-
-        # Imaging and Plotting Results
-        filename = header + ".fits"
-        filename = os.path.join(workdir, filename)
-        if (skip is False) or (os.path.isfile(filename) is False):
-            newimage = imagefunc(initimage, imageprm=imageprm, **imagefargs)
-            #for im in range(len(newimage)):
-            #    filename = header + "_%s.fits" %(im)
-            #    filename = os.path.join(workdir, filename)
-            #    newimage[im].save_fits(filename)
-        else:
-            newimage = imdata.IMFITS(filename)
-
-        filename = header + ".summary.pdf"
-        filename = os.path.join(workdir, filename)
-        '''
-        plots(newimage, imageprm, filename=filename,
-                         angunit=angunit, uvunit=uvunit)
-        '''
-        newstats = statistics(newimage, **imageprm)
-
-        # Make Summary
-        tmpsum = collections.OrderedDict()
-        tmpsum["itsv"] = itsv
-        tmpsum["itv"] = itv
-        tmpsum["il1"] = il1
-        tmpsum["imem"] = imem
-        tmpsum["icom"] = icom
-        tmpsum["irt"] = irt
-        tmpsum["iri"] = iri
-        tmpsum["irs"] = irs
-        for key in newstats.keys():
-            tmpsum[key] = newstats[key]
-
-        # Cross Validation
-        if docv:
-            # Initialize Summary Table
-            #    add keys
-            tmpcvsum = pd.DataFrame()
-            tmpcvsum["icv"] = np.arange(nfold)
-            tmpcvsum["itsv"] = np.zeros(nfold, dtype=np.int32)
-            tmpcvsum["itv"] = np.zeros(nfold, dtype=np.int32)
-            tmpcvsum["il1"] = np.zeros(nfold, dtype=np.int32)
-            tmpcvsum["imem"] = np.zeros(nfold, dtype=np.int32)
-            tmpcvsum["icom"] = np.zeros(nfold, dtype=np.int32)
-            tmpcvsum["irt"] = np.zeros(nfold, dtype=np.int32)
-            tmpcvsum["iri"] = np.zeros(nfold, dtype=np.int32)
-            tmpcvsum["irs"] = np.zeros(nfold, dtype=np.int32)
-            #
-            tmpcvsum["lambtsv"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["lambtv"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["lambl1"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["lambmem"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["lambcom"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["lambrt"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["lambri"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["lambrs"] = np.zeros(nfold, dtype=np.float64)
-            #
-            tmpcvsum["tchisq"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["trchisq"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["tchisqfcv"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["tchisqamp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["tchisqcp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["tchisqca"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["trchisqfcv"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["trchisqamp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["trchisqcp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["trchisqca"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vchisq"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vrchisq"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vchisqfcv"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vchisqamp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vchisqcp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vchisqca"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vrchisqfcv"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vrchisqamp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vrchisqcp"] = np.zeros(nfold, dtype=np.float64)
-            tmpcvsum["vrchisqca"] = np.zeros(nfold, dtype=np.float64)
-
-            #    initialize some columns
-            tmpcvsum.loc[:, "itsv"] = itsv
-            tmpcvsum.loc[:, "itv"] = itv
-            tmpcvsum.loc[:, "il1"] = il1
-            tmpcvsum.loc[:, "imem"] = imem
-            tmpcvsum.loc[:, "icom"] = icom
-            tmpcvsum.loc[:, "irt"] = irt
-            tmpcvsum.loc[:, "iri"] = iri
-            tmpcvsum.loc[:, "irs"] = irs
-            #
-            tmpcvsum.loc[:, "lambtsv"] = lambtsvs[itsv]
-            tmpcvsum.loc[:, "lambtv"] = lambtvs[itv]
-            tmpcvsum.loc[:, "lambl1"] = lambl1s[il1]
-            tmpcvsum.loc[:, "lambmem"] = lambmems[imem]
-            tmpcvsum.loc[:, "lambcom"] = lambcoms[icom]
-            tmpcvsum.loc[:, "lambrt"] = lambrts[irt]
-            tmpcvsum.loc[:, "lambri"] = lambris[iri]
-            tmpcvsum.loc[:, "lambrs"] = lambrss[irs]
-
-            #   Imaging parameters
-            cvimageprm = copy.deepcopy(imageprm)
-
-            #  N-fold CV
-            for icv in np.arange(nfold):
-                # Header of output files
-                cvheader = header+".cv%02d" % (icv)
-
-                # Generate Data sets for imaging
-                if isvistable:
-                    cvimageprm["vistable"] = vistables["t%d" % (icv)]
-                if isamptable:
-                    cvimageprm["amptable"] = amptables["t%d" % (icv)]
-                if isbstable:
-                    cvimageprm["bstable"] = bstables["t%d" % (icv)]
-                if iscatable:
-                    cvimageprm["catable"] = catables["t%d" % (icv)]
-
-                # Image Training Data
-                filename = cvheader + ".t.fits"
-                filename = os.path.join(cvworkdir, filename)
-                if (skip is False) or (os.path.isfile(filename) is False):
-                    cvnewimage = imagefunc(newimage, imageprm=cvimageprm,
-                                           **imagefargs)
-                    #cvnewimage.save_fits(filename)
-                    #for im in range(len(cvnewimage)):
-                    #    filename = cvheader + "_%s.fits" %(im)
-                    #    filename = os.path.join(workdir, filename)
-                    #    cvnewimage[im].save_fits(filename)
-                else:
-                    cvnewimage = imdata.IMFITS(filename)
-                '''
-                # Make Plots
-                filename = cvheader + ".t.summary.pdf"
-                filename = os.path.join(cvworkdir, filename)
-                plots(cvnewimage, cvimageprm, filename=filename,
-                                 angunit=angunit, uvunit=uvunit)
-                '''
-                # Check Training data
-                trainstats = statistics(cvnewimage, fulloutput=False,
-                                              **cvimageprm)
-
-                # Check validating data
-                #   Switch to Validating data
-                if isvistable:
-                    cvimageprm["vistable"] = vistables["v%d" % (icv)]
-                if isamptable:
-                    cvimageprm["amptable"] = amptables["v%d" % (icv)]
-                if isbstable:
-                    cvimageprm["bstable"] = bstables["v%d" % (icv)]
-                if iscatable:
-                    cvimageprm["catable"] = catables["v%d" % (icv)]
-                '''
-                # Make Plots
-                filename = cvheader + ".v.summary.pdf"
-                filename = os.path.join(cvworkdir, filename)
-                plots(cvnewimage, cvimageprm, filename=filename,
-                                 angunit=angunit, uvunit=uvunit)
-                '''
-                #   Check Statistics
-                validstats = statistics(cvnewimage, **cvimageprm)
-
-                #   Save Results
-                tmpcvsum.loc[icv, "tchisq"] = trainstats["chisq"]
-                tmpcvsum.loc[icv, "trchisq"] = trainstats["rchisq"]
-                tmpcvsum.loc[icv, "tchisqfcv"] = trainstats["chisqfcv"]
-                tmpcvsum.loc[icv, "tchisqamp"] = trainstats["chisqamp"]
-                tmpcvsum.loc[icv, "tchisqcp"] = trainstats["chisqcp"]
-                tmpcvsum.loc[icv, "tchisqca"] = trainstats["chisqca"]
-                tmpcvsum.loc[icv, "trchisqfcv"] = trainstats["rchisqfcv"]
-                tmpcvsum.loc[icv, "trchisqamp"] = trainstats["rchisqamp"]
-                tmpcvsum.loc[icv, "trchisqcp"] = trainstats["rchisqcp"]
-                tmpcvsum.loc[icv, "trchisqca"] = trainstats["rchisqca"]
-
-                tmpcvsum.loc[icv, "vchisq"] = validstats["chisq"]
-                tmpcvsum.loc[icv, "vrchisq"] = validstats["rchisq"]
-                tmpcvsum.loc[icv, "vchisqfcv"] = validstats["chisqfcv"]
-                tmpcvsum.loc[icv, "vchisqamp"] = validstats["chisqamp"]
-                tmpcvsum.loc[icv, "vchisqcp"] = validstats["chisqcp"]
-                tmpcvsum.loc[icv, "vchisqca"] = validstats["chisqca"]
-                tmpcvsum.loc[icv, "vrchisqfcv"] = validstats["rchisqfcv"]
-                tmpcvsum.loc[icv, "vrchisqamp"] = validstats["rchisqamp"]
-                tmpcvsum.loc[icv, "vrchisqcp"] = validstats["rchisqcp"]
-                tmpcvsum.loc[icv, "vrchisqca"] = validstats["rchisqca"]
-            # add current cv summary to the log file.
-            cvsumtable = pd.concat([cvsumtable,tmpcvsum], ignore_index=True)
-            cvsumtable.to_csv(os.path.join(workdir, cvsumtablefile))
-
-            # Average Varidation Errors and memorized them
-            tmpsum["tchisq"] = np.mean(tmpcvsum["tchisq"])
-            tmpsum["trchisq"] = np.mean(tmpcvsum["trchisq"])
-            tmpsum["tchisqfcv"] = np.mean(tmpcvsum["tchisqfcv"])
-            tmpsum["tchisqamp"] = np.mean(tmpcvsum["tchisqamp"])
-            tmpsum["tchisqcp"] = np.mean(tmpcvsum["tchisqcp"])
-            tmpsum["tchisqca"] = np.mean(tmpcvsum["tchisqca"])
-            tmpsum["trchisqfcv"] = np.mean(tmpcvsum["trchisqfcv"])
-            tmpsum["trchisqamp"] = np.mean(tmpcvsum["trchisqamp"])
-            tmpsum["trchisqcp"] = np.mean(tmpcvsum["trchisqcp"])
-            tmpsum["trchisqca"] = np.mean(tmpcvsum["trchisqca"])
-            tmpsum["vchisq"] = np.mean(tmpcvsum["vchisq"])
-            tmpsum["vrchisq"] = np.mean(tmpcvsum["vrchisq"])
-            tmpsum["vchisqfcv"] = np.mean(tmpcvsum["vchisqfcv"])
-            tmpsum["vchisqamp"] = np.mean(tmpcvsum["vchisqamp"])
-            tmpsum["vchisqcp"] = np.mean(tmpcvsum["vchisqcp"])
-            tmpsum["vchisqca"] = np.mean(tmpcvsum["vchisqca"])
-            tmpsum["vrchisqfcv"] = np.mean(tmpcvsum["vrchisqfcv"])
-            tmpsum["vrchisqamp"] = np.mean(tmpcvsum["vrchisqamp"])
-            tmpsum["vrchisqcp"] = np.mean(tmpcvsum["vrchisqcp"])
-            tmpsum["vrchisqca"] = np.mean(tmpcvsum["vrchisqca"])
-
-        # Output Summary Table
-        tmptable = pd.DataFrame([tmpsum.values()], columns=tmpsum.keys())
-        sumtable = pd.concat([sumtable, tmptable], ignore_index=True)
-        sumtable.to_csv(os.path.join(workdir, sumtablefile))
-
-    if docv:
-        return sumtable, cvsumtable
-    else:
-        return sumtable
 
 # ------------------------------------------------------------------------------
 # Subfunctions
