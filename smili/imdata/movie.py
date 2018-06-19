@@ -39,95 +39,70 @@ from . import imdata
 # IMAGEFITS (Manupulating FITS FILES)
 #-------------------------------------------------------------------------
 class MOVIE(object):
-    def __init__(self, tstart=None, tend=None, Nt=None, tint=None, tunit="sec", **imgprm):
+    def __init__(self, tstart=None, tend=None, Nt=None, format=None, **imgprm):
         '''
+        This will create a blank movie on specified time frames.
+
         Args:
-            tstart (datetime):
+            tstart (format readable with astropy.time.Time):
                 start time
             tend (datetime):
                 end time
-            tint (float):
-                constant time span of each frame (sec)
-            tunit (string):
-                unit of time difference (sec, min, hrs, day)
             Nt (integer):
                 number of frames
-            init2dim (imdata.IMFITS object):
-                initial image
+            format (string):
+                The format for tstart and tend.
+                See documentations of astropy.time.Time for available
+                data formats
+            **imgprm:
+                Parameters for the blank image at each frame.
+                See documentations for imdata.IMFITS for parameters.
         Returns:
             imdata.MOVIE object
         '''
-
-        if (tint is not None):
-            if tunit == "sec":
-                self.tint = at.TimeDelta(tint, format='sec')
-            elif tunit == "min":
-                self.tint = at.TimeDelta(tint*60, format='sec')
-            elif tunit == "hrs":
-                self.tint = at.TimeDelta(tint*3600, format='sec')
-            elif tunit == "day":
-                self.tint = at.TimeDelta(tint*3600*24, format='sec')
-        # assigning the input Nt
-
-        # Check tstart
         if tstart is None:
             raise ValueError("tstart is not specified.")
         else:
-            self.tstart = at.Time(tstart)
-        # Check tend
-        if (tend is not None) and (Nt is not None) and (tint is not None):
-            raise ValueError("All of tend, Nt and tint are specified. We need only two of them.")
-        elif (tend is None) and (Nt is not None) and (tint is not None):
-            self.Nt   = Nt
-            self.tint = self.tint
-        elif (tend is not None) and (Nt is None) and (tint is not None):
-            self.tint = self.tint
-            # Guess Nt
-            tdif = (at.Time(tend) - self.tstart)
-            self.Nt = int(tdif.sec/self.tint.value) + 1
-        elif (tend is not None) and (Nt is not None) and (tint is None):
-            self.Nt = Nt
-            # Guess tint
-            tend    = at.Time(tend)
-            tdif = (at.Time(tend) - self.tstart)
-            tint = (tdif.sec)/Nt
-            self.tint = at.TimeDelta(tint, format='sec')
-            # tintがインプットされていない場合、tunitは意味をなさないことに注意
+            self.tstart = at.Time(tstart, format=format)
+
+        if tend is None:
+            raise ValueError("tend is not specified.")
         else:
-            raise ValueError("Two of tend, Nt and tint must be specifed.")
+            self.tend = at.Time(tend, format=format)
+
+        if Nt is None:
+            raise ValueError("tstart is not specified.")
+        else:
+            self.Nt = np.int64(Nt)
+
+        tstsec = self.tstart.cxcsec
+        tedsec = self.tend.cxcsec
+        utcarr = np.linspace(tstsec,tedsec,self.Nt)
+        utcarr = at.Time(utcarr, format="cxcsec")
 
         tmtable = pd.DataFrame()
-        tmtable["utc"] = np.zeros(self.Nt)
-        for it in xrange(self.Nt):
-            tmtable.loc[it, "utc"] = it*self.tint+self.tstart
+        tmtable["utc"] = utcarr.datetime
+        tmtable["gsthour"] = utcarr.sidereal_time("apparent", "greenwich").hour
         self.timetable = tmtable
 
         # Initialize images
         self.images = [imdata.IMFITS(**imgprm) for i in xrange(self.Nt)]
 
-        # Test images
-        #beamprm={}
-        #u'minsize': 13.109819596064836, u'pa': 35.655022685947685, u'majsize': 13.109819596064836, u'angunit': 'uas'}
-        #self.images = [imdata.IMFITS(**imgprm).add_gauss(x0=0., totalflux=1., **beamprm) for i in xrange(self.Nt)]
-
     def initmovie(self,image):
         '''
         image: imdata.IMFITS
         '''
-        outmovie = copy.deepcopy(self)
-        for it in xrange(self.Nt):
-            outmovie.images[it]=image
-            outmovie.images[it].update_fits()
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [copy.deepcopy(image) for i in xrange(self.Nt)]
         return outmovie
 
-    def add_gauss(self,**beamprm):
+
+    def add_gauss(self,**gaussprm):
         '''
         add gayssian model to the initial movie
         '''
         outmovie=copy.deepcopy(self)
-        for it in xrange(self.Nt):
-            outmovie.images[it]=self.images[it].add_gauss(**beamprm)
-            outmovie.images[it].update_fits()
+        outmovie.images = [self.images[i].add_gauss(**gaussprm) for i in xrange(self.Nt)]
         return outmovie
 
 
@@ -136,95 +111,51 @@ class MOVIE(object):
         clear brightness distribution outside regions
         '''
         outmovie=copy.deepcopy(self)
-        for it in xrange(self.Nt):
-            outmovie.images[it]=self.images[it].winmod(imregion,save_totalflux)
-            outmovie.images[it].update_fits()
+        outmovie.images = [self.images[i].winmod(imregion,save_totalflux) for i in xrange(self.Nt)]
         return outmovie
 
-
-    def timetable2(self): # ilje型
-        tstart = self.tstart # at.TImeで変換済み
-        Ntr    = self.Nt
-
-        tmtable = pd.DataFrame()
-        tmtable["frame"] = np.zeros(self.Nt, dtype='int32')
-        tmtable["utc"] = np.zeros(self.Nt)
-        tmtable["gsthour"] = np.zeros(self.Nt)
-        tmtable["tint(sec)"] = np.zeros(self.Nt)
-        for i in np.arange(Ntr):
-            tmtable.loc[i, "frame"] = int(i)
-            centime = tstart + self.tint*i
-            utctime = centime.datetime
-            gsthour = centime.sidereal_time("apparent", "greenwich").hour
-            tmtable.loc[i, "utc"] = utctime
-            tmtable.loc[i, "gsthour"] = gsthour
-            tmtable.loc[i, "tint(sec)"] = self.tint
-        return tmtable
-
-
-    def tabconcat(self,dtable):
+    def set_frmidx(self,uvtable):
         '''
-        concatenate table
+        This method will put a frame index to the input uvtable, based on
+        the time table of this movie object. If list of uvtables are given,
+        they will be concatenated into a single uvtable.
 
-        Args
-            dtable:
-                vistable, amptable, bstable, catable
+        Args:
+            uvtable or list of uvtables:
+                uvtable could be vistable, amptable, bstable, catable
+        Returns:
+            concatenated uvtable
         '''
-        if (dtable is None) or (dtable is [None]):
-            print("DataFrame table is not given.")
-            return -1
-        # concatenate the multiple tables in a list
-        if type(dtable) == list:
-            tablist = dtable
-        else:
-            tablist = list([dtable])
-        frmtable = None
-        for tab in tablist:
-            if frmtable is not None:
-                frmtable = pd.concat((frmtable, tab), ignore_index=True)
-            else:
-                frmtable = tab
-        return frmtable
+        # create a table to be output
+        outtable = copy.deepcopy(uvtable)
 
+        # concat tables if list is given.
+        if type(outtable) == list:
+            outtable = pd.concat(outtable, ignore_index=True)
 
+        # time sort and re-index table
+        outtable.sort_values(by="utc", inplace=True)  # Sorting
+        outtable.reset_index(drop=True, inplace=True) # reindexing
 
-    def set_fridx(self,dtable):
-        '''
-        add the frame index to the concatenated table
-        Args
-            dtable:
-                vistable, amptable, bstable, catable
+        # get an array and non-redundant array of utc time stamps in uvtable
+        dutcarr = at.Time(np.datetime_as_string(outtable.utc.values))
+        dutcset = at.Time(np.datetime_as_string(outtable.utc.unique()))
 
-        '''
+        # get an array of utc time stamps of this movie
+        mutcarr = at.Time(np.datetime_as_string(self.timetable.utc.values))
 
-        frmtable = self.tabconcat(dtable)
+        outtable["frmidx"] = np.zeros(len(outtable.utc), dtype='int32')
+        for i in xrange(len(dutcset)):
+            deltat = mutcarr - dutcset[i]
+            deltat.format = "sec"
+            deltat = np.abs(deltat.value)
+            outtable.loc[dutcarr==dutcset[i], "frmidx"] = np.argmin(deltat)
 
-        # time of input table which DataFrame
-        attime = np.asarray(frmtable["utc"], np.str)
-        attime = at.Time(attime)
-        utctime = attime.datetime
-        # call timetable
-        tmtable = self.timetable2()
-        idx = tmtable["frame"].values
-        tmframe = np.asarray(tmtable["utc"], np.str)
-        tmframe = at.Time(tmframe)
-        tmframe = tmframe.datetime
-        # assigning the frame index
-        frmtable["frmidx"] = np.zeros(len(frmtable), dtype='int32')
-        for i in range(len(utctime)):
-            for j in range(len(idx)-1):
-                if (utctime[i] >= tmframe[j]) and (utctime[i] < tmframe[j+1]):
-                    frmtable.loc[i, "frmidx"] = idx[j]
+        outtable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"], inplace=True)
+        outtable.reset_index(drop=True, inplace=True)
+        return outtable
 
-#            if utctime[i] >= tmframe[-1]:
-#                frmtable.loc[i, "frmidx"] = idx[-1]
-
-        frmtable = frmtable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-        return frmtable
-
-
-
-    def to_movie(self, filename, vmin=0, vmax=None,vmax_type=None, **imshowprm):
+    def to_movie(self, filename, vmin=0, vmax=None, vmax_type=None, **imshowprm):
         '''
         Args:
             movie_list list(Nt*(IMFITS))?:
@@ -244,9 +175,6 @@ class MOVIE(object):
         if vmax is None:
             vmax = self.to_3darray().max()
         fig = plt.figure()
-#        plt.xlim(-xregion, xregion) # xrange
-#        plt.ylim(-yregion, yregion) # yrange
-
         with writer.saving(fig, filename, 100):  # 最後の数字が解像度?
             for it in xrange(self.Nt):  # 回数
                 if(vmax_type is "eachtime"):
