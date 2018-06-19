@@ -27,6 +27,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
 
+import astropy.time as at
+
 # internal
 from .uvtable   import UVTable, UVSeries
 from .gvistable import GVisTable, GVisSeries
@@ -1484,6 +1486,8 @@ def read_vistable(filename, uvunit=None, **args):
       uvdata.VisTable object
     '''
     table = VisTable(pd.read_csv(filename, **args))
+    if "utc" in table.columns:
+        table["utc"] = at.Time(table["utc"].values.tolist()).datetime
     table.set_uvunit()
     return table
 

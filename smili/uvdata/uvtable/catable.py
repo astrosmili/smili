@@ -23,6 +23,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
 
+import astropy.time as at
+
 # internal
 from .uvtable import UVTable, UVSeries
 from .tools import get_uvlist
@@ -575,5 +577,7 @@ def read_catable(filename, uvunit=None, **args):
       uvdata.CATable object
     '''
     table = CATable(pd.read_csv(filename, **args))
+    if "utc" in table.columns:
+        table["utc"] = at.Time(table["utc"].values.tolist()).datetime
     table.set_uvunit()
     return table
