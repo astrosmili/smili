@@ -12,7 +12,7 @@ module fftim3d
                    mem_e, mem_grade,&
                    comreg3d, zeroeps
   use image3d, only: d2, dkl, rt_d2grad, rt_dklgrad,&
-                     ri_d2grad, ri_dklgrad
+                     ri_d2grad, ri_dklgrad,calc_costs
   implicit none
 contains
 !-------------------------------------------------------------------------------
@@ -110,7 +110,9 @@ subroutine imaging(&
 
   ! chisquare and grad chisq
   real(dp) :: cost              ! cost function
+  real(dp) :: costs(10)         ! cost functions
   real(dp) :: gradcost(1:Npix*Nz)  ! its gradient
+  real(dp) :: gradcosts(1:Npix*Nz,10)  ! its gradients
 
   ! Number of Data
   integer :: Ndata, Nparm   ! number of data, parameters
@@ -234,9 +236,28 @@ subroutine imaging(&
       ! If iteration number exceeds the total iteration number, make a flag
       ! to STOP L-BFGS-B iterations
       if (isave(30) > Niter) then
+
         task='STOP: TOTAL ITERATION NUMBER EXCEEDS LIMIT'
-      else if (mod(isave(30),100) == 0) then
+      else if (mod(isave(30),10) == 0) then
         print '("Iteration :",I5,"/",I5,"  Cost :",D13.6)',isave(30),Niter,cost
+
+        ! each cost function during iterations
+        call calc_costs(&
+          Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
+          u,v,Nuvs,Nuvs_sum,&
+          lambl1,lambtv,lambtsv,lambmem,lambcom,&
+          lambrt,lambri,lambrs,&
+          fnorm,transtype,transprm,pcom,&
+          isfcv,uvidxfcv,Vfcv,Varfcv,&
+          isamp,uvidxamp,Vamp,Varamp,&
+          iscp,uvidxcp,CP,Varcp,&
+          isca,uvidxca,CA,Varca,&
+          costs,gradcosts,&
+          Nparm,Npix,Nuv,Nfcv,Namp,Ncp,Nca&
+        )
+        print '("chisq, com, l1 :",D13.6, D13.6, D13.6)',costs(1),costs(2),costs(3)
+        print '("tv,    tsv, Rt :",D13.6, D13.6, D13.6)',costs(4),costs(5),costs(6)
+        print '("Ri,    Rs      :",D13.6, D13.6, D13.6)',costs(7),costs(8)
       end if
     end if
   end do
@@ -464,43 +485,10 @@ subroutine calc_cost(&
   cost = chisq
   !write(*,*) "chisq: ", chisq
 
-  !------------------------------------
-  ! Centoroid Regularizer
-  !------------------------------------
-  ! if (lambcom > 0) then
-  !   ! initialize
-  !   !   scalars
-  !   reg = 0d0
-  !   !   allocatable arrays
-  !   allocate(gradreg(Nparm))
-  !   gradreg(:) = 0d0
-  !   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !   !$OMP   FIRSTPRIVATE(Npix,Nx,Ny,Nz,Nxref,Nyref,lambcom,Iin,xidx,yidx) &
-  !   !$OMP   PRIVATE(iz, istart, iend) &
-  !   !$OMP   REDUCTION(+: reg, gradreg)
-  !   do iz=1, Nz
-  !     istart = (iz-1)*Npix+1
-  !     iend = iz*Npix
-  !     call comreg(xidx,yidx,Nxref,Nyref,pcom,Iin(istart:iend),reg,gradreg(istart:iend),Npix)
-  !   end do
-  !   !$OMP END PARALLEL DO
-  !   cost = cost + lambcom * reg
-  !   call daxpy(Nparm, lambcom, gradreg, 1, gradcost, 1) ! gradcost := lambcom * gradreg + gradcost
-  !   deallocate(gradreg)
-  ! end if
-  !
   if (lambcom > 0) then
     ! initialize
     !   scalars
     reg = 0d0
-
-!    !   allocatable arrays
-!    allocate(gradreg_tmp(Npix))
-!    allocate(gradreg(Nparm))
-!    allocate(Iavg(Npix))
-!    Iavg(:) = 0d0
-!    gradreg_tmp(:) = 0d0
-!    gradreg(:) = 0d0
 
     !  allocatable arrays (modify)
     allocate(Iavgin(Npix,Nz))
@@ -509,15 +497,6 @@ subroutine calc_cost(&
     Iavgin(:,:)        = 0d0
     gradreg_tmpin(:,:) = 0d0
     gradreg(:) = 0d0
-
-    !
-    ! Averaged Image
-!    do iz=1, Nz
-!      Iavg = Iavg + Iin((iz-1)*Npix+1:iz*Npix)
-!    end do
-!    do ipix=1,Npix
-!      Iavg(ipix) = Iavg(ipix)/Nz
-!    end do
 
     ! Averaged Image (modify)
     do iz=1, Nz
@@ -538,14 +517,6 @@ subroutine calc_cost(&
     !$OMP   FIRSTPRIVATE(Npix,Nz,gradreg_tmp) &
     !$OMP   PRIVATE(iz, ipix, istart) &
     !$OMP   REDUCTION(+: gradreg)
-
-!    do iz=1, Nz
-!      istart = (iz-1)*Npix+1
-!      !iend = iz*Npix
-!      do ipix=1,Npix
-!        gradreg(istart+ipix-1) = gradreg_tmp(ipix)/Nz
-!      end do
-!    end do
 
     ! modify
     do iz=1, Nz

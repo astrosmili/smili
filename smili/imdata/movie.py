@@ -87,9 +87,12 @@ class MOVIE(object):
             self.Nt = int(tdif.sec/self.tint.value) + 1
         elif (tend is not None) and (Nt is not None) and (tint is None):
             self.Nt = Nt
-            tend    = at.Time(tend)
             # Guess tint
-            self.tint = (tend-self.tstart)/Nt
+            tend    = at.Time(tend)
+            tdif = (at.Time(tend) - self.tstart)
+            tint = (tdif.sec)/Nt
+            self.tint = at.TimeDelta(tint, format='sec')
+            # tintがインプットされていない場合、tunitは意味をなさないことに注意
         else:
             raise ValueError("Two of tend, Nt and tint must be specifed.")
 
@@ -107,41 +110,36 @@ class MOVIE(object):
         #u'minsize': 13.109819596064836, u'pa': 35.655022685947685, u'majsize': 13.109819596064836, u'angunit': 'uas'}
         #self.images = [imdata.IMFITS(**imgprm).add_gauss(x0=0., totalflux=1., **beamprm) for i in xrange(self.Nt)]
 
-#    def add_gauss(self,**beamprm):
-#        '''
-#        add gayssian model to the initial movie
-#        '''
-#        outfits=[self.images[it].add_gauss(**beamprm) for it in xrange(self.Nt)]
-#        self.images = outfits
-#        #return outfits
+    def initmovie(self,image):
+        '''
+        image: imdata.IMFITS
+        '''
+        outmovie = copy.deepcopy(self)
+        for it in xrange(self.Nt):
+            outmovie.images[it]=image
+            outmovie.images[it].update_fits()
+        return outmovie
 
     def add_gauss(self,**beamprm):
         '''
         add gayssian model to the initial movie
         '''
-        outfits=copy.deepcopy(self.images)
+        outmovie=copy.deepcopy(self)
         for it in xrange(self.Nt):
-            outfits[it]=self.images[it].add_gauss(**beamprm)
-            outfits[it].update_fits()
-        return outfits
+            outmovie.images[it]=self.images[it].add_gauss(**beamprm)
+            outmovie.images[it].update_fits()
+        return outmovie
 
-#    def winmod(self,imregion,**winargs):
-#        '''
-#        clear brightness distribution outside regions
-#        '''
-#        outfits=[self.images[it].winmod(imregion,**winargs) for it in xrange(self.Nt)]
-#        self.images = outfits
-#        #return outfits
 
     def winmod(self,imregion,save_totalflux=False):
         '''
         clear brightness distribution outside regions
         '''
-        outfits=copy.deepcopy(self.images)
+        outmovie=copy.deepcopy(self)
         for it in xrange(self.Nt):
-            outfits[it]=self.images[it].winmod(imregion,save_totalflux)
-            outfits[it].update_fits()
-        return outfits
+            outmovie.images[it]=self.images[it].winmod(imregion,save_totalflux)
+            outmovie.images[it].update_fits()
+        return outmovie
 
 
     def timetable2(self): # ilje型
@@ -163,18 +161,50 @@ class MOVIE(object):
             tmtable.loc[i, "tint(sec)"] = self.tint
         return tmtable
 
-    def fridx(self):
+
+    def tabconcat(self,dtable):
+        '''
+        concatenate table
+
+        Args
+            dtable:
+                vistable, amptable, bstable, catable
+        '''
+        if (dtable is None) or (dtable is [None]):
+            print("DataFrame table is not given.")
+            return -1
+        # concatenate the multiple tables in a list
+        if type(dtable) == list:
+            tablist = dtable
+        else:
+            tablist = list([dtable])
+        frmtable = None
+        for tab in tablist:
+            if frmtable is not None:
+                frmtable = pd.concat((frmtable, tab), ignore_index=True)
+            else:
+                frmtable = tab
+        return frmtable
+
+
+
+    def set_fridx(self,dtable):
         '''
         add the frame index to the concatenated table
+        Args
+            dtable:
+                vistable, amptable, bstable, catable
+
         '''
-        frmtable = self.tabconcat()
+
+        frmtable = self.tabconcat(dtable)
 
         # time of input table which DataFrame
         attime = np.asarray(frmtable["utc"], np.str)
         attime = at.Time(attime)
         utctime = attime.datetime
         # call timetable
-        tmtable = self.timetable()
+        tmtable = self.timetable2()
         idx = tmtable["frame"].values
         tmframe = np.asarray(tmtable["utc"], np.str)
         tmframe = at.Time(tmframe)
@@ -185,13 +215,16 @@ class MOVIE(object):
             for j in range(len(idx)-1):
                 if (utctime[i] >= tmframe[j]) and (utctime[i] < tmframe[j+1]):
                     frmtable.loc[i, "frmidx"] = idx[j]
-            if utctime[i] >= tmframe[-1]:
-                frmtable.loc[i, "frmidx"] = idx[-1]
+
+#            if utctime[i] >= tmframe[-1]:
+#                frmtable.loc[i, "frmidx"] = idx[-1]
+
         frmtable = frmtable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         return frmtable
 
 
-    def to_movie(self, filename, **imshowprm):
+
+    def to_movie(self, filename, vmin=0, vmax=None,vmax_type=None, **imshowprm):
         '''
         Args:
             movie_list list(Nt*(IMFITS))?:
@@ -208,13 +241,19 @@ class MOVIE(object):
         metadata = dict(title='Movie')
         writer = FFMpegWriter(fps=15, metadata=metadata)
 
+        if vmax is None:
+            vmax = self.to_3darray().max()
         fig = plt.figure()
 #        plt.xlim(-xregion, xregion) # xrange
 #        plt.ylim(-yregion, yregion) # yrange
 
-        with writer.saving(fig, filename+".mp4", 100):  # 最後の数字が解像度?
+        with writer.saving(fig, filename, 100):  # 最後の数字が解像度?
             for it in xrange(self.Nt):  # 回数
-                self.images[it].imshow(**imshowprm)
+                if(vmax_type is "eachtime"):
+                    vmax =lightcurve()[it]
+                    self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
+                else:
+                    self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
                 writer.grab_frame()
 
 

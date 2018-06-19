@@ -25,6 +25,9 @@ from astropy.convolution import convolve_fft
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+# com_position, peak_position,shift_position
+import itertools
+
 # internal
 from .. import fortlib, util
 
@@ -1228,6 +1231,92 @@ class IMFITS(object):
         # update FITS
         outfits.update_fits()
         return outfits
+
+    def com_position(self,alpha=1.,angunit="uas"):
+        '''
+        center of mass
+
+        Return
+            dix_com,diy_com
+        '''
+        # center of massの基準系原点からの位置を計算する-> dix,diyをまずは出力
+        # imageの2次元配列: image.data[0,0]
+        zeroeps=1e-10
+        Nx,Ny = self.data[0,0].shape
+        Nxref = self.header["nxref"]
+        Nyref = self.header["nyref"]
+        sumx=0
+        sumy=0
+        sumI=0
+        for ix,iy in itertools.product(xrange(Nx),xrange(Ny)):
+            # 基準系からの光度位置
+            dix  = ix-Nxref+1
+            diy  = iy-Nyref+1
+            I    = self.data[0,0][iy,ix]
+            sumx = sumx+(I**alpha)*dix
+            sumy = sumy+(I**alpha)*diy
+            sumI = sumI+I
+
+        sumI =sumI+zeroeps
+
+        unit1    = self.angunit
+        unit2    = angunit
+        conv     = util.angconv(unit1,unit2)
+
+        dix={}
+        dix["x0"]=sumx/sumI*conv
+        dix["y0"]=sumy/sumI*conv
+        dix["angunit"]=angunit
+        return dix
+
+    def peak_position(self,angunit="uas"):
+        '''
+        peak
+
+        Return
+            dix_peak,diy_peak
+        '''
+        # center of massの基準系原点からの位置を計算する-> dix,diyをまずは出力
+        # selfの2次元配列: self.data[0,0]
+
+        Nx,Ny = self.data[0,0].shape
+        Nxref = self.header["nxref"]
+        Nyref = self.header["nyref"]
+        maxI=0
+        for ix,iy in itertools.product(xrange(Nx),xrange(Ny)):
+            # 基準系からの光度位置
+            dix  = ix-Nxref+1
+            diy  = iy-Nyref+1
+            I    = self.data[0,0][iy,ix]
+            if(I>maxI):
+                dix_peak = dix
+                diy_peak = diy
+                maxI     = I
+
+        unit1    = self.angunit
+        unit2    = angunit
+
+        conv     = util.angconv(unit1,unit2)
+        dix={}
+        dix["x0"] = dix_peak*conv
+        dix["y0"] = diy_peak*conv
+        dix["angunit"]=angunit
+        return dix
+
+    def shift_position(self,x0=0.,y0=0.,angunit="uas"):
+        newimage = copy.deepcopy(self)
+        unit1 = angunit
+        unit2 = newimage.angunit
+        conv  = util.angconv(unit1,unit2)
+
+        newimage.header["nxref"]+=x0*conv
+        newimage.header["nyref"]+=y0*conv
+        newimage.update_fits()
+
+        # 基準系をimageのものに移す
+        newimage_shift = self.cpimage(newimage)
+
+        return newimage_shift
 
     def zeropad(self, Mx, My):
         '''

@@ -11,4 +11,5 @@ __author__ = "Smili Developer Team"
 
 from . import lbfgs
 from . import mfista
-from . import lbfgs_fft3d
+#from . import lbfgs_fft3d
+from . import lbfgs3d
