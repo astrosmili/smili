@@ -136,6 +136,62 @@ class MOVIE(object):
                            for i in xrange(self.Nt)]
         return outmovie
 
+    def refshift(self,x0=0.,y0=0.,angunit=None,save_totalflux=False):
+        '''
+        Shift the reference position to the specified coordinate.
+        The shift will be applied to all frames.
+
+        Args:
+          x0, y0 (float, default=0):
+            RA, Dec coordinate of the reference position
+          angunit (string, optional):
+            The angular unit of the coordinate. If not specified,
+            self.images[0].angunit will be used.
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.Movie object
+        '''
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [self.images[i].refshift(
+                                x0=x0, y0=y0, angunit=angunit,
+                                save_totalflux=save_totalflux)
+                           for i in xrange(self.Nt)]
+        return outmovie
+
+    def comshift(self, alpha=1., save_totalflux=False):
+        '''
+        Shift all images so that the center-of-mass position of the averaged
+        image will coincides with the reference pixel.
+
+        Args:
+          alpha (float):
+            if alpha != 0, then the averaged image is powered by alpha prior
+            to compute the center of the mass.
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+
+        Returns:
+          imdata.Movie object
+        '''
+        pos = self.average().compos(alpha=alpha)
+        return self.refshift(save_totalflux=save_totalflux, **pos)
+
+    def peakshift(self, save_totalflux=False, ifreq=0, istokes=0):
+        '''
+        Shift all images so that the peak position of the averaged
+        image will coincides with the reference pixel.
+
+        Arg:
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+
+        Returns:
+          imdata.Movie object
+        '''
+        pos = self.average().peakpos(alpha=alpha)
+        return self.refshift(save_totalflux=save_totalflux, **pos)
+
     def gauss_convolve(self, majsize, minsize=None, x0=None, y0=None, pa=0.0, scale=1.0, angunit=None, pos='rel', save_totalflux=False):
         '''
 
@@ -193,10 +249,12 @@ class MOVIE(object):
         outtable.reset_index(drop=True, inplace=True)
         return outtable
 
-    def to_movie(self, filename, vmin=0, vmax=None, vmax_type=None, **imshowprm):
+    def to_movie(self, filename, vmin=0, vmax=None, vmax_type=None, fps=15, dpi=100, **imshowprm):
         '''
         Args:
-            movie_list list(Nt*(IMFITS))?:
+            filename (string; mandatory):
+                output filename
+            vmin, vmax:
             logscale
             xregion, yregion
             filename
@@ -207,13 +265,12 @@ class MOVIE(object):
         FFMpegWriter = manimation.writers['ffmpeg']
         #metadata = dict(title='Movie', artist='Matplotlib',
         #                comment='Movie support!')
-        metadata = dict(title='Movie')
-        writer = FFMpegWriter(fps=15, metadata=metadata)
+        writer = FFMpegWriter(fps=fps)
 
         if vmax is None:
             vmax = self.to_3darray().max()
         fig = plt.figure()
-        with writer.saving(fig, filename, 100):  # 最後の数字が解像度?
+        with writer.saving(fig, filename, dpi):
             for it in xrange(self.Nt):  # 回数
                 if(vmax_type is "eachtime"):
                     vmax =lightcurve()[it]
