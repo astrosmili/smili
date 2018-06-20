@@ -243,6 +243,30 @@ class VisTable(UVTable):
             amptable["phase"] = np.zeros(Ndata)
             return amptable
 
+    def eval_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
+        #uvdata.VisTable object (storing model full complex visibility
+        model = self._call_fftlib3d(movie=movie,mask=mask,amptable=amptable,
+                                  istokes=istokes, ifreq=ifreq)
+
+        if not amptable:
+            modelr = model[0][2]
+            modeli = model[0][3]
+            fcv = modelr + 1j*modeli
+            amp = np.abs(fcv)
+            phase = np.angle(fcv,deg=True)
+            fcvmodel = self.copy()
+            fcvmodel["amp"] = amp
+            fcvmodel["phase"] = phase
+            return fcvmodel
+        else:
+            Ndata = model[1]
+            model = model[0][2]
+            amptable = self.copy()
+            amptable["amp"] = model
+            amptable["phase"] = np.zeros(Ndata)
+            return amptable
+
+
     def residual_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
         #uvdata VisTable object (storing residual full complex visibility)
         model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
@@ -266,6 +290,31 @@ class VisTable(UVTable):
             residtable["phase"] = np.zeros(Ndata)
 
         return residtable
+
+    def residual_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
+        #uvdata VisTable object (storing residual full complex visibility)
+        model = self._call_fftlib3d(movie=movie,mask=mask,amptable=amptable,
+                                  istokes=istokes, ifreq=ifreq)
+
+        if not amptable:
+            residr = model[0][4]
+            residi = model[0][5]
+            resid = residr + 1j*residi
+            resida = np.abs(resid)
+            residp = np.angle(resid,deg=True)
+            residtable = self.copy()
+            residtable["amp"] = resida
+            residtable["phase"] = residp
+
+        else:
+            Ndata = model[1]
+            resida = model[0][3]
+            residtable = self.copy()
+            residtable["amp"] = resida
+            residtable["phase"] = np.zeros(Ndata)
+
+        return residtable
+
 
     def chisq_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
         # calcurate chisqared and reduced chisqred.
@@ -363,13 +412,12 @@ class VisTable(UVTable):
         return model,Ndata
 
 
-    def chisq_image3d(self, imfitslist, mask=None, amptable=False, istokes=0, ifreq=0, Nt=2):
+    def chisq_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
         # calcurate chisqared and reduced chisqred.
-        model = self._call_fftlib3d(imfitslist=imfitslist,mask=mask,amptable=amptable,
-                                  istokes=istokes, ifreq=ifreq, Nt=Nt)
+        model = self._call_fftlib3d(movie=movie,mask=mask,amptable=amptable,
+                                  istokes=istokes, ifreq=ifreq)
         chisq = model[0][0]
         Ndata = model[1]
-
         if not amptable:
             rchisq = chisq/(Ndata*2)
         else:
@@ -377,16 +425,16 @@ class VisTable(UVTable):
 
         return chisq,rchisq
 
-    def _call_fftlib3d(self, imfitslist, mask, amptable, istokes=0, ifreq=0, Nt=2):
+    def _call_fftlib3d(self, movie, mask, amptable, istokes=0, ifreq=0):
         # get initial images
         istokes = istokes
-        ifreq = ifreq
-
+        ifreq  = ifreq
+        Nt     = movie.Nt
         # size of images
         Iin = []
-        for im in imfitslist:
+        for im in movie.images:
             Iin.append(np.float64(im.data[istokes, ifreq]))
-        imfits = imfitslist[0]
+        imfits = movie.images[0]
 
         Nx = imfits.header["nx"]
         Ny = imfits.header["ny"]
@@ -405,7 +453,7 @@ class VisTable(UVTable):
         # apply the imaging area
         if mask is None:
             print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
-            for i in range(len(Iin)):
+            for i in xrange(len(Iin)):
                 Iin[i] = Iin[i].reshape(Nyx)
             x = x.reshape(Nyx)
             y = y.reshape(Nyx)
@@ -414,7 +462,7 @@ class VisTable(UVTable):
         else:
             print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
             idx = np.where(mask)
-            for i in range(len(Iin)):
+            for i in xrange(len(Iin)):
                 Iin[i] = Iin[i][idx]
             x = x[idx]
             y = y[idx]
