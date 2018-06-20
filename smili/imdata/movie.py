@@ -27,7 +27,6 @@ import matplotlib.pyplot as plt
 
 # for to_movie
 import matplotlib
-matplotlib.use("Agg")
 import matplotlib.animation as manimation
 
 # for lightcurve
@@ -105,7 +104,6 @@ class MOVIE(object):
         outmovie.images = [self.images[i].add_gauss(**gaussprm) for i in xrange(self.Nt)]
         return outmovie
 
-
     def winmod(self,imregion,save_totalflux=False):
         '''
         clear brightness distribution outside regions
@@ -113,6 +111,46 @@ class MOVIE(object):
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].winmod(imregion,save_totalflux) for i in xrange(self.Nt)]
         return outmovie
+
+    def hard_threshold(self, threshold=0.01, relative=True, save_totalflux=False):
+        '''
+        hard_thresholding
+        '''
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [self.images[i].hard_threshold(
+                                threshold=threshold,
+                                relative=relative,
+                                save_totalflux=save_totalflux)
+                           for i in xrange(self.Nt)]
+        return outmovie
+
+    def soft_threshold(self, threshold=0.01, relative=True, save_totalflux=False):
+        '''
+        soft_thresholding
+        '''
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [self.images[i].soft_threshold(
+                                threshold=threshold,
+                                relative=relative,
+                                save_totalflux=save_totalflux)
+                           for i in xrange(self.Nt)]
+        return outmovie
+
+    def gauss_convolve(self, majsize, minsize=None, x0=None, y0=None, pa=0.0, scale=1.0, angunit=None, pos='rel', save_totalflux=False):
+        '''
+
+        '''
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [self.images[i].gauss_convolve(
+                                majsize=majsize,
+                                minsize=minsize,
+                                x0=x0, y0=y0,
+                                pa=pa, scale=scale,
+                                angunit=angunit, pos=pos,
+                                save_totalflux=save_totalflux)
+                           for i in xrange(self.Nt)]
+        return outmovie
+
 
     def set_frmidx(self,uvtable):
         '''
