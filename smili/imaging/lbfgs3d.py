@@ -49,7 +49,7 @@ lbfgsbprms = {
 #-------------------------------------------------------------------------
 def imaging3d(
         initmovie,
-        imagewin=None,
+        imregion=None,
         vistable=None,amptable=None, bstable=None, catable=None,
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambmem=-1.,lambcom=-1.,
         lambrt=-1.,lambri=-1.,lambrs=-1,
@@ -146,19 +146,19 @@ def imaging3d(
     dy_rad = np.deg2rad(initimage.header["dy"])
 
     # apply the imaging area
-    if imagewin is None:
+
+    if imregion is None:
         print("Imaging Window: Not Specified. We solve the image on all the pixels.")
-        for i in xrange(len(Iin)):
-            Iin[i] = Iin[i].reshape(Nyx)
+        Iin = [Iin[i].reshape(Nyx) for i in xrange(len(Iin))]
         x = x.reshape(Nyx)
         y = y.reshape(Nyx)
         xidx = xidx.reshape(Nyx)
         yidx = yidx.reshape(Nyx)
     else:
         print("Imaging Window: Specified. Images will be solved on specified pixels.")
+        imagewin = imregion.imagewin(initimage,istokes,ifreq)
         idx = np.where(imagewin)
-        for i in xrange(len(Iin)):
-            Iin[i] = Iin[i][idx]
+        Iin = [Iin[i][idx] for i in xrange(len(Iin))]
         x = x[idx]
         y = y[idx]
         xidx = xidx[idx]
@@ -352,10 +352,10 @@ def imaging3d(
     print("before import outimlist")
     ipix = 0
     for it in xrange(Nt):
-        for i in np.arange(Nyx):
+        for i in xrange(len(xidx)):
             outmovie.images[it].data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[ipix+i]
         outmovie.images[it].update_fits()
-        ipix += Nyx
+        ipix += len(xidx)
     return outmovie
 
 
