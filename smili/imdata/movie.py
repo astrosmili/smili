@@ -300,11 +300,7 @@ class MOVIE(object):
             ave_movie (np.array)
         '''
         outimage = copy.deepcopy(self.images[0])
-        aveimage = self.images[0].data[0,0,:,:]
-        for it in xrange(self.Nt):
-            aveimage += self.images[it].data[0,0,:,:]
-        aveimage /= self.Nt
-        outimage.data[0,0] = aveimage
+        outimage.data[0,0] = self.to_3darray().mean(axis=0)
         outimage.update_fits()
         return outimage
 
