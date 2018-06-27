@@ -4,8 +4,6 @@ module fftim3d
   use fftlib, only: NUFFT_fwd, NUFFT_adj, NUFFT_adj_resid, phashift_r2c,&
                     chisq_fcv, chisq_amp, chisq_ca, chisq_cp
   use image, only: I1d_I2d_fwd, I1d_I2d_inv,&
-                   log_fwd, log_grad,&
-                   gamma_fwd, gamma_grad,&
                    l1_e, l1_grade,&
                    tv_e, tv_grade,&
                    tsv_e, tsv_grade,&
@@ -161,13 +159,13 @@ subroutine imaging(&
     Ndata = Ndata + Nca
   end if
   fnorm = real(Ndata)
-  write(*,*) 'Number of Data          ', Ndata
-  write(*,*) 'Number of Paramter/frame', Npix
-  write(*,*) 'Number of Frames        ', Nz
-  write(*,*) 'Number of uv coordinates', Nuv
+  write(*,*) 'Number of Data                        ', Ndata
+  write(*,*) 'Number of Paramter/frame              ', Npix
+  write(*,*) 'Number of Image pixels                ', Nx, Ny
+  write(*,*) 'Number of Frames                      ', Nz
+  write(*,*) 'Number of non redundant uv coordinates', Nuv
 
   ! copy images (Iin -> Iout)
-  write(*,*) 'Initialize the parameter vector'
   call dcopy(Nparm,Iin,1,Iout,1)
 
   ! shift tracking center of full complex visibilities from the reference pixel
@@ -175,7 +173,7 @@ subroutine imaging(&
   allocate(Vfcv(Nfcv))
   Vfcv = dcmplx(Vfcvr,Vfcvi)
   if (isfcv .eqv. .True.) then
-    write(*,*) 'Shift Tracking Center of Full complex visibilities.'
+    write(*,*) 'Shift tracking center of full complex visibilities.'
     !$OMP PARALLEL DO DEFAULT(SHARED) &
     !$OMP   FIRSTPRIVATE(u,v,Nxref,Nyref,Nx,Ny,Nfcv) &
     !$OMP   PRIVATE(i,u_tmp,v_tmp)
@@ -200,7 +198,8 @@ subroutine imaging(&
   !-----------------------------------------------------------------------------
   ! Reweighting factor for l1, tv, tsv
   !-----------------------------------------------------------------------------
-  write(*,*) 'Reweighting:', doweight
+  write(*,*) 'Regularization Parameters'
+  write(*,*) ' Reweighting:', doweight
   write(*,*) ' lambl1 :', lambl1
   write(*,*) ' lambtv :', lambtv
   write(*,*) ' lambtsv:', lambtsv
@@ -288,6 +287,7 @@ subroutine imaging(&
   ! deallocate arrays
   deallocate(Vfcv)
   deallocate(iwa,wa,lower,upper,nbd)
+  deallocate(l1_w,tv_w,tsv_w,dt_w,di_w,dtf_w)
   where(abs(Iout)<zeroeps) Iout=0d0
 end subroutine
 !
@@ -392,6 +392,11 @@ subroutine calc_cost(&
   real(dp), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
+  write(*,*) 'Number of Paramter/frame              ', Npix, Nparm
+  write(*,*) 'Number of Image pixels                ', Nx, Ny
+  write(*,*) 'Number of Frames                      ', Nz
+  write(*,*) 'Number of non redundant uv coordinates', Nuv
+
   !------------------------------------
   ! Initialize outputs, and some parameters
   !------------------------------------
@@ -414,7 +419,7 @@ subroutine calc_cost(&
   Vcmp(:) = dcmplx(0d0,0d0)
   !
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,Nz,Npix,Nuvs,Nuvs_sum,u,v) &
+  !$OMP   FIRSTPRIVATE(Nx,Ny,Nz,Npix,Nuvs,Nuvs_sum,u,v,xidx,yidx) &
   !$OMP   PRIVATE(iz, istart, iend, I2d) &
   !$OMP   REDUCTION(+:Vcmp)
   do iz=1, Nz
@@ -562,13 +567,14 @@ subroutine calc_cost(&
   reg = 0d0
   allocate(gradreg(Nparm))
   gradreg(:) = 0d0
+  !!$OMP                xidx, yidx, l1_w, tv_w, tsv_w, dt_w, dtf_w, ent_p) &
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Npix, Nx, Ny, Nz, Nparm, Iin, Isum, &
   !$OMP                lambl1, lambtv, lambtsv, lambshe, lambgse, &
   !$OMP                lambdt, lambdtf, doweight,&
-  !$OMP                xidx, yidx, l1_w, tv_w, tsv_w, dt_w, dtf_w, ent_p) &
+  !$OMP                xidx, yidx) &
   !$OMP   PRIVATE(iz, ipix, iparm, I2d) &
-  !$OMP   REDUCTION(+: reg, gradreg)
+  !$OMP   REDUCTION(+: cost, gradcost)
   do iz=1, Nz
     ! allocate 2d image if lambtv/tsv/rt > 0
     if (lambtv > 0 .or. lambtsv > 0) then

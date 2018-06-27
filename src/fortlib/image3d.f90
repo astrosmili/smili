@@ -3,10 +3,8 @@ module image3d
   use param, only : dp, dpc, pi, i_dpc
   use fftlib, only: NUFFT_fwd, NUFFT_adj, NUFFT_adj_resid, phashift_r2c,&
                     chisq_fcv, chisq_amp, chisq_ca, chisq_cp
-  use image, only : ixiy2ixy, ixy2ixiy, comreg, zeroeps,&
+  use image, only : ixiy2ixy, ixy2ixiy, zeroeps,&
                     I1d_I2d_fwd,I1d_I2d_inv,&
-                    log_fwd, log_grad,&
-                    gamma_fwd, gamma_grad,&
                     l1_e, l1_grade,&
                     tv_e, tv_grade,&
                     tsv_e, tsv_grade
@@ -57,8 +55,8 @@ subroutine di(Iin,di_w,doweight,reg,gradreg,Nparm,Npix,Nz)
   !
   integer, intent(in) :: Npix, Nz, Nparm, doweight
   real(dp),intent(in) :: Iin(Nparm),di_w(Npix)
-  real(dp),intent(inout) :: reg
-  real(dp),intent(inout) :: gradreg(Nparm)
+  real(dp),intent(out) :: reg
+  real(dp),intent(out) :: gradreg(Nparm)
 
   real(dp) :: Iave(Npix)
   real(dp) :: Iressum(Npix)
@@ -66,6 +64,8 @@ subroutine di(Iin,di_w,doweight,reg,gradreg,Nparm,Npix,Nz)
 
   integer :: iparm, ipix, iz
 
+  reg = 0
+  gradreg(:)=0d0
   Iave(:) = 0d0
   Iressum(:) = 0d0
 

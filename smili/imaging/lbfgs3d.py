@@ -138,16 +138,16 @@ def imaging3d(
     # Sanity Check: Sort
     frmidset = []
     if vistable is not None:
-        vistable = vistable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         frmidset += vistable["frmidx"].unique().tolist()
     if amptable is not None:
-        amptable = amptable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        amptable = amptable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         frmidset += amptable["frmidx"].unique().tolist()
     if bstable is not None:
-        bstable = bstable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        bstable = bstable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         frmidset += bstable["frmidx"].unique().tolist()
     if catable is not None:
-        catable = catable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        catable = catable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         frmidset += catable["frmidx"].unique().tolist()
     frmidset = sorted(set(frmidset))
 
@@ -234,7 +234,7 @@ def imaging3d(
         }
         totalfluxdata = pd.DataFrame(totalfluxdata)
         fcvtable = pd.concat([totalfluxdata, vistable], ignore_index=True)
-        fcvtable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        fcvtable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
     else:
         print("Total Flux Constraint: disabled.")
         if vistable is None:
@@ -296,16 +296,16 @@ def imaging3d(
         varfcv[0] = np.square(fcvtable.loc[0, "amp"] / (Ndata - 1.) / len(frmidset))
 
     # Normalize Lambda
-    fluxscale = np.float64(totalflux)
+    fluxscale = np.abs(totalflux)
     fluxscale = np.abs(fluxscale) / Nyx
     #   Sparse Regularization
     if (normlambda is True) and (reweight is not True):
         lambl1_sim = lambl1 / (fluxscale * Nyx * Nt)
         lambtv_sim = lambtv / (4 * fluxscale * Nyx * Nt)
-        lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx * Nt)
-        lambdt_sim = lambdt / (2 *fluxscale**2 * Nyx * Nt)
-        lambdi_sim = lambdi / (2 *fluxscale**2 * Nyx * Nt)
-        lambdtf_sim = lambdtf / (2 *fluxscale**2 * Nt)
+        lambtsv_sim = lambtsv / (4 * fluxscale**2 * Nyx * Nt)
+        lambdt_sim = lambdt / (2 * fluxscale**2 * Nyx * Nt)
+        lambdi_sim = lambdi / (2 * fluxscale**2 * Nyx * Nt)
+        lambdtf_sim = lambdtf / (2 *totalflux**2 * Nt)
     else:
         lambl1_sim = lambl1
         lambtv_sim = lambtv
