@@ -200,31 +200,31 @@ subroutine imaging(&
   !-----------------------------------------------------------------------------
   write(*,*) 'Regularization Parameters'
   write(*,*) ' Reweighting:', doweight
-  write(*,*) ' lambl1 :', lambl1
-  write(*,*) ' lambtv :', lambtv
-  write(*,*) ' lambtsv:', lambtsv
-  write(*,*) ' lambshe:', lambshe
-  write(*,*) ' lambgse:', lambgse
-  write(*,*) ' lambdt :', lambdt
-  write(*,*) ' lambdi :', lambdi
-  write(*,*) ' lambdtf:', lambdtf
-  allocate(l1_w(Nparm),tv_w(Nparm),tsv_w(Nparm),dt_w(Nparm),di_w(Npix),dtf_w(Nz))
-  if (doweight > 0 ) then
-    write(*,*) 'Calculating re-weighting factor for l1, tv, tsv, di, dt, dtf regularizations'
-    call calc_l1_w_3d(Iin,tgtdyrange,l1_w,Nparm)
-    call calc_tv_w_3d(Iin,xidx,yidx,tgtdyrange,tv_w,Nparm,Npix,Nx,Ny,Nz)
-    call calc_tsv_w_3d(Iin,xidx,yidx,tsv_w,Nparm,Npix,Nx,Ny,Nz)
-    call calc_dt_w(Iin,dt_w,Nparm,Npix,Nz)
-    call calc_di_w(Iin,di_w,Nparm,Npix,Nz)
-    call calc_dtf_w(Iin,dtf_w,Nparm,Npix,Nz)
-  else
-    l1_w = 1
-    tv_w = 1
-    tsv_w = 1
-    dt_w = 1
-    di_w = 1
-    dtf_w = 1
-  end if
+  write(*,*) ' lambl1     :', lambl1
+  write(*,*) ' lambtv     :', lambtv
+  write(*,*) ' lambtsv    :', lambtsv
+  write(*,*) ' lambshe    :', lambshe
+  write(*,*) ' lambgse    :', lambgse
+  write(*,*) ' lambdt     :', lambdt
+  write(*,*) ' lambdi     :', lambdi
+  write(*,*) ' lambdtf    :', lambdtf
+  ! allocate(l1_w(Nparm),tv_w(Nparm),tsv_w(Nparm),dt_w(Nparm),di_w(Npix),dtf_w(Nz))
+  ! if (doweight > 0 ) then
+  !   write(*,*) 'Calculating re-weighting factor for l1, tv, tsv, di, dt, dtf regularizations'
+  !   call calc_l1_w_3d(Iin,tgtdyrange,l1_w,Nparm)
+  !   call calc_tv_w_3d(Iin,xidx,yidx,tgtdyrange,tv_w,Nparm,Npix,Nx,Ny,Nz)
+  !   call calc_tsv_w_3d(Iin,xidx,yidx,tsv_w,Nparm,Npix,Nx,Ny,Nz)
+  !   call calc_dt_w(Iin,dt_w,Nparm,Npix,Nz)
+  !   call calc_di_w(Iin,di_w,Nparm,Npix,Nz)
+  !   call calc_dtf_w(Iin,dtf_w,Nparm,Npix,Nz)
+  ! else
+  !   l1_w = 1
+  !   tv_w = 1
+  !   tsv_w = 1
+  !   dt_w = 1
+  !   di_w = 1
+  !   dtf_w = 1
+  ! end if
 
   !-------------------------------------
   ! L-BFGS-B
@@ -257,12 +257,13 @@ subroutine imaging(&
 
     if (task(1:2) == 'FG') then
       ! Calculate cost function and gradcostent of cost function
+!        doweight,l1_w,tv_w,tsv_w,dt_w,di_w,dtf_w,ent_p,&
       call calc_cost(&
         Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
         u,v,Nuvs,Nuvs_sum,&
         lambl1,lambtv,lambtsv,lambshe,lambgse,lambcom,&
         lambdt,lambdi,lambdtf,&
-        doweight,l1_w,tv_w,tsv_w,dt_w,di_w,dtf_w,ent_p,&
+        ent_p,&
         fnorm,pcom,&
         isfcv,uvidxfcv,Vfcv,Varfcv,&
         isamp,uvidxamp,Vamp,Varamp,&
@@ -287,7 +288,7 @@ subroutine imaging(&
   ! deallocate arrays
   deallocate(Vfcv)
   deallocate(iwa,wa,lower,upper,nbd)
-  deallocate(l1_w,tv_w,tsv_w,dt_w,di_w,dtf_w)
+  ! deallocate(l1_w,tv_w,tsv_w,dt_w,di_w,dtf_w)
   where(abs(Iout)<zeroeps) Iout=0d0
 end subroutine
 !
@@ -295,12 +296,13 @@ end subroutine
 ! calc cost functions
 !-------------------------------------------------------------------------------
 !
+!  doweight,l1_w,tv_w,tsv_w,dt_w,di_w,dtf_w,&
 subroutine calc_cost(&
   Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
   u,v,Nuvs,Nuvs_sum,&
   lambl1,lambtv,lambtsv,lambshe,lambgse,lambcom,&
   lambdt,lambdi,lambdtf,&
-  doweight,l1_w,tv_w,tsv_w,dt_w,di_w,dtf_w,ent_p,&
+  ent_p,&
   fnorm,pcom,&
   isfcv,uvidxfcv,Vfcv,Varfcv,&
   isamp,uvidxamp,Vamp,Varamp,&
@@ -332,15 +334,15 @@ subroutine calc_cost(&
   real(dp), intent(in) :: lambshe ! Regularization Parameter for Shannon Information Entropy
   real(dp), intent(in) :: lambgse ! Regularization Parameter for Gull & Skilling Entropy
   real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
-  real(dp), intent(in) :: lambdt  ! Regularization Parameter for Dynamical Imaging (delta-t)
-  real(dp), intent(in) :: lambdi  ! Regularization Parameter for Dynamical Imaging (delta-I)
-  real(dp), intent(in) :: lambdtf ! Regularization Parameter for Dynamical Imaging (entropy continuity)
+  real(dp), intent(in) :: lambdt  ! Regularization Parameter for Delta-T (D2)
+  real(dp), intent(in) :: lambdi  ! Regularization Parameter for Delta-I (D2)
+  real(dp), intent(in) :: lambdtf ! Regularization Parameter for Delta-TF (D2)
 
   ! Reweighting
-  integer,  intent(in) :: doweight ! if postive, reweight l1,tsv,tv terms
-  real(dp), intent(in) :: l1_w(Nparm), tv_w(Nparm), tsv_w(Nparm) ! reweight
-  real(dp), intent(in) :: dt_w(Nparm), di_w(Npix), dtf_w(Nz) ! reweight
-  real(dp), intent(in) :: ent_p(Npix) ! prior image for the maximum entropy method (she, gse)
+!  integer,  intent(in) :: doweight ! if postive, reweight l1,tsv,tv terms
+!  real(dp), intent(in) :: l1_w(Nparm), tv_w(Nparm), tsv_w(Nparm) ! reweight
+!  real(dp), intent(in) :: dt_w(Nparm), di_w(Npix), dtf_w(Nz) ! reweight
+  real(dp), intent(in) :: ent_p(Npix) ! prior image for MEM
 
   ! Imaging Parameter
   real(dp), intent(in) :: fnorm     ! normalization factor for chisquare
@@ -391,11 +393,6 @@ subroutine calc_cost(&
   real(dp), allocatable :: gradreg(:)
   real(dp), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
-
-  write(*,*) 'Number of Paramter/frame              ', Npix, Nparm
-  write(*,*) 'Number of Image pixels                ', Nx, Ny
-  write(*,*) 'Number of Frames                      ', Nz
-  write(*,*) 'Number of non redundant uv coordinates', Nuv
 
   !------------------------------------
   ! Initialize outputs, and some parameters
@@ -522,8 +519,11 @@ subroutine calc_cost(&
 
     ! calc cost and its gradient (modify)
     call comreg3d(xidx,yidx,Nxref,Nyref,pcom,Iin,reg,gradreg,Npix,Nz,Nparm)
+
+    ! update cost
     cost = cost + lambcom * reg
-    call daxpy(Nparm, lambcom, gradreg, 1, gradcost, 1) ! gradcost := lambcom * gradreg + gradcost
+    !   gradcost := lambcom * gradreg + gradcost
+    call daxpy(Nparm, lambcom, gradreg, 1, gradcost, 1)
 
     !print '("cost com :",D13.6,"*",D13.6,"=",D13.6)',lambcom,reg,lambcom*reg
     ! deallocate array
@@ -542,9 +542,15 @@ subroutine calc_cost(&
     gradreg(:) = 0d0
 
     ! calc cost and its gradient (modify)
-    call di(Iin,di_w,doweight,reg,gradreg,Nparm,Npix,Nz)
+    !call di(Iin,di_w,doweight,reg,gradreg,Nparm,Npix,Nz)
+    allocate(Isum(Npix)) ! this is dammy arrays
+    call di(Iin,Isum,-1,reg,gradreg,Nparm,Npix,Nz)
+    deallocate(Isum)
+
+    ! Update cost
     cost = cost + lambdi * reg
-    call daxpy(Nparm, lambdi, gradreg, 1, gradcost, 1) ! gradcost := lambdi * gradreg + gradcost
+    !    gradcost := lambdi * gradreg + gradcost
+    call daxpy(Nparm, lambdi, gradreg, 1, gradcost, 1)
     !print '("cost DI :",D13.6,"*",D13.6,"=",D13.6)',lambdi,reg,lambdi * reg
 
     ! deallocate array
@@ -564,101 +570,135 @@ subroutine calc_cost(&
     allocate(I2d(Nx,Ny))
   end if
 
-  reg = 0d0
-  allocate(gradreg(Nparm))
-  gradreg(:) = 0d0
   !!$OMP                xidx, yidx, l1_w, tv_w, tsv_w, dt_w, dtf_w, ent_p) &
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Npix, Nx, Ny, Nz, Nparm, Iin, Isum, &
   !$OMP                lambl1, lambtv, lambtsv, lambshe, lambgse, &
-  !$OMP                lambdt, lambdtf, doweight,&
+  !$OMP                lambdt, lambdtf, &
   !$OMP                xidx, yidx) &
-  !$OMP   PRIVATE(iz, ipix, iparm, I2d) &
+  !$OMP   PRIVATE(iz, ipix, iparm, I2d, istart, iend) &
   !$OMP   REDUCTION(+: cost, gradcost)
   do iz=1, Nz
+    istart = (iz-1)*Npix+1
+    iend = iz*Npix
+
     ! allocate 2d image if lambtv/tsv/rt > 0
     if (lambtv > 0 .or. lambtsv > 0) then
       I2d(:,:)=0d0
-      call I1d_I2d_fwd(xidx,yidx,Iin((iz-1)*Npix+1:iz*Npix),I2d,Npix,Nx,Ny)
+      call I1d_I2d_fwd(xidx,yidx,Iin(istart:iend),I2d,Npix,Nx,Ny)
     end if
 
     ! total flux regularization
     if (lambdtf > 0) then
-      if (doweight > 0) then
-        cost = cost + lambdtf * dtf_w(iz) * dtf_e(iz, Isum, Nz)
-        gradcost((iz-1)*Npix+1:iz*Npix) = gradcost((iz-1)*Npix+1:iz*Npix)&
-                                        + lambdtf*dtf_w(iz)*dtf_grade(iz,Isum,Nz)
-      else
-        cost = cost + lambdtf * dtf_e(iz, Isum, Nz)
-        gradcost((iz-1)*Npix+1:iz*Npix) = gradcost((iz-1)*Npix+1:iz*Npix)&
-                                        + lambdtf*dtf_grade(iz,Isum,Nz)
-      end if
+      ! if (doweight > 0) then
+      !   cost = cost + lambdtf * dtf_w(iz) * dtf_e(iz, Isum, Nz)
+      !   gradcost(istart:iend) = gradcost(istart:iend)&
+      !                         + lambdtf*dtf_w(iz)*dtf_grade(iz,Isum,Nz)
+      ! else
+      !   cost = cost + lambdtf * dtf_e(iz, Isum, Nz)
+      !   gradcost(istart:iend) = gradcost(istart:iend)&
+      !                         + lambdtf*dtf_grade(iz,Isum,Nz)
+      ! end if
+      cost = cost + lambdtf * dtf_e(iz, Isum, Nz)
+      gradcost(istart:iend) = gradcost(istart:iend)&
+                            + lambdtf*dtf_grade(iz,Isum,Nz)
     end if
 
     ! compute regularization function
     do ipix=1, Npix
       call ixy2ixiy(ipix,iz,iparm,Npix)
       ! Compute L1, TV, TSV, DT, DI
-      if (doweight > 0) then
-        ! L1
-        if (lambl1 > 0) then
-          cost = cost + lambl1 * l1_w(iparm) * l1_e(Iin(iparm))
-          gradcost(iparm) = gradcost(iparm) + lambl1 * l1_w(iparm) * l1_grade(Iin(iparm))
-        end if
+      ! if (doweight > 0) then
+      !   ! L1
+      !   if (lambl1 > 0) then
+      !     cost = cost + lambl1 * l1_w(iparm) * l1_e(Iin(iparm))
+      !     gradcost(iparm) = gradcost(iparm)&
+      !                     + lambl1 * l1_w(iparm) * l1_grade(Iin(iparm))
+      !   end if
+      !
+      !   ! TV
+      !   if (lambtv > 0) then
+      !     cost = cost + lambtv * tv_w(iparm) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !     gradcost(iparm) = gradcost(iparm) &
+      !                     + lambtv * tv_w(iparm) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !   end if
+      !
+      !   ! TSV
+      !   if (lambtsv > 0) then
+      !     cost = cost + lambtsv * tsv_w(iparm) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !     gradcost(iparm) = gradcost(iparm) &
+      !                     + lambtsv * tsv_w(iparm) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !   end if
+      !
+      !   ! Delta T dynamical regularization
+      !   if (lambdt > 0) then
+      !     cost = cost + lambdt * dt_w(iparm) * dt_e(iparm,iz,Iin,Npix,Nz,Nparm)
+      !     gradcost(iparm) = gradcost(iparm) + lambdt * dt_w(iparm) * dt_grade(iparm,iz,Iin,Npix,Nz,Nparm)
+      !   end if
+      ! else
+      !   ! L1
+      !   if (lambl1 > 0) then
+      !     cost = cost + lambl1 * l1_e(Iin(iparm))
+      !     gradcost(iparm) = gradcost(iparm) + lambl1 * l1_grade(Iin(iparm))
+      !   end if
+      !
+      !   ! TV
+      !   if (lambtv > 0) then
+      !     cost = cost + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !     gradcost(iparm) = gradcost(iparm) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !   end if
+      !
+      !   ! TSV
+      !   if (lambtsv > 0) then
+      !     cost = cost + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !     gradcost(iparm) = gradcost(iparm) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      !   end if
+      !
+      !   ! Delta T dynamical regularization
+      !   if (lambdt > 0) then
+      !     cost = cost + lambdt * dt_e(iparm,iz,Iin,Npix,Nz,Nparm)
+      !     gradcost(iparm) = gradcost(iparm) + lambdt * dt_grade(iparm,iz,Iin,Npix,Nz,Nparm)
+      !   end if
+      ! end if
+      ! L1
+      if (lambl1 > 0) then
+        cost = cost + lambl1 * l1_e(Iin(iparm))
+        gradcost(iparm) = gradcost(iparm) + lambl1 * l1_grade(Iin(iparm))
+      end if
 
-        ! TV
-        if (lambtv > 0) then
-          cost = cost + lambtv * tv_w(iparm) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtv * tv_w(iparm) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        end if
+      ! TV
+      if (lambtv > 0) then
+        cost = cost + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradcost(iparm) = gradcost(iparm) + &
+                          lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      end if
 
-        ! TSV
-        if (lambtsv > 0) then
-          cost = cost + lambtsv * tsv_w(iparm) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtsv * tsv_w(iparm) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        end if
+      ! TSV
+      if (lambtsv > 0) then
+        cost = cost + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradcost(iparm) = gradcost(iparm) + &
+                          lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      end if
 
-        ! Delta T dynamical regularization
-        if (lambdt > 0) then
-          cost = cost + lambdt * dt_w(iparm) * dt_e(iparm,iz,Iin,Npix,Nz,Nparm)
-          gradcost(iparm) = gradcost(iparm) + lambdt * dt_w(iparm) * dt_grade(iparm,iz,Iin,Npix,Nz,Nparm)
-        end if
-      else
-        ! L1
-        if (lambl1 > 0) then
-          cost = cost + lambl1 * l1_e(Iin(iparm))
-          gradcost(iparm) = gradcost(iparm) + lambl1 * l1_grade(Iin(iparm))
-        end if
-
-        ! TV
-        if (lambtv > 0) then
-          cost = cost + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        end if
-
-        ! TSV
-        if (lambtsv > 0) then
-          cost = cost + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        end if
-
-        ! Delta T dynamical regularization
-        if (lambdt > 0) then
-          cost = cost + lambdt * dt_e(iparm,iz,Iin,Npix,Nz,Nparm)
-          gradcost(iparm) = gradcost(iparm) + lambdt * dt_grade(iparm,iz,Iin,Npix,Nz,Nparm)
-        end if
+      ! Delta T dynamical regularization
+      if (lambdt > 0) then
+        cost = cost + lambdt * dt_e(iparm,iz,Iin,Npix,Nz,Nparm)
+        gradcost(iparm) = gradcost(iparm) + &
+                          lambdt * dt_grade(iparm,iz,Iin,Npix,Nz,Nparm)
       end if
 
       ! Shannon Entropy
       if (lambshe > 0) then
         cost = cost + lambshe * she_e(Iin(iparm),ent_p(ipix))
-        gradcost(iparm) = gradcost(iparm) + lambshe * she_grade(Iin(iparm),ent_p(ipix))
+        gradcost(iparm) = gradcost(iparm) + &
+                          lambshe * she_grade(Iin(iparm),ent_p(ipix))
       end if
 
       ! Gull & Skilling Entropy
       if (lambgse > 0) then
         cost = cost + lambgse * gse_e(Iin(iparm),ent_p(ipix))
-        gradcost(iparm) = gradcost(iparm) + lambgse * gse_grade(Iin(iparm),ent_p(ipix))
+        gradcost(iparm) = gradcost(iparm) + &
+                          lambgse * gse_grade(Iin(iparm),ent_p(ipix))
       end if
     end do
   end do

@@ -212,11 +212,13 @@ def imaging3d(
     if totalflux is None:
         totalflux = []
         if vistable is not None:
-            frmids = vistable["frmidx"].unique().tolist()
-            totalflux.append(np.median([vistable.loc[vistable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
+            #frmids = vistable["frmidx"].unique().tolist()
+            #totalflux.append(np.median([vistable.loc[vistable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
+            totalflux.append(vistable.amp.max())
         if amptable is not None:
-            frmids = amptable["frmidx"].unique().tolist()
-            totalflux.append(np.median([amptable.loc[amptable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
+            #frmids = amptable["frmidx"].unique().tolist()
+            #totalflux.append(np.median([amptable.loc[amptable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
+            totalflux.append(amptable.amp.max())
         totalflux = np.max(totalflux)
         print("estimated total flux: %f Jy"%(totalflux))
 
@@ -303,16 +305,16 @@ def imaging3d(
         lambl1_sim = lambl1 / (fluxscale * Nyx * Nt)
         lambtv_sim = lambtv / (4 * fluxscale * Nyx * Nt)
         lambtsv_sim = lambtsv / (4 * fluxscale**2 * Nyx * Nt)
-        lambdt_sim = lambdt / (2 * fluxscale**2 * Nyx * Nt)
-        lambdi_sim = lambdi / (2 * fluxscale**2 * Nyx * Nt)
-        lambdtf_sim = lambdtf / (2 *totalflux**2 * Nt)
+#        lambdt_sim = lambdt / (2 * fluxscale**2 * Nyx * Nt)
+#        lambdi_sim = lambdi / (2 * fluxscale**2 * Nyx * Nt)
+#        lambdtf_sim = lambdtf / (2 *totalflux**2 * Nt)
     else:
         lambl1_sim = lambl1
         lambtv_sim = lambtv
         lambtsv_sim = lambtsv
-        lambdt_sim = lambdt
-        lambdi_sim = lambdi
-        lambdtf_sim = lambdtf
+    lambdt_sim = lambdt
+    lambdi_sim = lambdi
+    lambdtf_sim = lambdtf
     #   Maximum Entropy Methods
     if (normlambda is True):
         lambshe_sim = lambshe / np.abs((fluxscale*np.log(fluxscale)+1/np.e) * Nyx * Nt)
