@@ -343,8 +343,8 @@ def imaging3d(
         doweight=-1
 
     # maximum entropy prior
-    Pin = Iin.copy()
-    Pin[:] = 1
+    Pin = np.zeros(len(xidx))
+    Pin[:] = 1.
 
     # run imaging
     Iout = fortlib.fftim3d.imaging(
