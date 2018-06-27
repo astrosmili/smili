@@ -36,7 +36,6 @@ from .catable   import CATable, CASeries
 from .bstable   import BSTable, BSSeries
 from .tools import get_uvlist, get_uvlist_loop
 from ... import imdata, fortlib
-
 # ------------------------------------------------------------------------------
 # Classes
 # ------------------------------------------------------------------------------
@@ -409,7 +408,49 @@ class VisTable(UVTable):
                     varfcv=np.float64(varfcv)
                     )
 
-        return model,Ndata
+            return model,Ndata
+
+        else:
+            Ndata = 0
+            amptable = self.copy()
+            dammyreal = np.zeros(1, dtype=np.float64)
+            vfcvr = dammyreal
+            vfcvi = dammyreal
+            varfcv = dammyreal
+            vamp = np.array(amptable["amp"], dtype=np.float64)
+            varamp = np.square(np.array(amptable["sigma"], dtype=np.float64))
+            Ndata += len(vamp)
+
+            # get uv coordinates and uv indice
+            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
+                    fcvtable=None, amptable=amptable, bstable=None, catable=None
+                    )
+
+            # normalize u, v coordinates
+            u *= 2*np.pi*dx_rad
+            v *= 2*np.pi*dy_rad
+
+            # run model_fcv
+            model = fortlib.fftlib.model_amp(
+                    # Images
+                    iin=np.float64(Iin),
+                    xidx=np.int32(xidx),
+                    yidx=np.int32(yidx),
+                    nxref=np.float64(Nxref),
+                    nyref=np.float64(Nyref),
+                    nx=np.int32(Nx),
+                    ny=np.int32(Ny),
+                    # UV coordinates,
+                    u=u,
+                    v=v,
+                    # Full Complex Visibilities
+                    uvidxamp=np.int32(uvidxamp),
+                    vamp=np.float64(vamp),
+                    varamp=np.float64(varamp)
+                    )
+            return model,Ndata
+
+
 
 
     def chisq_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
@@ -766,6 +807,7 @@ class VisTable(UVTable):
         keys+= "st1name,st2name,st3name,"
         keys+= "u12,v12,w12,u23,v23,w23,u31,v31,w31,"
         keys+= "amp,phase,sigma"
+        #keys+="frmidx"
         keys = keys.split(",")
         outtab = {}
         for key in keys:
@@ -799,6 +841,7 @@ class VisTable(UVTable):
                 amp = bl1tab.loc[0,"amp"] * bl2tab.loc[0,"amp"] * bl3tab.loc[0,"amp"]
                 phase = bl1tab.loc[0,"phase"] + bl2tab.loc[0,"phase"] - bl3tab.loc[0,"phase"]
                 sigma = amp * np.sqrt((ratio_1)**2 + (ratio_2)**2 + (ratio_3)**2)
+
                 #
                 outtab["utc"].append(utc)
                 outtab["gsthour"].append(gsthour)
@@ -826,6 +869,10 @@ class VisTable(UVTable):
                 outtab["phase"].append(phase)
                 outtab["sigma"].append(sigma)
 
+                #if(movie is None):
+                #    frmidx = 0
+                #    outtab["frmidx"].append(frmidx)
+
         print("(5/5) Creating BSTable object")
         # Calculate UV Distance
         outtab = pd.DataFrame(outtab)
@@ -843,6 +890,9 @@ class VisTable(UVTable):
         for i in xrange(len(BSTable.bstable_columns)):
             column = BSTable.bstable_columns[i]
             outtab[column] = BSTable.bstable_types[i](outtab[column])
+
+            #if (movie is not None):
+            #    outtab = movie.set_frmidx(outtab)
         return outtab
 
     def make_catable(self, redundant=None, debias=True):
