@@ -11,7 +11,7 @@ module fftim3d
                    tsv_e, tsv_grade,&
                    she_e, she_grade,&
                    gse_e, gse_grade,&
-                   zeroeps
+                   zeroeps, ixy2ixiy, ixiy2ixy
   use image3d, only: di, comreg3d,&
                      dt_e, dt_grade, &
                      dtf_e, dtf_grade, &
@@ -200,7 +200,16 @@ subroutine imaging(&
   !-----------------------------------------------------------------------------
   ! Reweighting factor for l1, tv, tsv
   !-----------------------------------------------------------------------------
-  allocate(l1_w(Nparm),tv_w(Nparm),tsv_w(Nparm),dt_w(Nparm),di_w(Nparm),dtf_w(Nz))
+  write(*,*) 'Reweighting:', doweight
+  write(*,*) ' lambl1 :', lambl1
+  write(*,*) ' lambtv :', lambtv
+  write(*,*) ' lambtsv:', lambtsv
+  write(*,*) ' lambshe:', lambshe
+  write(*,*) ' lambgse:', lambgse
+  write(*,*) ' lambdt :', lambdt
+  write(*,*) ' lambdi :', lambdi
+  write(*,*) ' lambdtf:', lambdtf
+  allocate(l1_w(Nparm),tv_w(Nparm),tsv_w(Nparm),dt_w(Nparm),di_w(Npix),dtf_w(Nz))
   if (doweight > 0 ) then
     write(*,*) 'Calculating re-weighting factor for l1, tv, tsv, di, dt, dtf regularizations'
     call calc_l1_w_3d(Iin,tgtdyrange,l1_w,Nparm)
@@ -267,28 +276,9 @@ subroutine imaging(&
       ! If iteration number exceeds the total iteration number, make a flag
       ! to STOP L-BFGS-B iterations
       if (isave(30) > Niter) then
-
         task='STOP: TOTAL ITERATION NUMBER EXCEEDS LIMIT'
       else if (mod(isave(30),10) == 0) then
         print '("Iteration :",I5,"/",I5,"  Cost :",D13.6)',isave(30),Niter,cost
-
-        ! ! each cost function during iterations
-        ! call calc_costs(&
-        !   Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
-        !   u,v,Nuvs,Nuvs_sum,&
-        !   lambl1,lambtv,lambtsv,lambmem,lambcom,&
-        !   lambdt,lambdi,lambdtf,&
-        !   fnorm,pcom,&
-        !   isfcv,uvidxfcv,Vfcv,Varfcv,&
-        !   isamp,uvidxamp,Vamp,Varamp,&
-        !   iscp,uvidxcp,CP,Varcp,&
-        !   isca,uvidxca,CA,Varca,&
-        !   costs,gradcosts,&
-        !   Nparm,Npix,Nuv,Nfcv,Namp,Ncp,Nca&
-        ! )
-        ! print '("chisq, com, l1 :",D13.6, D13.6, D13.6)',costs(1),costs(2),costs(3)
-        ! print '("tv,    tsv, Rt :",D13.6, D13.6, D13.6)',costs(4),costs(5),costs(6)
-        ! print '("Ri,    Rs      :",D13.6, D13.6, D13.6)',costs(7),costs(8)
       end if
     end if
   end do
@@ -342,9 +332,9 @@ subroutine calc_cost(&
   real(dp), intent(in) :: lambshe ! Regularization Parameter for Shannon Information Entropy
   real(dp), intent(in) :: lambgse ! Regularization Parameter for Gull & Skilling Entropy
   real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
-  real(dp), intent(in) :: lambdt    ! Regularization Parameter for Dynamical Imaging (delta-t)
-  real(dp), intent(in) :: lambdi    ! Regularization Parameter for Dynamical Imaging (delta-I)
-  real(dp), intent(in) :: lambdtf    ! Regularization Parameter for Dynamical Imaging (entropy continuity)
+  real(dp), intent(in) :: lambdt  ! Regularization Parameter for Dynamical Imaging (delta-t)
+  real(dp), intent(in) :: lambdi  ! Regularization Parameter for Dynamical Imaging (delta-I)
+  real(dp), intent(in) :: lambdtf ! Regularization Parameter for Dynamical Imaging (entropy continuity)
 
   ! Reweighting
   integer,  intent(in) :: doweight ! if postive, reweight l1,tsv,tv terms
@@ -420,6 +410,7 @@ subroutine calc_cost(&
   ! Forward Non-unifrom Fast Fourier Transform
   !   allocatable arrays
   allocate(Vcmp(Nuv))
+  allocate(I2d(Nx,Ny))
   Vcmp(:) = dcmplx(0d0,0d0)
   !
   !$OMP PARALLEL DO DEFAULT(SHARED) &
@@ -430,7 +421,6 @@ subroutine calc_cost(&
     ! If there is a data corresponding to this frame
     if (Nuvs(iz) /= 0) then
       ! allocate 2D image for imaging
-      allocate(I2d(Nx,Ny))
       I2d(:,:) = 0d0
       call I1d_I2d_fwd(xidx,yidx,Iin((iz-1)*Npix+1:iz*Npix),I2d,Npix,Nx,Ny)
 
@@ -441,12 +431,12 @@ subroutine calc_cost(&
       ! run forward NUFFT
       call NUFFT_fwd(u(istart:iend),v(istart:iend),I2d,Vcmp(istart:iend),&
                      Nx,Ny,Nuvs(iz))
-
-      ! deallocate array
-      deallocate(I2d)
     end if
   end do
   !$OMP END PARALLEL DO
+
+  ! deallocate array
+  deallocate(I2d)
 
   ! allocate arrays for residuals
   allocate(Vresre(Nuv), Vresim(Nuv))
@@ -456,42 +446,47 @@ subroutine calc_cost(&
   ! Full complex visibility
   if (isfcv .eqv. .True.) then
     call chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,fnorm,chisq,Vresre,Vresim,Nuv,Nfcv)
+    !print '("chisq fcv :",D13.6)',chisq
   end if
 
   ! Amplitudes
   if (isamp .eqv. .True.) then
     call chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,fnorm,chisq,Vresre,Vresim,Nuv,Namp)
+    !print '("chisq amp :",D13.6)',chisq
   end if
 
   ! Log closure amplitudes
   if (isca .eqv. .True.) then
     call chisq_ca(Vcmp,uvidxca,CA,Varca,fnorm,chisq,Vresre,Vresim,Nuv,Nca)
+    !print '("chisq ca :",D13.6)',chisq
   end if
 
   ! Closure phases
   if (iscp .eqv. .True.) then
     call chisq_cp(Vcmp,uvidxcp,CP,Varcp,fnorm,chisq,Vresre,Vresim,Nuv,Ncp)
+    !print '("chisq cp :",D13.6)',chisq
   end if
   deallocate(Vcmp)
+  !print '("chisq total :",D13.6)',chisq
 
   ! Adjoint Non-unifrom Fast Fourier Transform
   !  this will provide gradient of chisquare functions
+  ! allocate 2D image for imaging
+  allocate(gradchisq2d(Nx,Ny))
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,Nz,Npix,Nuvs,Nuvs_sum,u,v,Vresre,Vresim) &
+  !$OMP   FIRSTPRIVATE(Nx,Ny,Nz,Npix,Nuvs,Nuvs_sum,u,v,xidx,yidx,Vresre,Vresim) &
   !$OMP   PRIVATE(iz, istart, iend, gradchisq2d) &
   !$OMP   REDUCTION(+:gradcost)
   do iz=1, Nz
     ! If there is a data corresponding to this frame
     if(Nuvs(iz) /= 0) then
-      ! allocate 2D image for imaging
-      allocate(gradchisq2d(Nx,Ny))
-      gradchisq2d(:,:) = 0d0
 
       ! Index of data
       istart = Nuvs_sum(iz) + 1
       iend   = Nuvs_sum(iz) + Nuvs(iz)
 
       ! run adujoint NUFFT
+      gradchisq2d(:,:) = 0d0
       call NUFFT_adj_resid(u(istart:iend),v(istart:iend),&
                            Vresre(istart:iend),Vresim(istart:iend),&
                            gradchisq2d,Nx,Ny,Nuvs(iz))
@@ -499,12 +494,11 @@ subroutine calc_cost(&
       ! copy the gradient of chisquare into that of cost functions
       call I1d_I2d_inv(xidx,yidx,gradcost((iz-1)*Npix+1:iz*Npix),&
                        gradchisq2d,Npix,Nx,Ny)
-
-      ! deallocate array
-      deallocate(gradchisq2d)
     end if
   end do
   !$OMP END PARALLEL DO
+  ! deallocate array
+  deallocate(gradchisq2d)
   deallocate(Vresre,Vresim)
 
   ! copy the chisquare into that of cost functions
@@ -526,6 +520,7 @@ subroutine calc_cost(&
     cost = cost + lambcom * reg
     call daxpy(Nparm, lambcom, gradreg, 1, gradcost, 1) ! gradcost := lambcom * gradreg + gradcost
 
+    !print '("cost com :",D13.6,"*",D13.6,"=",D13.6)',lambcom,reg,lambcom*reg
     ! deallocate array
     deallocate(gradreg)
   end if
@@ -545,6 +540,7 @@ subroutine calc_cost(&
     call di(Iin,di_w,doweight,reg,gradreg,Nparm,Npix,Nz)
     cost = cost + lambdi * reg
     call daxpy(Nparm, lambdi, gradreg, 1, gradcost, 1) ! gradcost := lambdi * gradreg + gradcost
+    !print '("cost DI :",D13.6,"*",D13.6,"=",D13.6)',lambdi,reg,lambdi * reg
 
     ! deallocate array
     deallocate(gradreg)
@@ -559,17 +555,23 @@ subroutine calc_cost(&
     Isum = sum(reshape(Iin,(/Npix,Nz/)),1)
   end if
 
+  if (lambtv > 0 .or. lambtsv > 0) then
+    allocate(I2d(Nx,Ny))
+  end if
+
+  reg = 0d0
+  allocate(gradreg(Nparm))
+  gradreg(:) = 0d0
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Npix, Nx, Ny, Nz, Nparm, Iin, Isum, &
-  !$OMP                lambl1, lambshe, lambgse, lambtv, lambtsv,&
-  !$OMP                lambdt, lambdi, lambdtf,&
-  !$OMP                xidx, yidx, l1_w, tv_w, tsv_w, di_w, dt_w, dtf_w, ent_p) &
+  !$OMP                lambl1, lambtv, lambtsv, lambshe, lambgse, &
+  !$OMP                lambdt, lambdtf, doweight,&
+  !$OMP                xidx, yidx, l1_w, tv_w, tsv_w, dt_w, dtf_w, ent_p) &
   !$OMP   PRIVATE(iz, ipix, iparm, I2d) &
-  !$OMP   REDUCTION(+: cost, gradcost)
+  !$OMP   REDUCTION(+: reg, gradreg)
   do iz=1, Nz
     ! allocate 2d image if lambtv/tsv/rt > 0
     if (lambtv > 0 .or. lambtsv > 0) then
-      allocate(I2d(Nx,Ny))
       I2d(:,:)=0d0
       call I1d_I2d_fwd(xidx,yidx,Iin((iz-1)*Npix+1:iz*Npix),I2d,Npix,Nx,Ny)
     end if
@@ -589,6 +591,7 @@ subroutine calc_cost(&
 
     ! compute regularization function
     do ipix=1, Npix
+      call ixy2ixiy(ipix,iz,iparm,Npix)
       ! Compute L1, TV, TSV, DT, DI
       if (doweight > 0) then
         ! L1
@@ -599,14 +602,14 @@ subroutine calc_cost(&
 
         ! TV
         if (lambtv > 0) then
-          cost = cost + lambtv * tv_w(iparm) * tv_e(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtv * tv_w(iparm) * tv_grade(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
+          cost = cost + lambtv * tv_w(iparm) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+          gradcost(iparm) = gradcost(iparm) + lambtv * tv_w(iparm) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
         end if
 
         ! TSV
         if (lambtsv > 0) then
-          cost = cost + lambtsv * tsv_w(iparm) * tsv_e(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtsv * tsv_w(iparm) * tsv_grade(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
+          cost = cost + lambtsv * tsv_w(iparm) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+          gradcost(iparm) = gradcost(iparm) + lambtsv * tsv_w(iparm) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
         end if
 
         ! Delta T dynamical regularization
@@ -623,14 +626,14 @@ subroutine calc_cost(&
 
         ! TV
         if (lambtv > 0) then
-          cost = cost + lambtv * tv_e(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtv * tv_grade(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
+          cost = cost + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+          gradcost(iparm) = gradcost(iparm) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
         end if
 
         ! TSV
         if (lambtsv > 0) then
-          cost = cost + lambtsv * tsv_e(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
-          gradcost(iparm) = gradcost(iparm) + lambtsv * tsv_grade(xidx(iparm),yidx(iparm),I2d,Nx,Ny)
+          cost = cost + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+          gradcost(iparm) = gradcost(iparm) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
         end if
 
         ! Delta T dynamical regularization
@@ -642,23 +645,23 @@ subroutine calc_cost(&
 
       ! Shannon Entropy
       if (lambshe > 0) then
-        cost = cost + lambshe * she_e(Iin(iparm),ent_p(iparm))
-        gradcost(iparm) = gradcost(iparm) + lambshe * she_grade(Iin(iparm),ent_p(iparm))
+        cost = cost + lambshe * she_e(Iin(iparm),ent_p(ipix))
+        gradcost(iparm) = gradcost(iparm) + lambshe * she_grade(Iin(iparm),ent_p(ipix))
       end if
 
       ! Gull & Skilling Entropy
       if (lambgse > 0) then
-        cost = cost + lambgse * gse_e(Iin(iparm),ent_p(iparm))
-        gradcost(iparm) = gradcost(iparm) + lambgse * gse_grade(Iin(iparm),ent_p(iparm))
+        cost = cost + lambgse * gse_e(Iin(iparm),ent_p(ipix))
+        gradcost(iparm) = gradcost(iparm) + lambgse * gse_grade(Iin(iparm),ent_p(ipix))
       end if
     end do
-
-    ! deallocate I2d
-    if (lambtv > 0 .or. lambtsv > 0) then
-      deallocate(I2d)
-    end if
   end do
   !$OMP END PARALLEL DO
+
+  ! deallocate arrays
+  if (lambtv > 0 .or. lambtsv > 0) then
+    deallocate(I2d)
+  end if
 
   if (lambdtf > 0) then
     deallocate(Isum)

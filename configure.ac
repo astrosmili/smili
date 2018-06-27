@@ -32,7 +32,7 @@ AC_LANG([Fortran])
 # PKG CONFIG
 #-------------------------------------------------------------------------------
 PKG_PROG_PKG_CONFIG
-PKG_CONFIG="$PKG_CONFIG --static"
+PKG_CONFIG="$PKG_CONFIG"
 PKG_CHECK_MODULES(OPENBLAS, openblas)
 AC_MSG_RESULT("CFLAGS: $OPENBLAS_CFLAGS")
 AC_MSG_RESULT("LIBS:   $OPENBLAS_LIBS")
@@ -40,6 +40,7 @@ AC_MSG_RESULT("LIBS:   $OPENBLAS_LIBS")
 #-------------------------------------------------------------------------------
 # Check FFTW3
 #-------------------------------------------------------------------------------
+PKG_CONFIG="$PKG_CONFIG --static"
 PKG_CHECK_MODULES(FFTW3, fftw3)
 AC_MSG_RESULT("CFLAGS: $FFTW3_CFLAGS")
 AC_MSG_RESULT("LIBS:   $FFTW3_LIBS")

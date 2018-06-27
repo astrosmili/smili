@@ -192,14 +192,12 @@ def imaging3d(
     # apply the imaging area
 
     if imregion is None:
-        print("Imaging Window: Not Specified. We solve the image on all the pixels.")
         Iin = [Iin[i].reshape(Nyx) for i in xrange(len(Iin))]
         x = x.reshape(Nyx)
         y = y.reshape(Nyx)
         xidx = xidx.reshape(Nyx)
         yidx = yidx.reshape(Nyx)
     else:
-        print("Imaging Window: Specified. Images will be solved on specified pixels.")
         imagewin = imregion.imagewin(initimage,istokes,ifreq)
         idx = np.where(imagewin)
         Iin = [Iin[i][idx] for i in xrange(len(Iin))]
@@ -220,6 +218,7 @@ def imaging3d(
             frmids = amptable["frmidx"].unique().tolist()
             totalflux.append(np.median([amptable.loc[amptable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
         totalflux = np.max(totalflux)
+        print("estimated total flux: %f Jy"%(totalflux))
 
     # Full Complex Visibility
     Ndata = 0
@@ -316,8 +315,8 @@ def imaging3d(
         lambdtf_sim = lambdtf
     #   Maximum Entropy Methods
     if (normlambda is True):
-        lambshe_sim = lambshe / np.abs((fluxscale*np.log(fluxscale)-1/np.e) * Nyx * Nt)
-        lambgse_sim = lambgse / np.abs((fluxscale*np.log(fluxscale)-fluxscale-1) * Nyx * Nt)
+        lambshe_sim = lambshe / np.abs((fluxscale*np.log(fluxscale)+1/np.e) * Nyx * Nt)
+        lambgse_sim = lambgse / np.abs((fluxscale*np.log(fluxscale)-fluxscale+1) * Nyx * Nt)
     else:
         lambshe_sim = lambshe
         lambgse_sim = lambgse
@@ -326,7 +325,10 @@ def imaging3d(
 
     # get uv coordinates and uv indice
     u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = tools.get_uvlist_loop(
-        Nt=Nt,fcvconcat=fcvtable, ampconcat=amptable, bsconcat=bstable, caconcat=catable
+        Nt=Nt,fcvconcat=fcvtable,
+        ampconcat=amptable,
+        bsconcat=bstable,
+        caconcat=catable
     )
 
     # normalize u, v coordinates
@@ -428,7 +430,6 @@ def statistics(
         totalflux=None, fluxconst=False,
         istokes=0, ifreq=0, fulloutput=True, **args):
     '''
-
     '''
     # Sanity Check: Initial Image list
     #if type(initimlist) == list:
@@ -466,32 +467,6 @@ def statistics(
         dofluxconst = True
     elif fluxconst is True:
         dofluxconst = True
-
-    # Sanity Check: Transform
-    if transform is None:
-        print("No transform will be applied to regularization functions.")
-        transtype = np.int32(0)
-        transprm = np.float64(0)
-    elif transform == "log":
-        print("log transform will be applied to regularization functions.")
-        transtype = np.int32(1)
-        if transprm is None:
-            transprm = 1e-10
-        elif transprm <= 0:
-            raise ValueError("transprm must be positive.")
-        else:
-            transprm = np.float64(transprm)
-        print("  threshold of log transform: %g"%(transprm))
-    elif transform == "gamma":
-        print("Gamma transform will be applied to regularization functions.")
-        transtype = np.int32(2)
-        if transprm is None:
-            transprm = 1/2.2
-        elif transprm <= 0:
-            raise ValueError("transprm must be positive.")
-        else:
-            transprm = np.float64(transprm)
-        print("  Power of Gamma correction: %g"%(transprm))
 
     # Full Complex Visibility
     Ndata = 0

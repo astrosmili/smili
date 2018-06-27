@@ -262,8 +262,8 @@ def imaging(
         lambtsv_sim = lambtsv
     #   Maximum Entropy Methods
     if (normlambda is True):
-        lambshe_sim = lambshe / np.abs((fluxscale*np.log(fluxscale)-1/np.e) * Nyx)
-        lambgse_sim = lambgse / np.abs((fluxscale*np.log(fluxscale)-fluxscale-1) * Nyx)
+        lambshe_sim = lambshe / np.abs((fluxscale*np.log(fluxscale)+1/np.e) * Nyx)
+        lambgse_sim = lambgse / np.abs((fluxscale*np.log(fluxscale)-fluxscale+1) * Nyx)
     else:
         lambshe_sim = lambshe
         lambgse_sim = lambgse

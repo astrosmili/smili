@@ -746,7 +746,7 @@ class IMFITS(object):
     # Plotting
     #-------------------------------------------------------------------------
     def imshow(self, logscale=False, angunit=None, dyrange=100,
-               vmin=None, cmap=cm.afmhot, istokes=0, ifreq=0, **imshow_args):
+               vmin=None, vmax=None, cmap=cm.afmhot, istokes=0, ifreq=0, **imshow_args):
         '''
         plot contours of the image
 
@@ -780,12 +780,17 @@ class IMFITS(object):
                 vmin_scaled = np.log10(self.peak(istokes, ifreq)/dyrange)
             else:
                 vmin_scaled = np.log10(vmin)
+            if vmax is None:
+                vmax_scaled = np.log10(self.peak(istokes, ifreq))
+            else:
+                vmax_scaled = np.log10(vmax)
             plotdata[np.where(plotdata < vmin_scaled)] = vmin_scaled
+            plotdata[np.where(np.isnan(plotdata))] = vmin_scaled
             plt.imshow(plotdata, extent=imextent, origin="lower", cmap=cmap,
-                       vmin=vmin_scaled, **imshow_args)
+                       vmin=vmin_scaled, vmax=vmax_scaled, **imshow_args)
         else:
             plt.imshow(self.data[istokes, ifreq], extent=imextent, origin="lower",
-                       cmap=cmap, vmin=vmin, **imshow_args)
+                       cmap=cmap, vmin=vmin, vmax=vmax, **imshow_args)
 
         # Axis Label
         if angunit.lower().find("pixel") == 0:

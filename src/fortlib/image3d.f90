@@ -160,17 +160,20 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz,Nparm)
   !
   real(dp) :: dix, diy, Ip, Isum(Npix)
   real(dp) :: sumx, sumy, sumI
-  real(dp) :: gradsumx, gradsumy, gradsumI
+  real(dp) :: gradsumx, gradsumy, gradsumI, gradtmp
   real(dp) :: reg
   !
   integer  :: ipix,iz,iparm
 
+  ! Take summation
+  Isum(1:Npix) = sum(reshape(Iin,(/Npix,Nz/)),2)
+  !write(*,*) "comreg3d: Isum"
+  !write(*,*) size(sum(reshape(Iin,(/Npix,Nz/)),2)), Npix
+  !write(*,*) Isum(1),Isum(Npix)
+
   sumx = 0d0
   sumy = 0d0
   sumI = 0d0
-
-  ! Take summation
-  Isum = sum(reshape(Iin,(/Npix,Nz/)),1)
 
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix) &
@@ -200,26 +203,26 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz,Nparm)
   ! calculate cost function
   !   need zeroeps for smoothing sqrt,
   sumI = sumI + zeroeps
-  reg = sqrt((sumx/(sumI))**2+(sumy/(sumI))**2+zeroeps)
+  reg = sqrt((sumx/sumI)**2+(sumy/sumI)**2+zeroeps)
   cost = cost + reg
+  !write(*,*) "comreg3d: reg, xcom, ycom"
+  !write(*,*) reg, sumx/sumI, sumy/sumI
 
   ! calculate gradient of cost function
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix,Nparm,sumx,sumy,sumI,reg) &
-  !$OMP   PRIVATE(iparm,ipix,dix,diy,gradsumI,gradsumx,gradsumy) &
+  !$OMP   PRIVATE(iparm,ipix,iz,dix,diy,gradsumI,gradsumx,gradsumy) &
   !$OMP   REDUCTION(+:gradcost)
-  do iparm=1, Nparm
-    call ixy2ixiy(iparm,ipix,iz,Npix)
-
+  do ipix=1, Npix
     ! pixel from the reference pixel
     dix = xidx(ipix) - Nxref
     diy = yidx(ipix) - Nyref
 
     ! gradient of sum
     if (abs(alpha-1)<zeroeps) then
-      gradsumI = l1_grade(Iin(iparm))
+      gradsumI = l1_grade(Isum(ipix))
     else
-      gradsumI = alpha*l1_e(Isum(ipix))**(alpha-1)*l1_grade(Iin(iparm))
+      gradsumI = alpha*l1_e(Isum(ipix))**(alpha-1)*l1_grade(Isum(ipix))
     end if
 
     gradsumx = gradsumI*dix
@@ -230,7 +233,11 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz,Nparm)
     gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
 
     ! calculate gradint of cost function
-    gradcost(iparm) = gradcost(iparm) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
+    gradtmp = (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
+    do iz=1,Nz
+      call ixiy2ixy(ipix,iz,iparm,Npix)
+      gradcost(iparm) = gradcost(iparm) + gradtmp
+    end do
   end do
   !$OMP END PARALLEL DO
 end subroutine

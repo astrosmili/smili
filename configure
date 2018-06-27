@@ -3399,7 +3399,7 @@ $as_echo "no" >&6; }
 		PKG_CONFIG=""
 	fi
 fi
-PKG_CONFIG="$PKG_CONFIG --static"
+PKG_CONFIG="$PKG_CONFIG"
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for openblas" >&5
@@ -3499,6 +3499,7 @@ $as_echo "\"LIBS:   $OPENBLAS_LIBS\"" >&6; }
 #-------------------------------------------------------------------------------
 # Check FFTW3
 #-------------------------------------------------------------------------------
+PKG_CONFIG="$PKG_CONFIG --static"
 
 pkg_failed=no
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for fftw3" >&5
