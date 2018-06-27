@@ -51,17 +51,85 @@ def imaging3d(
         initmovie,
         imregion=None,
         vistable=None,amptable=None, bstable=None, catable=None,
-        lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambmem=-1.,lambcom=-1.,
-        lambrt=-1.,lambri=-1.,lambrs=-1,
+        lambl1=-1.,lambtv=-1.,lambtsv=-1.,
+        lambshe=-1.,lambgse=-1.,
+        lambdt=-1.,lambdi=-1.,lambdtf=-1,
+        lambcom=-1.,
         normlambda=True,
+        reweight=False,
         niter=1000,
         nonneg=True,
-        transform=None, transprm=None,
         compower=1.,
         totalflux=None, fluxconst=False,
         istokes=0, ifreq=0,
         output='list'):
     '''
+    Imaging Function
+
+    Args:
+        initimage (IMFITS):
+            Initial model for fft imaging.
+        imregion (IMRegion, default=None):
+            Image region to set image windows.
+        vistable (VisTable, default=None):
+            Visibility table containing full complex visiblities.
+        amptable (VisTable, default=None):
+            Amplitude table.
+        bstable (BSTable, default=None):
+            Closure phase table.
+        catable (CATable, default=None):
+            Closure amplitude table.
+        lambl1 (float,default=-1.):
+            Regularization parameter for L1 norm. If lambl1 <= 0,
+            then L1-norm will not be used.
+        lambtv (float,default=-1.):
+            Regularization parameter for Total Variation (TV).
+            If lambtv <= 0, then TV will not be used.
+        lambtsv (float,default=-1.):
+            Regularization parameter for Total Squared Variation (TSV).
+            If lambtsv <= 0, then TSV will not be used.
+        lambshe (float,default=-1.):
+            Regularization parameter for the Shannon Entropy.
+            If lambshe <= 0, then this entropy term will not be used.
+        lambgse (float,default=-1.):
+            Regularization parameter for the Gull & Skilling Entropy.
+            If lambshe <= 0, then this entropy term will not be used.
+        lambdt (float,default=-1.):
+            Regularization parameter for Delta T dynamical regularization using
+            D2 distance. If lambdt <= 0, then this term will not be used.
+        lambdi (float,default=-1.):
+            Regularization parameter for Delta I dynamical regularization using
+            D2 distance. If lambdi <= 0, then this term will not be used.
+        lambdtf (float,default=-1.):
+            Regularization parameter for Total flux continuity regularization using
+            D2 distance. If lambdtf <= 0, then this term will not be used.
+        lambcom (float,default=-1.):
+            Regularization parameter for center of mass regularization.
+            If lambcom <= 0, this regularization will not be used.
+        normlambda (boolean,default=True):
+            If normlabda=True, lambl1, lambtv, lambtsv, lambshe and lambgse
+            are normalized with totalflux and the number of data points.
+        reweight (boolean, default=False):
+            If true, applying reweighting scheme (experimental) to l1, tv and tsv
+        dyrange (boolean, default=1e2):
+            The target dynamic range of reweighting l1 or tv techniques.
+        niter (int,defalut=100):
+            The number of iterations.
+        nonneg (boolean,default=True):
+            If nonneg=True, the problem is solved with non-negative constrants.
+        compower (float, default=1.):
+            Power of center of mass when lambcom > 0.
+        totalflux (float, default=None):
+            Total flux of the source.
+        fluxconst (boolean,default=False):
+            If fluxconst=True, total flux is fixed at the totalflux value.
+        istokes (int,default=0):
+            The ordinal number of stokes parameters.
+        ifreq (int,default=0):
+            The ordinal number of frequencies.
+
+    Returns:
+        imdata.IMFITS object
     '''
     # Sanity Check: Data
     if ((vistable is None) and (amptable is None) and
@@ -69,21 +137,27 @@ def imaging3d(
         raise ValueError("No input data")
 
     # Sanity Check: Sort
+    frmidset = []
     if vistable is not None:
-        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        vistable = vistable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += vistable["frmid"].unique().tolist()
     if amptable is not None:
-        amptable = amptable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        amptable = amptable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += amptable["frmid"].unique().tolist()
     if bstable is not None:
-        bstable = bstable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        bstable = bstable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += bstable["frmid"].unique().tolist()
     if catable is not None:
-        catable = catable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        catable = catable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += catable["frmid"].unique().tolist()
+    frmidset = sorted(set(frmidset))
 
     # Sanity Check: Total Flux constraint
     dofluxconst = False
     if ((vistable is None) and (amptable is None) and (totalflux is None)):
         print("Error: No absolute amplitude information in the input data.")
         print("       You need to set the total flux constraint by totalflux.")
-        return -1
+        raise ValueError()
     elif ((vistable is None) and (amptable is None) and
           (totalflux is not None) and (fluxconst is False)):
         print("Warning: No absolute amplitude information in the input data.")
@@ -91,35 +165,6 @@ def imaging3d(
         dofluxconst = True
     elif fluxconst is True:
         dofluxconst = True
-
-    # Sanity Check: Transform
-    transform = None
-    transtype = np.int32(0)
-    transprm = np.float64(0)
-    # if transform is None:
-    #     print("No transform will be applied to regularization functions.")
-    #     transtype = np.int32(0)
-    #     transprm = np.float64(0)
-    # elif transform == "log":
-    #     print("log transform will be applied to regularization functions.")
-    #     transtype = np.int32(1)
-    #     if transprm is None:
-    #         transprm = 1e-10
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  threshold of log transform: %g"%(transprm))
-    # elif transform == "gamma":
-    #     print("Gamma transform will be applied to regularization functions.")
-    #     transtype = np.int32(2)
-    #     if transprm is None:
-    #         transprm = 1/2.2
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  Power of Gamma correction: %g"%(transprm))
 
     # Sanity Check: number of frames
     Nt = initmovie.Nt
@@ -170,9 +215,11 @@ def imaging3d(
     if totalflux is None:
         totalflux = []
         if vistable is not None:
-            totalflux.append(vistable["amp"].max())
+            frmids = vistable["frmid"].unique().tolist()
+            totalflux.append(np.median([vistable.loc[vistable["frmid"]==frmid, "amp"].max() for frmid in frmids]))
         if amptable is not None:
-            totalflux.append(amptable["amp"].max())
+            frmids = vistable["frmid"].unique().tolist()
+            totalflux.append(np.median([amptable.loc[amptable["frmid"]==frmid, "amp"].max() for frmid in frmids]))
         totalflux = np.max(totalflux)
 
     # Full Complex Visibility
@@ -180,14 +227,16 @@ def imaging3d(
     if dofluxconst:
         print("Total Flux Constraint: set to %g" % (totalflux))
         totalfluxdata = {
-            'u': [0.],
-            'v': [0.],
-            'amp': [totalflux],
-            'phase': [0.],
-            'sigma': [1.]
+            'u': [0. for i in frmidset],
+            'v': [0. for i in frmidset],
+            'amp': [totalflux for i in frmidset],
+            'phase': [0. for i in frmidset],
+            'sigma': [1. for i in frmidset],
+            'frmid': [i for i in frmidset]
         }
         totalfluxdata = pd.DataFrame(totalfluxdata)
         fcvtable = pd.concat([totalfluxdata, vistable], ignore_index=True)
+        fcvtable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
     else:
         print("Total Flux Constraint: disabled.")
         if vistable is None:
@@ -246,36 +295,35 @@ def imaging3d(
 
     # Sigma for the total flux
     if dofluxconst:
-        varfcv[0] = np.square(fcvtable.loc[0, "amp"] / (Ndata - 1.))
+        varfcv[0] = np.square(fcvtable.loc[0, "amp"] / (Ndata - 1.) / len(frmidset))
 
     # Normalize Lambda
-    if normlambda:
-        fluxscale = np.float64(totalflux)
-
-        # convert Flux Scaling Factor
-        fluxscale = np.abs(fluxscale) / Nyx
-        #if   transform=="log":   # log correction
-        #    fluxscale = np.log(fluxscale+transprm)-np.log(transprm)
-        #elif transform=="gamma": # gamma correction
-        #    fluxscale = (fluxscale)**transprm
-
-        lambl1_sim = lambl1 / (fluxscale * Nyx)
-        lambtv_sim = lambtv / (4 * fluxscale * Nyx)
-        lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx)
-        #lambmem_sim = lambmem / np.abs(fluxscale*np.log(fluxscale) * Nyx)
+    fluxscale = np.float64(totalflux)
+    fluxscale = np.abs(fluxscale) / Nyx
+    #   Sparse Regularization
+    if (normlambda is True) and (reweight is not True):
+        lambl1_sim = lambl1 / (fluxscale * Nyx * Nt)
+        lambtv_sim = lambtv / (4 * fluxscale * Nyx * Nt)
+        lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx * Nt)
+        lambdt_sim = lambdt / (2 *fluxscale**2 * Nyx * Nt)
+        lambdi_sim = lambdi / (2 *fluxscale**2 * Nyx * Nt)
+        lambdtf_sim = lambdtf / (2 *fluxscale**2 * Nt)
     else:
         lambl1_sim = lambl1
         lambtv_sim = lambtv
         lambtsv_sim = lambtsv
-    lambmem_sim = -1
-
-    # Center of Mass regularization
+        lambdt_sim = lambdt
+        lambdi_sim = lambdi
+        lambdtf_sim = lambdtf
+    #   Maximum Entropy Methods
+    if (normlambda is True):
+        lambshe_sim = lambshe / np.abs((fluxscale*np.log(fluxscale)-1/np.e) * Nyx * Nt)
+        lambgse_sim = lambgse / np.abs((fluxscale*np.log(fluxscale)-fluxscale-1) * Nyx * Nt)
+    else:
+        lambshe_sim = lambshe
+        lambgse_sim = lambgse
+    #   Center of Mass regularization
     lambcom_sim = lambcom # No normalization for COM regularization
-
-    # Dynamical Imaging regularization
-    lambrt_sim = lambrt # No normalization for Rt regularization
-    lambri_sim = lambri # No normalization for Ri regularization
-    lambrs_sim = lambrs # No normalization for Rs regularization
 
     # get uv coordinates and uv indice
     u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = tools.get_uvlist_loop(
@@ -288,6 +336,16 @@ def imaging3d(
 
     # copy the initimage to the number of frames
     Iin = np.concatenate(Iin)
+
+    # Reweighting
+    if reweight:
+        doweight=1
+    else:
+        doweight=-1
+
+    # maximum entropy prior
+    Pin = Iin.copy()
+    Pin[:] = 1
 
     # run imaging
     Iout = fortlib.fftim3d.imaging(
@@ -309,16 +367,19 @@ def imaging3d(
         lambl1=np.float64(lambl1_sim),
         lambtv=np.float64(lambtv_sim),
         lambtsv=np.float64(lambtsv_sim),
-        lambmem=np.float64(lambmem_sim),
+        lambshe=np.float64(lambshe_sim),
+        lambgse=np.float64(lambgse_sim),
+        lambdt=np.float64(lambdt_sim),
+        lambdi=np.float64(lambdi_sim),
+        lambdtf=np.float64(lambdtf_sim),
         lambcom=np.float64(lambcom_sim),
-        lambrt=np.float64(lambrt_sim),
-        lambri=np.float64(lambri_sim),
-        lambrs=np.float64(lambrs_sim),
+        # Reweighting
+        doweight=np.int32(doweight),
+        tgtdyrange=np.float64(dyrange),
+        ent_p=np.float64(Pin),
         # Imaging Parameter
         niter=np.int32(niter),
         nonneg=nonneg,
-        transtype=np.int32(transtype),
-        transprm=np.float64(transprm),
         pcom=np.float64(compower),
         # Full Complex Visibilities
         isfcv=isfcv,
@@ -345,11 +406,7 @@ def imaging3d(
         m=np.int32(lbfgsbprms["m"]), factr=np.float64(lbfgsbprms["factr"]),
         pgtol=np.float64(lbfgsbprms["pgtol"])
     )
-    print("before outimage is done")
-
-
     outmovie = copy.deepcopy(initmovie)
-    print("before import outimlist")
     ipix = 0
     for it in xrange(Nt):
         for i in xrange(len(xidx)):

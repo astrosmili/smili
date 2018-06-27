@@ -324,22 +324,6 @@ class MOVIE(object):
         lightcurve = lightcurve.sum(axis=1)
         return lightcurve
 
-    def plot_lc(self):
-        Nt = self.Nt
-        lightcurve=self.lightcurve()
-
-        time = np.zeros(Nt)
-        for it in xrange(Nt):
-            time[it]=it*self.tint.value
-        plt.plot(time,lightcurve)
-
-
     def imshow(self,it,**imshowprm):
         image=self.images[it]
         image.imshow(**imshowprm)
-
-
-    def initimlist(self):
-        pass
-        #mul2dim = list([self.init2dim])*Nt
-        #return mul2dim

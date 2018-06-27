@@ -32,12 +32,7 @@ tools = uvdata.uvtable.tools
 #-------------------------------------------------------------------------
 # Default Parameters
 #-------------------------------------------------------------------------
-lbfgsbprms = {
-    "m": 5,
-    "factr": 1e1,
-    "pgtol": 0.
-}
-
+lbfgsbprms={"m": 5,"factr": 1e1,"pgtol": 0.}
 
 #-------------------------------------------------------------------------
 # Reconstract static imaging
@@ -46,15 +41,18 @@ def imaging(
         initimage,
         imregion=None,
         vistable=None,amptable=None, bstable=None, catable=None,
-        lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambcom=-1.,normlambda=True,
+        lambl1=-1.,lambtv=-1.,lambtsv=-1.,
+        lambshe=-1.,lambgse=-1.,
+        lambcom=-1.,normlambda=True,
         reweight=False, dyrange=1e6,
         niter=1000,
         nonneg=True,
         compower=1.,
         totalflux=None, fluxconst=False,
-        istokes=0, ifreq=0):
+        istokes=0, ifreq=0,
+        **argv):
     '''
-    FFT imaging with closure quantities.
+    Imaging with sparse modeling.
 
     Args:
         initimage (IMFITS):
@@ -70,24 +68,30 @@ def imaging(
         catable (CATable, default=None):
             Closure amplitude table.
         lambl1 (float,default=-1.):
-            Regularization parameter for L1 term. If lambl1 <= 0,
-            then L1 regularizar has no application.
+            Regularization parameter for L1 norm. If lambl1 <= 0,
+            then L1-norm will not be used.
         lambtv (float,default=-1.):
-            Regularization parameter for total variation. If lambtv <= 0,
-            then total-variation regularizar has no application.
+            Regularization parameter for Total Variation (TV).
+            If lambtv <= 0, then TV will not be used.
         lambtsv (float,default=-1.):
-            Regularization parameter for total squared variation. If lambtsv <= 0,
-            then the regularizar of total squared variation has no application.
+            Regularization parameter for Total Squared Variation (TSV).
+            If lambtsv <= 0, then TSV will not be used.
+        lambshe (float,default=-1.):
+            Regularization parameter for the Shannon Entropy.
+            If lambshe <= 0, then this entropy term will not be used.
+        lambgse (float,default=-1.):
+            Regularization parameter for the Gull & Skilling Entropy.
+            If lambshe <= 0, then this entropy term will not be used.
         lambcom (float,default=-1.):
-            Regularization parameter for center of mass weighting. If lambtsv <= 0,
-            then the regularizar has no application.
+            Regularization parameter for center of mass regularization.
+            If lambcom <= 0, this regularization will not be used.
         normlambda (boolean,default=True):
-            If normlabda=True, lambl1, lambtv, lambtsv, and lambmem are normalized
-            with totalflux and the number of data points.
+            If normlabda=True, lambl1, lambtv, lambtsv, lambshe and lambgse
+            are normalized with totalflux and the number of data points.
         reweight (boolean, default=False):
-            If true, applying reweighting scheme (experimental)
-        dyrange (boolean, default=1e2):
-            The target dynamic range of reweighting techniques.
+            If true, applying reweighting scheme to l1, tv and tsv (experimental)
+        dyrange (boolean, default=1e6):
+            The target dynamic range of reweighting l1 or tv techniques.
         niter (int,defalut=100):
             The number of iterations.
         nonneg (boolean,default=True):
@@ -126,35 +130,6 @@ def imaging(
     elif fluxconst is True:
         dofluxconst = True
 
-    # Sanity Check: Transform
-    transform = None
-    transtype = np.int32(0)
-    transprm = np.float64(0)
-    # if transform is None:
-    #     print("No transform will be applied to regularization functions.")
-    #     transtype = np.int32(0)
-    #     transprm = np.float64(0)
-    # elif transform == "log":
-    #     print("log transform will be applied to regularization functions.")
-    #     transtype = np.int32(1)
-    #     if transprm is None:
-    #         transprm = 1e-10
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  threshold of log transform: %g"%(transprm))
-    # elif transform == "gamma":
-    #     print("Gamma transform will be applied to regularization functions.")
-    #     transtype = np.int32(2)
-    #     if transprm is None:
-    #         transprm = 1/2.2
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  Power of Gamma correction: %g"%(transprm))
-
     # get initial images
     Iin = np.float64(initimage.data[istokes, ifreq])
 
@@ -175,14 +150,12 @@ def imaging(
 
     # apply the imaging area
     if imregion is None:
-        print("Imaging Window: Not Specified. We solve the image on all the pixels.")
         Iin = Iin.reshape(Nyx)
         x = x.reshape(Nyx)
         y = y.reshape(Nyx)
         xidx = xidx.reshape(Nyx)
         yidx = yidx.reshape(Nyx)
     else:
-        print("Imaging Window: Specified. Images will be solved on specified pixels.")
         imagewin = imregion.imagewin(initimage,istokes,ifreq)
         idx = np.where(imagewin)
         Iin = Iin[idx]
@@ -276,27 +249,25 @@ def imaging(
         varfcv[0] = np.square(fcvtable.loc[0, "amp"] / (Ndata - 1.))
 
     # Normalize Lambda
+    fluxscale = np.float64(totalflux)
+    fluxscale = np.abs(fluxscale) / Nyx
+    #   Sparse Regularization
     if (normlambda is True) and (reweight is not True):
-        fluxscale = np.float64(totalflux)
-
-        # convert Flux Scaling Factor
-        fluxscale = np.abs(fluxscale) / Nyx
-        #if   transform=="log":   # log correction
-        #    fluxscale = np.log(fluxscale+transprm)-np.log(transprm)
-        #elif transform=="gamma": # gamma correction
-        #    fluxscale = (fluxscale)**transprm
-
         lambl1_sim = lambl1 / (fluxscale * Nyx)
         lambtv_sim = lambtv / (4 * fluxscale * Nyx)
         lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx)
-        #lambmem_sim = lambmem / np.abs(fluxscale*np.log(fluxscale) * Nyx)
     else:
         lambl1_sim = lambl1
         lambtv_sim = lambtv
         lambtsv_sim = lambtsv
-    lambmem_sim = -1
-
-    # Center of Mass regularization
+    #   Maximum Entropy Methods
+    if (normlambda is True):
+        lambshe_sim = lambshe / np.abs((fluxscale*np.log(fluxscale)-1/np.e) * Nyx)
+        lambgse_sim = lambgse / np.abs((fluxscale*np.log(fluxscale)-fluxscale-1) * Nyx)
+    else:
+        lambshe_sim = lambshe
+        lambgse_sim = lambgse
+    #   Center of Mass regularization
     lambcom_sim = lambcom # No normalization for COM regularization
 
     # get uv coordinates and uv indice
@@ -313,6 +284,10 @@ def imaging(
         doweight=1
     else:
         doweight=-1
+
+    # maximum entropy prior
+    Pin = Iin.copy()
+    Pin[:] = 1
 
     # run imaging
     Iout = fortlib.fftim2d.imaging(
@@ -331,15 +306,16 @@ def imaging(
         lambl1=np.float64(lambl1_sim),
         lambtv=np.float64(lambtv_sim),
         lambtsv=np.float64(lambtsv_sim),
-        lambmem=np.float64(lambmem_sim),
+        lambshe=np.float64(lambshe_sim),
+        lambgse=np.float64(lambgse_sim),
         lambcom=np.float64(lambcom_sim),
+        # Reweighting
         doweight=np.int32(doweight),
         tgtdyrange=np.float64(dyrange),
+        ent_p=np.float64(Pin),
         # Imaging Parameter
         niter=np.int32(niter),
         nonneg=nonneg,
-        transtype=np.int32(transtype),
-        transprm=np.float64(transprm),
         pcom=np.float64(compower),
         # Full Complex Visibilities
         isfcv=isfcv,
@@ -366,7 +342,6 @@ def imaging(
         m=np.int32(lbfgsbprms["m"]), factr=np.float64(lbfgsbprms["factr"]),
         pgtol=np.float64(lbfgsbprms["pgtol"])
     )
-
     outimage = copy.deepcopy(initimage)
     outimage.data[istokes, ifreq] = 0.
     for i in np.arange(len(xidx)):

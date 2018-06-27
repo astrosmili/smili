@@ -9,8 +9,10 @@ module fftim2d
                    l1_e, l1_grade,&
                    tv_e, tv_grade,&
                    tsv_e, tsv_grade,&
-                   mem_e, mem_grade,&
-                   comreg, zeroeps
+                   she_e, she_grade,&
+                   gse_e, gse_grade,&
+                   comreg, zeroeps, &
+                   calc_l1_w, calc_tv_w, calc_tsv_w
   implicit none
 contains
 !-------------------------------------------------------------------------------
@@ -19,8 +21,9 @@ contains
 subroutine imaging(&
   Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   u,v,&
-  lambl1,lambtv,lambtsv,lambmem,lambcom,doweight,tgtdyrange,&
-  Niter,nonneg,transtype,transprm,pcom,&
+  lambl1,lambtv,lambtsv,lambshe,lambgse,lambcom,&
+  doweight,tgtdyrange,ent_p,&
+  Niter,nonneg,pcom,&
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,&
   isamp,uvidxamp,Vamp,Varamp,&
   iscp,uvidxcp,CP,Varcp,&
@@ -48,20 +51,17 @@ subroutine imaging(&
   real(dp), intent(in) :: lambl1  ! Regularization Parameter for L1-norm
   real(dp), intent(in) :: lambtv  ! Regularization Parameter for iso-TV
   real(dp), intent(in) :: lambtsv ! Regularization Parameter for TSV
-  real(dp), intent(in) :: lambmem ! Regularization Parameter for MEM
+  real(dp), intent(in) :: lambshe ! Regularization Parameter for Shannon Entropy
+  real(dp), intent(in) :: lambgse ! Regularization Parameter for Gull & Skilling Entropy
   real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
-  integer,  intent(in) :: doweight ! if postive, reweight images
+  integer,  intent(in) :: doweight   ! if postive, reweight images for L1, isoTV, TSV
   real(dp), intent(in) :: tgtdyrange ! target dynamic range for reweighting
+  real(dp), intent(in) :: ent_p(Npix)! prior image for the maximum entropy methods (gse, she)
 
   ! Imaging Parameter
   integer,  intent(in) :: Niter     ! iteration number
   logical,  intent(in) :: nonneg    ! if nonneg > 0, the image will be solved
                                     ! with a non-negative condition
-  integer,  intent(in) :: transtype ! 0: No transform
-                                    ! 1: log correction
-                                    ! 2: gamma correction
-  real(dp), intent(in) :: transprm  ! transtype=1: theshold for log
-                                    ! transtype=2: power of gamma correction
   real(dp), intent(in) :: pcom      ! power weight of C.O.M regularization
 
   ! Parameters related to full complex visibilities
@@ -101,8 +101,7 @@ subroutine imaging(&
   real(dp), intent(out) :: Iout(Npix)
 
   ! Reweighting factor for Images
-  real(dp), allocatable :: l1_w(:), tv_w(:), tsv_w(:), I2d(:,:)
-  real(dp) :: l1_w_norm, tv_w_norm, tsv_w_norm
+  real(dp), allocatable :: l1_w(:), tv_w(:), tsv_w(:)
 
   ! full complex visibilities to be used for calculations
   complex(dpc), allocatable :: Vfcv(:)
@@ -178,31 +177,22 @@ subroutine imaging(&
   !-------------------------------------
   ! Reweighting factor for l1, tv, tsv
   !-------------------------------------
-  allocate(l1_w(Npix),tv_w(Npix),tsv_w(Npix))
-  l1_w = 1
-  tv_w = 1
-  tsv_w = 1
+  allocate(l1_w(Npix))
+  allocate(tv_w(Npix))
+  allocate(tsv_w(Npix))
 
   if (doweight > 0 ) then
     write(*,*) 'Calculating re-weighting factor for l1, tv, tsv regularizations'
-    allocate(I2d(Nx,Ny))
-    call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
-    l1_w_norm=0
-    tv_w_norm=0
-    tsv_w_norm=0
-    do i=1, Npix
-      l1_w(i) = 1/(l1_e(Iin(i))+maxval(Iin)/tgtdyrange)
-      tv_w(i) = 1/(tv_e(xidx(i),yidx(i),I2d,Nx,Ny)+maxval(Iin)/tgtdyrange)
-      tsv_w(i) = 1/l1_e(Iin(i)*Iin(i))
-      l1_w_norm = l1_w_norm + l1_e(Iin(i))*l1_w(i)
-      tv_w_norm = tv_w_norm + tv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tv_w(i)
-      tsv_w_norm = tsv_w_norm + tsv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tsv_w(i)
-    end do
-    l1_w = l1_w/l1_w_norm
-    tv_w = tv_w/tv_w_norm
-    tsv_w = tsv_w/tsv_w_norm
-    deallocate(I2d)
+    call calc_l1_w(Iin, tgtdyrange, l1_w, Npix)
+    call calc_tv_w(Iin, xidx, yidx, tgtdyrange, tv_w, Npix, Nx, Ny)
+    call calc_tsv_w(Iin, xidx, yidx, tsv_w, Npix, Nx, Ny)
+  else
+    l1_w = 1
+    tv_w = 1
+    tsv_w = 1
   end if
+
+
   !-------------------------------------
   ! L-BFGS-B
   !-------------------------------------
@@ -240,9 +230,9 @@ subroutine imaging(&
       call calc_cost(&
         Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
         u,v,&
-        lambl1,lambtv,lambtsv,lambmem,lambcom,&
-        doweight,l1_w,tv_w,tsv_w,&
-        fnorm,transtype,transprm,pcom,&
+        lambl1,lambtv,lambtsv,lambshe,lambgse,lambcom,&
+        doweight,l1_w,tv_w,tsv_w,ent_p,&
+        fnorm,pcom,&
         isfcv,uvidxfcv,Vfcv,Varfcv,&
         isamp,uvidxamp,Vamp,Varamp,&
         iscp,uvidxcp,CP,Varcp,&
@@ -257,19 +247,6 @@ subroutine imaging(&
         task='STOP: TOTAL ITERATION NUMBER EXCEEDS LIMIT'
       else if (mod(isave(30),100) == 0) then
         print '("Iteration :",I5,"/",I5,"  Cost :",D13.6)',isave(30),Niter,cost
-        !print '("Iteration :",I5,"/",I5)',isave(30),Niter
-        !print '("  Cost Function         ",D13.6)',cost
-        !print '("  Chi-Square Total      ",D13.6)',chisq
-        !print '("    Complex Visibilities",D13.6)',chisq_fcv
-        !print '("    Amplitudes          ",D13.6)',chisq_amp
-        !print '("    Closure Phase       ",D13.6)',chisq_cp
-        !print '("    Closure Amplitudes  ",D13.6)',chisq_ca
-        !print '("  Reguarization Function",D13.6)',reg
-        !print '("    Center of Mass:     ",D13.6)',reg_com
-        !print '("    l1-norm             ",D13.6)',reg_l1
-        !print '("    tv                  ",D13.6)',reg_tv
-        !print '("    tsv                 ",D13.6)',reg_tsv
-        !print '("    mem                 ",D13.6)',reg_mem
       end if
     end if
   end do
@@ -280,19 +257,17 @@ subroutine imaging(&
   deallocate(Vfcv)
   deallocate(iwa,wa,lower,upper,nbd)
   deallocate(l1_w,tv_w,tsv_w)
-  !where(abs(Iout)<zeroeps) Iout=0d0
 end subroutine
 !
 !-------------------------------------------------------------------------------
 ! calc cost functions
 !-------------------------------------------------------------------------------
-!
 subroutine calc_cost(&
   Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   u,v,&
-  lambl1,lambtv,lambtsv,lambmem,lambcom,&
-  doweight,l1_w,tv_w,tsv_w,&
-  fnorm,transtype,transprm,pcom,&
+  lambl1,lambtv,lambtsv,lambshe,lambgse,lambcom,&
+  doweight,l1_w,tv_w,tsv_w,ent_p,&
+  fnorm,pcom,&
   isfcv,uvidxfcv,Vfcv,Varfcv,&
   isamp,uvidxamp,Vamp,Varamp,&
   iscp,uvidxcp,CP,Varcp,&
@@ -318,20 +293,17 @@ subroutine calc_cost(&
   real(dp), intent(in) :: lambl1  ! Regularization Parameter for L1-norm
   real(dp), intent(in) :: lambtv  ! Regularization Parameter for iso-TV
   real(dp), intent(in) :: lambtsv ! Regularization Parameter for TSV
-  real(dp), intent(in) :: lambmem ! Regularization Parameter for MEM
+  real(dp), intent(in) :: lambshe ! Regularization Parameter for Shannon Information Entropy
+  real(dp), intent(in) :: lambgse ! Regularization Parameter for Gull Skilling Entropy
   real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
 
   ! Reweighting
   integer,  intent(in) :: doweight ! if postive, reweight l1,tsv,tv terms
   real(dp), intent(in) :: l1_w(Npix), tv_w(Npix), tsv_w(Npix) ! reweight
+  real(dp), intent(in) :: ent_p(Npix) ! prior image for the maximum entropy method (she, gse)
 
   ! Imaging Parameter
   real(dp), intent(in) :: fnorm     ! normalization factor for chisquare
-  integer,  intent(in) :: transtype ! 0: No transform
-                                    ! 1: log correction
-                                    ! 2: gamma correction
-  real(dp), intent(in) :: transprm  ! transtype=1: theshold for log
-                                    ! transtype=2: power of gamma correction
   real(dp), intent(in) :: pcom      ! power weight of C.O.M regularization
 
   ! Parameters related to full complex visibilities
@@ -373,7 +345,7 @@ subroutine calc_cost(&
   real(dp) :: chisq, reg  ! chisquare and regularization
 
   ! allocatable arrays
-  real(dp), allocatable :: I2d(:,:), Iin_reg(:)
+  real(dp), allocatable :: I2d(:,:)
   real(dp), allocatable :: gradchisq2d(:,:)
   real(dp), allocatable :: gradreg(:)
   real(dp), allocatable :: Vresre(:),Vresim(:)
@@ -467,101 +439,73 @@ subroutine calc_cost(&
   ! Regularization Functions
   !------------------------------------
   ! Initialize
-  !   scalars
-  reg = 0d0
-  !   allocatable arrays
-  allocate(gradreg(Npix),Iin_reg(Npix))
-  gradreg(:) = 0d0
-  Iin_reg(:) = 0d0
+  !   allocatable arrays and initialize
   if (lambtv > 0 .or. lambtsv > 0) then
     allocate(I2d(Nx,Ny))
     I2d(:,:)=0d0
-  end if
-
-  ! Transform Image
-  if (transtype == 1) then
-    ! Log Forward
-    call log_fwd(transprm,Iin,Iin_reg,Npix)
-  else if (transtype == 2) then
-    ! Gamma contrast
-    call gamma_fwd(transprm,Iin,Iin_reg,Npix)
-  else
-    call dcopy(Npix,Iin,1,Iin_reg,1)
-  end if
-
-  ! Copy transformed image to I2d
-  if (lambtv > 0 .or. lambtsv > 0) then
-    call I1d_I2d_fwd(xidx,yidx,Iin_reg,I2d,Npix,Nx,Ny)
+    call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
   end if
 
   ! Compute regularization term
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Npix, Iin_reg, lambl1, lambmem, lambtv, lambtsv,&
+  !$OMP   FIRSTPRIVATE(Npix, Iin, lambl1, lambshe, lambgse, lambtv, lambtsv,&
   !$OMP                I2d, xidx, yidx, l1_w, tv_w, tsv_w) &
   !$OMP   PRIVATE(ipix) &
-  !$OMP   REDUCTION(+: reg, gradreg)
+  !$OMP   REDUCTION(+: cost, gradcost)
   do ipix=1, Npix
     if (doweight > 0) then
       ! L1
       if (lambl1 > 0) then
-        reg = reg + lambl1 * l1_w(ipix) * l1_e(Iin_reg(ipix))
-        gradreg(ipix) = gradreg(ipix) + lambl1 * l1_w(ipix) * l1_grade(Iin_reg(ipix))
+        cost = cost + lambl1 * l1_w(ipix) * l1_e(Iin(ipix))
+        gradcost(ipix) = gradcost(ipix) + lambl1 * l1_w(ipix) * l1_grade(Iin(ipix))
       end if
 
       ! TV
       if (lambtv > 0) then
-        reg = reg + lambtv * tv_w(ipix) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg(ipix) = gradreg(ipix) + lambtv * tv_w(ipix) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        cost = cost + lambtv * tv_w(ipix) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradcost(ipix) = gradcost(ipix) + lambtv * tv_w(ipix) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
       end if
 
       ! TSV
       if (lambtsv > 0) then
-        reg = reg + lambtsv * tsv_w(ipix) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg(ipix) = gradreg(ipix) + lambtsv * tsv_w(ipix) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        cost = cost + lambtsv * tsv_w(ipix) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradcost(ipix) = gradcost(ipix) + lambtsv * tsv_w(ipix) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
       end if
     else
       ! L1
       if (lambl1 > 0) then
-        reg = reg + lambl1 * l1_e(Iin_reg(ipix))
-        gradreg(ipix) = gradreg(ipix) + lambl1 * l1_grade(Iin_reg(ipix))
+        cost = cost + lambl1 * l1_e(Iin(ipix))
+        gradcost(ipix) = gradcost(ipix) + lambl1 * l1_grade(Iin(ipix))
       end if
 
       ! TV
       if (lambtv > 0) then
-        reg = reg + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg(ipix) = gradreg(ipix) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        cost = cost + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradcost(ipix) = gradcost(ipix) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
       end if
 
       ! TSV
       if (lambtsv > 0) then
-        reg = reg + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg(ipix) = gradreg(ipix) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        cost = cost + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+        gradcost(ipix) = gradcost(ipix) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
       end if
     end if
 
-    ! MEM
-    if (lambmem > 0) then
-      reg = reg + lambmem * mem_e(Iin_reg(ipix))
-      gradreg(ipix) = gradreg(ipix) + lambmem * mem_grade(Iin_reg(ipix))
+    ! Shannon Entropy
+    if (lambshe > 0) then
+      cost = cost + lambshe * she_e(Iin(ipix),ent_p(ipix))
+      gradcost(ipix) = gradcost(ipix) + lambshe * she_grade(Iin(ipix),ent_p(ipix))
+    end if
+
+    ! Gull & Skilling Entropy
+    if (lambgse > 0) then
+      cost = cost + lambgse * gse_e(Iin(ipix),ent_p(ipix))
+      gradcost(ipix) = gradcost(ipix) + lambgse * gse_grade(Iin(ipix),ent_p(ipix))
     end if
   end do
   !$OMP END PARALLEL DO
 
-  ! multiply variable conversion factor to gradients
-  if (transtype == 1) then
-    ! Log Forward
-    call log_grad(transprm,Iin,gradreg,Npix)
-  else if (transtype == 2) then
-    ! Gamma contrast
-    call gamma_grad(transprm,Iin,gradreg,Npix)
-  end if
-
-  ! add regularization function and its gradient to cost function and its gradient.
-  cost = cost + reg
-  call daxpy(Npix, 1d0, gradreg, 1, gradcost, 1) ! gradcost := gradreg + gradcos
-
   ! deallocate arrays
-  deallocate(gradreg,Iin_reg)
   if (lambtv > 0 .or. lambtsv > 0) then
     deallocate(I2d)
   end if

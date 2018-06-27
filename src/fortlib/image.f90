@@ -225,43 +225,60 @@ real(dp) function l1_grade(I)
   l1_grade = I/l1_e(I)
 end function
 !
-! MEM
+! Shannon Information Entropy
 !
-real(dp) function mem_e(I)
+real(dp) function she_e(I,P)
   implicit none
   !
-  real(dp),intent(in) :: I
+  real(dp),intent(in) :: I,P
   real(dp) :: absI
-  !
-  !if (abs(I) > zeroeps) then
-  !  mem_e = abs(I)*log(abs(I))
-  !else
-  !  mem_e = 0d0
-  !end if
-  !
+
   ! differentiable MEM
   absI = l1_e(I)
-  mem_e = absI * log(absI)
+  she_e = absI * log(absI/l1_e(P)) + P**2*exp(-P)
+  ! The last term 1/e makes the entropy term positive
+end function
+!
+! gradient of Shannon Information Entropy
+!
+real(dp) function she_grade(I,P)
+  implicit none
+  !
+  real(dp),intent(in) :: I,P
+  real(dp) :: absI, gradabsI
+
+  ! differentiable MEM
+  absI = l1_e(I)
+  gradabsI = l1_grade(I)
+  she_grade = gradabsI * (1+log(absI/l1_e(P)))
+end function
+!
+! Gull & Skilling Information Entropy
+!
+real(dp) function gse_e(I,P)
+  implicit none
+  !
+  real(dp),intent(in) :: I,P
+  real(dp) :: absI
+
+  ! differentiable MEM
+  absI = l1_e(I)
+  gse_e = absI * (log(absI/l1_e(P))-1) + (P-1)*P*exp(-P) + P*exp(-P+1)
+  ! The last term +1 makes the entropy term positive
 end function
 !
 ! gradient of MEM
 !
-real(dp) function mem_grade(I)
+real(dp) function gse_grade(I,P)
   implicit none
   !
-  real(dp),intent(in) :: I
+  real(dp),intent(in) :: I,P
   real(dp) :: absI, gradabsI
 
-  !if (abs(I) > zeroeps) then
-  !  mem_grade = (log(abs(I))+1) * sign(1d0,I)
-  !else
-  !  mem_grade = 0d0
-  !end if
-  !
   ! differentiable MEM
   absI = l1_e(I)
   gradabsI = l1_grade(I)
-  mem_grade = gradabsI * (1+log(absI))
+  gse_grade = gradabsI * log(absI/l1_e(P))
 end function
 !
 ! Isotropic Total Variation
@@ -565,96 +582,91 @@ subroutine comreg(xidx,yidx,Nxref,Nyref,alpha,I1d,cost,gradcost,Npix)
   end do
   !$OMP END PARALLEL DO
 end subroutine
+
+
+!-------------------------------------------------------------------------------
+! Computing reweighting factor
+!-------------------------------------------------------------------------------
 !
+! l1-norm
 !
-!-------------------------------------------------------------------------------!
-subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz)
+subroutine calc_l1_w(Iin, tgtdyrange, l1_w, Npix)
   implicit none
-  !
-  integer, intent(in) :: Npix,Nz
-  integer, intent(in) :: xidx(1:Npix), yidx(1:Npix)
-  real(dp),intent(in) :: alpha
-  real(dp),intent(in) :: Nxref, Nyref
-  real(dp),intent(in) :: Iin(Npix,Nz)
-  real(dp),intent(inout) :: cost
-  real(dp),intent(inout) :: gradcost(Npix,Nz)
-  !
-  real(dp) :: dix, diy, Ip, Isum(Npix)
-  real(dp) :: sumx, sumy, sumI
-  real(dp) :: gradsumx, gradsumy, gradsumI
-  real(dp) :: reg
-  !
-  integer  :: ipix,iz
 
-  sumx = 0d0
-  sumy = 0d0
-  sumI = 0d0
+  integer, intent(in) :: Npix
+  real(dp), intent(in):: Iin(Npix)
+  real(dp), intent(in):: tgtdyrange
+  real(dp), intent(out):: l1_w(Npix)
 
-  ! Take summation
-  Isum = sum(Iin,2)
+  integer :: i
+  real(dp):: norm, eps
 
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix,Nz) &
-  !$OMP   PRIVATE(ipix, dix, diy, Ip) &
-  !$OMP   REDUCTION(+: sumx, sumy, sumI)
-  do ipix=1, Npix
-    ! pixel from the reference pixel
-    dix = xidx(ipix) - Nxref
-    diy = yidx(ipix) - Nyref
-
-    ! take a alpha
-    if (abs(alpha-1)<zeroeps) then
-      Ip = l1_e(Isum(ipix))
-    else
-      Ip = l1_e(Isum(ipix))**alpha
-    end if
-
-    ! calculate sum
-    sumx = sumx + Ip * dix
-    sumy = sumy + Ip * diy
-    sumI = sumI + Ip
+  eps = maxval(Iin)/tgtdyrange
+  norm = 0d0
+  do i=1, Npix
+    l1_w(i) = 1/(l1_e(Iin(i))+eps)
+    norm = norm + l1_e(Iin(i))*l1_w(i)
   end do
-  !$OMP END PARALLEL DO
+  l1_w = l1_w/norm
+end subroutine
+!
+! TV
+!
+subroutine calc_tv_w(Iin, xidx, yidx, tgtdyrange, tv_w, Npix, Nx, Ny)
+  implicit none
 
-  ! Smooth Version
-  !
-  ! calculate cost function
-  !   need zeroeps for smoothing sqrt,
-  sumI = sumI + zeroeps
-  reg = sqrt((sumx/(sumI))**2+(sumy/(sumI))**2+zeroeps)
-  cost = cost + reg
+  integer, intent(in) :: Npix, Nx, Ny
+  real(dp), intent(in):: Iin(Npix)
+  integer, intent(in) :: xidx(Npix), yidx(Npix)
+  real(dp), intent(in):: tgtdyrange
+  real(dp), intent(out):: tv_w(Npix)
 
+  integer :: i
+  real(dp):: norm, eps
+  real(dp), allocatable:: I2d(:,:)
 
-  ! calculate gradient of cost function
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix,sumx,sumy,sumI,reg) &
-  !$OMP   PRIVATE(ipix,dix,diy,gradsumI,gradsumx,gradsumy) &
-  !$OMP   REDUCTION(+:gradcost)
-  do ipix=1, Npix
-    do iz=1,Nz
-      ! pixel from the reference pixel
-      dix = xidx(ipix) - Nxref
-      diy = yidx(ipix) - Nyref
+  eps = maxval(Iin)/tgtdyrange
 
-      ! gradient of sum
-      if (abs(alpha-1)<zeroeps) then
-        gradsumI = l1_grade(Iin(ipix,iz))
-      else
-        gradsumI = alpha*l1_e(Isum(ipix))**(alpha-1)*l1_grade(Iin(ipix,iz))   ! <----
-      end if
+  allocate(I2d(Nx,Ny))
+  call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
 
-      gradsumx = gradsumI*dix
-      gradsumy = gradsumI*diy
-
-      ! gradient of sumx/sumI or sumy/sumI
-      gradsumx = (sumI*gradsumx - gradsumI*sumx)/sumI**2
-      gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
-
-      ! calculate gradint of cost function
-      gradcost(ipix,iz) = gradcost(ipix,iz) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
-    end do
+  ! compute weights
+  norm = 0d0
+  do i=1, Npix
+    tv_w(i) = 1/(tv_e(xidx(i),yidx(i),I2d,Nx,Ny)+eps)
+    norm = norm + tv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tv_w(i)
   end do
-  !$OMP END PARALLEL DO
+  deallocate(I2d)
+
+  ! normalize weights
+  tv_w = tv_w/norm
+end subroutine
+!
+! TSV
+!
+subroutine calc_tsv_w(Iin, xidx, yidx, tsv_w, Npix, Nx, Ny)
+  implicit none
+
+  integer, intent(in) :: Npix, Nx, Ny
+  real(dp), intent(in):: Iin(Npix)
+  integer, intent(in) :: xidx(Npix), yidx(Npix)
+  real(dp), intent(out):: tsv_w(Npix)
+
+  integer :: i
+  real(dp):: norm
+  real(dp), allocatable:: I2d(:,:)
+
+  allocate(I2d(Nx,Ny))
+  call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
+
+  norm = 0d0
+  do i=1, Npix
+    tsv_w(i) = 1/l1_e(Iin(i)**2)
+    norm = norm + tsv_e(xidx(i),yidx(i),I2d,Nx,Ny)*tsv_w(i)
+  end do
+  deallocate(I2d)
+
+  tsv_w = tsv_w/norm
 end subroutine
 
 !-------------------------------------------------------------------------------
@@ -676,7 +688,7 @@ subroutine I2d_l1(I2d,cost,costmap,gradmap,Nx,Ny)
   gradmap(:,:) = 0d0
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
+  !$OMP   PRIVATE(ixy,ix,eps) &
   !$OMP   REDUCTION(+:cost,costmap,gradmap)
   do ixy=1, Nx*Ny
     call ixy2ixiy(ixy,ix,iy,Nx)
@@ -688,11 +700,11 @@ subroutine I2d_l1(I2d,cost,costmap,gradmap,Nx,Ny)
 end subroutine
 !
 !
-subroutine I2d_mem(I2d,cost,costmap,gradmap,Nx,Ny)
+subroutine I2d_she(I2d,P2d,cost,costmap,gradmap,Nx,Ny)
   implicit none
 
   integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
+  real(dp), intent(in) :: I2d(Nx,Ny),P2d(Nx,Ny)
   real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
 
   integer :: ixy,ix,iy
@@ -702,13 +714,40 @@ subroutine I2d_mem(I2d,cost,costmap,gradmap,Nx,Ny)
   costmap(:,:) = 0d0
   gradmap(:,:) = 0d0
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
+  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d,P2d) &
   !$OMP   PRIVATE(ixy,ix,iy) &
   !$OMP   REDUCTION(+:cost,costmap,gradmap)
   do ixy=1, Nx*Ny
     call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = mem_e(I2d(ix,iy))
-    gradmap(ix,iy) = mem_grade(I2d(ix,iy))
+    costmap(ix,iy) = she_e(I2d(ix,iy),P2d(ix,iy))
+    gradmap(ix,iy) = she_grade(I2d(ix,iy),P2d(ix,iy))
+    cost = cost+costmap(ix,iy)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine
+!
+!
+subroutine I2d_gse(I2d,P2d,cost,costmap,gradmap,Nx,Ny)
+  implicit none
+
+  integer, intent(in)  :: Nx,Ny
+  real(dp), intent(in) :: I2d(Nx,Ny),P2d(Nx,Ny)
+  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
+
+  integer :: ixy,ix,iy
+
+  ! initialize output
+  cost = 0d0
+  costmap(:,:) = 0d0
+  gradmap(:,:) = 0d0
+  !$OMP PARALLEL DO DEFAULT(SHARED) &
+  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d,P2d) &
+  !$OMP   PRIVATE(ixy,ix,iy) &
+  !$OMP   REDUCTION(+:cost,costmap,gradmap)
+  do ixy=1, Nx*Ny
+    call ixy2ixiy(ixy,ix,iy,Nx)
+    costmap(ix,iy) = gse_e(I2d(ix,iy),P2d(ix,iy))
+    gradmap(ix,iy) = gse_grade(I2d(ix,iy),P2d(ix,iy))
     cost = cost+costmap(ix,iy)
   end do
   !$OMP END PARALLEL DO
