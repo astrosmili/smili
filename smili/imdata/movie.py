@@ -576,6 +576,7 @@ class MOVIE(object):
                 uvfits_newlist =uvfits_newlist+[uvfits]
         return uvfits_newlist
 
+
     def apply_cltable(self,cltable_list,uvfitslist,std_amp=1,std_pha=100):
         '''
         This makes a list of uvfits objects by performing a self calibration for all frames

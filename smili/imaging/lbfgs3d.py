@@ -139,17 +139,17 @@ def imaging3d(
     # Sanity Check: Sort
     frmidset = []
     if vistable is not None:
-        vistable = vistable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-        frmidset += vistable["frmid"].unique().tolist()
+        vistable = vistable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += vistable["frmidx"].unique().tolist()
     if amptable is not None:
-        amptable = amptable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-        frmidset += amptable["frmid"].unique().tolist()
+        amptable = amptable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += amptable["frmidx"].unique().tolist()
     if bstable is not None:
-        bstable = bstable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-        frmidset += bstable["frmid"].unique().tolist()
+        bstable = bstable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += bstable["frmidx"].unique().tolist()
     if catable is not None:
-        catable = catable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-        frmidset += catable["frmid"].unique().tolist()
+        catable = catable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        frmidset += catable["frmidx"].unique().tolist()
     frmidset = sorted(set(frmidset))
 
     # Sanity Check: Total Flux constraint
@@ -215,11 +215,11 @@ def imaging3d(
     if totalflux is None:
         totalflux = []
         if vistable is not None:
-            frmids = vistable["frmid"].unique().tolist()
-            totalflux.append(np.median([vistable.loc[vistable["frmid"]==frmid, "amp"].max() for frmid in frmids]))
+            frmids = vistable["frmidx"].unique().tolist()
+            totalflux.append(np.median([vistable.loc[vistable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
         if amptable is not None:
-            frmids = vistable["frmid"].unique().tolist()
-            totalflux.append(np.median([amptable.loc[amptable["frmid"]==frmid, "amp"].max() for frmid in frmids]))
+            frmids = vistable["frmidx"].unique().tolist()
+            totalflux.append(np.median([amptable.loc[amptable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
         totalflux = np.max(totalflux)
 
     # Full Complex Visibility
@@ -232,11 +232,11 @@ def imaging3d(
             'amp': [totalflux for i in frmidset],
             'phase': [0. for i in frmidset],
             'sigma': [1. for i in frmidset],
-            'frmid': [i for i in frmidset]
+            'frmidx': [i for i in frmidset]
         }
         totalfluxdata = pd.DataFrame(totalfluxdata)
         fcvtable = pd.concat([totalfluxdata, vistable], ignore_index=True)
-        fcvtable.sort_values(by=["frmid", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        fcvtable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
     else:
         print("Total Flux Constraint: disabled.")
         if vistable is None:
