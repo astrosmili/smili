@@ -54,15 +54,14 @@ def imaging3d(
         lambl1=-1.,lambtv=-1.,lambtsv=-1.,
         lambshe=-1.,lambgse=-1.,
         lambdt=-1.,lambdi=-1.,lambdtf=-1,
-        lambcom=-1.,
-        normlambda=True,
-        reweight=False,
+        lambcom=-1.,normlambda=True,
+        reweight=False, dyrange=1e6,
         niter=1000,
         nonneg=True,
         compower=1.,
         totalflux=None, fluxconst=False,
         istokes=0, ifreq=0,
-        output='list'):
+        **argv):
     '''
     Imaging Function
 
@@ -218,7 +217,7 @@ def imaging3d(
             frmids = vistable["frmidx"].unique().tolist()
             totalflux.append(np.median([vistable.loc[vistable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
         if amptable is not None:
-            frmids = vistable["frmidx"].unique().tolist()
+            frmids = amptable["frmidx"].unique().tolist()
             totalflux.append(np.median([amptable.loc[amptable["frmidx"]==frmid, "amp"].max() for frmid in frmids]))
         totalflux = np.max(totalflux)
 
