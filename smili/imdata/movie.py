@@ -318,8 +318,6 @@ class MOVIE(object):
                     self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
                 writer.grab_frame()
 
-
-    #========================
     def to_fits(self,filename="snapshot"):
         '''
         Args:
