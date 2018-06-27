@@ -366,9 +366,6 @@ class MOVIE(object):
     def imshow(self,it,**imshowprm):
         image=self.images[it]
         image.imshow(**imshowprm)
-<<<<<<< HEAD
-=======
-
 
     def save_fits(self,filename=None):
         if filename is None:
@@ -376,7 +373,6 @@ class MOVIE(object):
         for i in xrange(self.Nt):
             self.images[i].save_fits(filename%(i))
 
-    # load関数の原型
     def load_fits(self,filename=None):
         loadmovie=copy.deepcopy(self)
         if filename is None:
@@ -637,12 +633,3 @@ class MOVIE(object):
             print("============================")
 
         return uvfits_totlist
-
-
-
-
-    def initimlist(self):
-        pass
-        #mul2dim = list([self.init2dim])*Nt
-        #return mul2dim
->>>>>>> 2fa5a41651deb0a46baeb634c46cceff2cbfd135
