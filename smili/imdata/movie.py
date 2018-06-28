@@ -80,7 +80,7 @@ class MOVIE(object):
         utcarr = at.Time(utcarr, format="cxcsec")
 
         tmtable = pd.DataFrame()
-        tmtable["utc"] = utcarr.datetime
+        tmtable["utc"]     = utcarr.datetime
         tmtable["gsthour"] = utcarr.sidereal_time("apparent", "greenwich").hour
         self.timetable = tmtable
 
@@ -88,34 +88,66 @@ class MOVIE(object):
         self.images = [imdata.IMFITS(**imgprm) for i in xrange(self.Nt)]
 
     def initmovie(self,image):
+
         '''
-        image: imdata.IMFITS
+        This will make the initial movie by superposing input images
+
+        Args:
+            image (imdata.IMFITS)
+
+        Returns:
+            imdata.MOVIE ovbject
         '''
+
         outmovie=copy.deepcopy(self)
         outmovie.images = [copy.deepcopy(image) for i in xrange(self.Nt)]
         return outmovie
 
 
     def add_gauss(self,**gaussprm):
+
         '''
         add gayssian model to the initial movie
+
+        Args:
+            gaussprm
+
+        Returns:
+            imdata.MOVIE object including gaussian model
         '''
+
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].add_gauss(**gaussprm) for i in xrange(self.Nt)]
         return outmovie
 
     def winmod(self,imregion,save_totalflux=False):
+
         '''
         clear brightness distribution outside regions
+
+        Args:
+            region (imdata.ImRegTable object):
+                region data
+            save_totalflux (boolean; default=False):
+                if True, keep Totalflux
         '''
+
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].winmod(imregion,save_totalflux) for i in xrange(self.Nt)]
         return outmovie
 
     def hard_threshold(self, threshold=0.01, relative=True, save_totalflux=False):
+
         '''
-        hard_thresholding
+        Do hard-threshold the input image
+
+        Args:
+          threshold (float): threshold
+          relative (boolean): If true, theshold value will be normalized with the peak intensity of the image
+          save_totalflux (boolean): If true, the total flux of the image will be conserved.
         '''
+
+
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].hard_threshold(
                                 threshold=threshold,
@@ -125,9 +157,16 @@ class MOVIE(object):
         return outmovie
 
     def soft_threshold(self, threshold=0.01, relative=True, save_totalflux=False):
+
         '''
-        soft_thresholding
+        Do soft-threshold the input image
+
+        Args:
+          threshold (float): threshold
+          relative (boolean): If true, theshold value will be normalized with the peak intensity of the image
+          save_totalflux (boolean): If true, the total flux of the image will be conserved.
         '''
+
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].soft_threshold(
                                 threshold=threshold,
@@ -339,7 +378,256 @@ class MOVIE(object):
         image.imshow(**imshowprm)
 
 
+    def save_fits(self,filename=None):
+        if filename is None:
+            filename = "%0"+"%d"%(np.int64(np.log10(self.Nt)+1))+"d.fits"
+        for i in xrange(self.Nt):
+            self.images[i].save_fits(filename%(i))
+
+    # load関数の原型
+    def load_fits(self,filename=None):
+        loadmovie=copy.deepcopy(self)
+        if filename is None:
+            filename = "%0"+"%d"%(np.int64(np.log10(self.Nt)+1))+"d.fits"
+        for i in xrange(self.Nt):
+            loadmovie.images[i]=imdata.IMFITS(filename%(i))
+            loadmovie.images[i].update_fits()
+        return loadmovie
+
+    def split_uvfits(self,iframe,uvfitslist):
+
+        '''
+        This extracts uvfits components in a frame denoted by iframe
+
+        Args:
+            iframe (int):
+            frame id
+            uvfitslist (list of uvfits objects):
+
+        Returns:
+            uvfits_framelist (list of uvfits object):
+            list of uvfits including in iframe
+        '''
+
+        uvfits_framelist=[]
+        # Number of uvfitslist components
+        Nuvfits = len(uvfitslist)
+
+        # extract uvfits in a frame
+        for iuvfits in xrange(Nuvfits):
+            uvfits= copy.deepcopy(uvfitslist[iuvfits])
+            Ndata=len(uvfits.visdata.coord["utc"])
+            # initialize extracted uvfits
+            uvfits_frame = copy.deepcopy(uvfits)
+            uvfits_frame.visdata.coord= pd.DataFrame([])
+            istart=0
+            idatalist=[]
+
+            # extract uvfits in a frame denoted by iframe
+            for idata in xrange(Ndata):
+                tt        = uvfits.visdata.coord["utc"][idata].value
+                deltatmin = self.timetable["utc"].max().value#-self.timetable["utc"].min().value
+                deltatmax = deltatmin
+                tfrm      = self.timetable["utc"][iframe].value
+                deltat    = np.abs(tfrm-tt)
+
+                if(iframe-1>=0):
+                    tmin      = self.timetable["utc"][iframe-1].value
+                    deltatmin = np.abs(tmin-tt)
+
+                if(iframe+1<self.Nt):
+                    tmax      = self.timetable["utc"][iframe+1].value
+                    deltatmax = np.abs(tmax-tt)
+
+                if(deltat<deltatmin and deltat<deltatmax):
+                    idatalist = idatalist+[idata]
+
+            idatalist = np.array(idatalist)
+            print("uvfits%d/%d: Number of extracted data=%d"%(iuvfits,Nuvfits,len(idatalist)))
+            if(len(idatalist)>0):
+                idmin     = idatalist.min()
+                idmax     = idatalist.max()
+
+            print("lower and upper limit of data number=%d %d"%(idmin,idmax))
+
+            # make uvfitslist of extracted uvfits components
+            uvfits_frame.visdata.data  = uvfits.visdata.data[idmin:idmax+1]
+            uvfits_frame.visdata.coord = uvfits.visdata.coord.loc[idmin:idmax]
+            uvfits_framelist=uvfits_framelist+[uvfits_frame]
+
+        return uvfits_framelist
+
+
+    def split_uvfits(self,uvfitslist):
+
+        '''
+        This extracts uvfits components in a frame denoted by iframe
+
+        Args:
+
+        Returns:
+        '''
+
+        # Number of uvfitslist components
+        Nuvfits = len(uvfitslist)
+
+        # uvfits list and iuvfits list for each frame
+        uvfits_framelist_list =[]
+        uvfits_idlist_list=[]
+
+        for iframe in xrange(self.Nt):
+            # list of uvframe components and iuvfits in a frame
+            uvfits_framelist=[]
+            uvfits_idlist=[]
+
+            for iuvfits in xrange(Nuvfits):
+
+                # components of uvftislist of iuvfits
+                uvfits= copy.deepcopy(uvfitslist[iuvfits])
+                Ndata=len(uvfits.visdata.coord["utc"])
+
+                # initialize uvfits in a frame
+                uvfits_frame = copy.deepcopy(uvfits)
+                uvfits_frame.visdata.coord = pd.DataFrame([])
+                istart=0
+                idatalist=[]
+
+                # maximum and minimum value of idata of uvfits_frame
+                for idata in xrange(Ndata):
+                    tt        = uvfits.visdata.coord["utc"][idata].value
+                    deltatmin = self.timetable["utc"].max().value#-self.timetable["utc"].min().value
+                    deltatmax = deltatmin
+                    tfrm      = self.timetable["utc"][iframe].value
+                    deltat    = np.abs(tfrm-tt)
+
+                    if(iframe-1>=0):
+                        tmin      = self.timetable["utc"][iframe-1].value
+                        deltatmin = np.abs(tmin-tt)
+
+                    if(iframe+1<self.Nt):
+                        tmax      = self.timetable["utc"][iframe+1].value
+                        deltatmax = np.abs(tmax-tt)
+
+                    if(deltat<deltatmin and deltat<deltatmax):
+                        idatalist = idatalist+[idata]
+
+                #print("uvfits%d/%d: Number of extracted data=%d"%(iuvfits,Nuvfits-1,len(idatalist)))
+                if(len(idatalist)>0):
+                    idmin     = min(idatalist)
+                    idmax     = max(idatalist)
+
+                #print("lower and upper limit of data number=%d %d"%(idmin,idmax))
+
+                uvfits_frame.visdata.data  = uvfits.visdata.data[idmin:idmax+1]
+                uvfits_frame.visdata.coord = uvfits.visdata.coord.loc[idmin:idmax]
+                uvfits_framelist=uvfits_framelist+[uvfits_frame]
+
+                uvfits_idlist = uvfits_idlist+[iuvfits]
+
+            uvfits_framelist_list = uvfits_framelist_list+[uvfits_framelist]
+            uvfits_idlist_list    = uvfits_idlist_list+[uvfits_idlist]
+        return uvfits_framelist_list,uvfits_idlist_list
+
+    def selfcal(self,uvfitslist,std_amp=1,std_pha=100):
+
+        '''
+        This perform a self calibration to concatenated uvfits (uvfits_frame_cal)
+        and make list of cltable
+
+        Args:
+
+        Returns:
+        '''
+
+        Nuvfits = len(uvfitslist)
+        print("STEP1: Extract uvfits components in all frame")
+        uvfits_framelist_list,uvfits_idlist_list=self.split_uvfits(uvfitslist)
+
+        cltable_list_list = []
+        for it in xrange(self.Nt):
+            cltable_list = []
+            iuvfits_min = min(uvfits_idlist_list[it])
+            iuvfits_max = max(uvfits_idlist_list[it])+1
+            for iuvfits in xrange(iuvfits_min,iuvfits_max):
+                cltable      = uvfits_framelist_list[it][iuvfits].selfcal(self.images[it],std_amp,std_pha)
+                cltable_list = cltable_list+[cltable]
+            cltable_list_list = cltable_list_list+[cltable_list]
+        return uvfits_framelist_list,uvfits_idlist_list,cltable_list_list
+
+
+
     def initimlist(self):
         pass
         #mul2dim = list([self.init2dim])*Nt
         #return mul2dim
+
+
+def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
+
+    '''
+    This Concatenate the components of uvfits_frame list,
+    sort by utc time, and tag index of uvfits components.
+
+    Args:
+
+    Returns:
+    '''
+
+    Nt      = len(uvfits_framelist_list)
+    Nuvfits = max(max(uvfits_idlist_list))-min(min(uvfits_idlist_list))+1
+
+    #
+    istart=np.int32(np.zeros(Nuvfits+1))
+    uvfits_con = copy.deepcopy(uvfits_framelist_list[0][0])
+    uvfits_con.visdata.coord = pd.DataFrame([])
+
+    uvfits_con_list = []
+    for iuvfits in xrange(Nuvfits):
+        uvfits_con_list = uvfits_con_list + copy.deepcopy([uvfits_con])
+
+    for it in xrange(Nt):
+        uvfits_idlist = uvfits_idlist_list[it]
+        iuvfits_min = min(uvfits_idlist)
+        iuvfits_max = max(uvfits_idlist)+1
+        for iuvfits in xrange(iuvfits_min,iuvfits_max):
+            #
+            uvfits = copy.deepcopy(uvfits_framelist_list[it][iuvfits])
+            if(istart[iuvfits]==0):
+                uvfits_con_list[iuvfits].visdata.data=uvfits.visdata.data
+                istart[iuvfits]=1
+
+            else:
+                uvfits_con_list[iuvfits].visdata.data = np.concatenate((uvfits_con_list[iuvfits].visdata.data,uvfits.visdata.data))
+
+            uvfits_con_list[iuvfits].visdata.coord    = uvfits_con_list[iuvfits].visdata.coord.append(uvfits.visdata.coord)
+    return uvfits_con_list
+
+
+def apply_cltable(uvfits_framelist_list,uvfits_idlist_list,cltable_list_list):
+
+    '''
+    This makes a list of uvfits objects by performing a self calibration for all frames
+
+    Args:
+
+    Returns:
+    '''
+
+    Nt = len(uvfits_framelist_list)
+
+    uvfits_frame_cal_list_list=[]
+    for it in xrange(Nt):
+        iuvfits_min = min(uvfits_idlist_list[it])
+        iuvfits_max = max(uvfits_idlist_list[it])+1
+
+        uvfits_frame_cal_list=[]
+        for iuvfits in xrange(iuvfits_min,iuvfits_max):
+            uvfits_frame = uvfits_framelist_list[it][iuvfits]
+            cltable      = cltable_list_list[it][iuvfits]
+            uvfits_frame_cal = uvfits_frame.apply_cltable(cltable)
+            uvfits_frame_cal_list = uvfits_frame_cal_list+[uvfits_frame_cal]
+
+        uvfits_frame_cal_list_list=uvfits_frame_cal_list_list+[uvfits_frame_cal_list]
+
+    uvfits_totlist=concat_uvfits(uvfits_frame_cal_list_list,uvfits_idlist_list)
+    return uvfits_totlist
