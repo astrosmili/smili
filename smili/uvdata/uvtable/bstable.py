@@ -27,7 +27,7 @@ import astropy.time as at
 
 # internal
 from .uvtable import UVTable, UVSeries
-from .tools import get_uvlist
+from .tools import get_uvlist,get_uvlist_loop
 from ... import fortlib
 
 # ------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ class BSTable(UVTable):
                        "u23", "v23", "w23", "uvdist23",
                        "u31", "v31", "w31", "uvdist31",
                        "uvdistmin", "uvdistmax", "uvdistave",
-                       "st1", "st2", "st3", "ch",
+                       "st1", "st2", "st3",
                        "st1name", "st2name", "st3name",
                        "amp", "phase", "sigma"]
     bstable_types = [np.asarray, np.float64,
@@ -55,7 +55,7 @@ class BSTable(UVTable):
                      np.float64, np.float64, np.float64, np.float64,
                      np.float64, np.float64, np.float64, np.float64,
                      np.float64, np.float64, np.float64,
-                     np.int32, np.int32, np.int32, np.int32,
+                     np.int32, np.int32, np.int32,
                      np.asarray, np.asarray, np.asarray,
                      np.float64, np.float64, np.float64]
 
@@ -93,6 +93,19 @@ class BSTable(UVTable):
         bstable["amp"] = np.zeros(Ndata)
         return bstable
 
+    def eval_image3d(self, movie, mask=None, istokes=0, ifreq=0):
+        #uvdata.BSTable object (storing model closure phase)
+        model = self._call_fftlib3d(movie=movie,mask=mask,
+                                  istokes=istokes, ifreq=ifreq)
+        Ndata = model[1]
+        cpmodel = model[0][2]
+        cpmodel = np.rad2deg(cpmodel)
+        bstable = self.copy()
+        bstable["phase"] = cpmodel
+        bstable["amp"] = np.zeros(Ndata)
+        return bstable
+
+
     def residual_image(self, imfits, mask=None, istokes=0, ifreq=0):
         #uvdata BSTable object (storing residual closure phase)
         model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -103,9 +116,31 @@ class BSTable(UVTable):
         residtable["phase"] = residp
         return residtable
 
+
+    def residual_image3d(self, movie, mask=None, istokes=0, ifreq=0):
+        #uvdata BSTable object (storing residual closure phase)
+        model = self._call_fftlib3d(movie=movie,mask=mask,
+                                  istokes=istokes, ifreq=ifreq)
+        residp = model[0][3]
+        residp = np.rad2deg(residp)
+        residtable = self.copy()
+        residtable["phase"] = residp
+        return residtable
+
+
     def chisq_image(self, imfits, mask=None, istokes=0, ifreq=0):
         # calcurate chisqared and reduced chisqred.
         model = self._call_fftlib(imfits=imfits,mask=mask,
+                                  istokes=istokes, ifreq=ifreq)
+        chisq = model[0][0]
+        Ndata = model[1]
+        rchisq = chisq/Ndata
+
+        return chisq,rchisq
+
+    def chisq_image3d(self, movie, mask=None, istokes=0, ifreq=0):
+        # calcurate chisqared and reduced chisqred.
+        model = self._call_fftlib3d(movie=movie,mask=mask,
                                   istokes=istokes, ifreq=ifreq)
         chisq = model[0][0]
         Ndata = model[1]
@@ -188,6 +223,99 @@ class BSTable(UVTable):
                 )
 
         return model,Ndata
+
+
+    def _call_fftlib3d(self, movie, mask, istokes=0, ifreq=0):
+        # get initial images
+        istokes = istokes
+        ifreq = ifreq
+        Nt    = movie.Nt
+
+        # size of images
+        Iin = []
+        for im in movie.images:
+            Iin.append(np.float64(im.data[istokes, ifreq]))
+            imfits = movie.images[0]
+
+        Nx = imfits.header["nx"]
+        Ny = imfits.header["ny"]
+        Nyx = Nx * Ny
+
+        # pixel coordinates
+        x, y = imfits.get_xygrid(twodim=True, angunit="rad")
+        xidx = np.arange(Nx) + 1
+        yidx = np.arange(Ny) + 1
+        xidx, yidx = np.meshgrid(xidx, yidx)
+        Nxref = imfits.header["nxref"]
+        Nyref = imfits.header["nyref"]
+        dx_rad = np.deg2rad(imfits.header["dx"])
+        dy_rad = np.deg2rad(imfits.header["dy"])
+
+        # apply the imaging area
+        if mask is None:
+            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
+
+            for i in xrange(len(Iin)):
+                Iin[i] = Iin[i].reshape(Nyx)
+
+            x = x.reshape(Nyx)
+            y = y.reshape(Nyx)
+            xidx = xidx.reshape(Nyx)
+            yidx = yidx.reshape(Nyx)
+        else:
+            print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
+            idx = np.where(mask)
+            for i in xrange(len(Iin)):
+                Iin[i] = Iin[i][idx]
+
+            x = x[idx]
+            y = y[idx]
+            xidx = xidx[idx]
+            yidx = yidx[idx]
+
+        # Closure Phase
+        Ndata = 0
+        bstable = self.copy()
+        cp = np.deg2rad(np.array(bstable["phase"], dtype=np.float64))
+        varcp = np.square(
+                np.array(bstable["sigma"] / bstable["amp"], dtype=np.float64))
+        Ndata += len(cp)
+
+        # get uv coordinates and uv indice
+        u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = get_uvlist_loop(Nt=Nt,
+                fcvconcat=None, ampconcat=None, bsconcat=bstable, caconcat=None
+                )
+        # normalize u, v coordinates
+        u *= 2*np.pi*dx_rad
+        v *= 2*np.pi*dy_rad
+
+        # concatenate the initimages
+        Iin = np.concatenate(Iin)
+
+        # run model_cp
+        model = fortlib.fftlib3d.model_cp(
+                # Images
+                iin=np.float64(Iin),
+                xidx=np.int32(xidx),
+                yidx=np.int32(yidx),
+                nxref=np.float64(Nxref),
+                nyref=np.float64(Nyref),
+                nx=np.int32(Nx),
+                ny=np.int32(Ny),
+                nz=np.int32(Nt),
+                # UV coordinates,
+                u=u,
+                v=v,
+                nuvs=np.int32(Nuvs),
+                # Closure Phase
+                uvidxcp=np.int32(uvidxcp),
+                cp=np.float64(cp),
+                varcp=np.float64(varcp)
+                )
+
+
+        return model,Ndata
+
 
     def eval_geomodel(self, geomodel, evalargs={}):
         '''
