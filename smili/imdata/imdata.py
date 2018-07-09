@@ -390,7 +390,10 @@ class IMFITS(object):
         ix = np.int64(np.round(deltax/self.header["dx"] + self.header["nxref"] - 1))
         iy = np.int64(np.round(deltay/self.header["dy"] + self.header["nyref"] - 1))
         for i in xrange(len(flux)):
-            self.data[0,0,iy[i],ix[i]] = flux[i]
+            try:
+                self.data[0,0,iy[i],ix[i]] = flux[i]
+            except:
+                pass
         self.update_fits()
 
     def read_fits_ehtim(self, fitsfile):
