@@ -26,6 +26,9 @@ from astropy.convolution import convolve_fft
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+# com_position, peak_position,shift_position
+import itertools
+
 # internal
 from .. import fortlib, util
 
@@ -387,7 +390,10 @@ class IMFITS(object):
         ix = np.int64(np.round(deltax/self.header["dx"] + self.header["nxref"] - 1))
         iy = np.int64(np.round(deltay/self.header["dy"] + self.header["nyref"] - 1))
         for i in xrange(len(flux)):
-            self.data[0,0,iy[i],ix[i]] = flux[i]
+            try:
+                self.data[0,0,iy[i],ix[i]] = flux[i]
+            except:
+                pass
         self.update_fits()
 
     def read_fits_ehtim(self, fitsfile):
@@ -1024,17 +1030,16 @@ class IMFITS(object):
         coord[0, :] = y.reshape(Nx1 * Ny1)
         coord[1, :] = x.reshape(Nx1 * Ny1)
 
-        for idxs in np.arange(outfits.header["ns"]):
-            for idxf in np.arange(outfits.header["nf"]):
-                outfits.data[idxs, idxf] = sn.map_coordinates(
-                    fitsdata.data[idxs, idxf], coord, order=order,
-                    mode='constant', cval=0.0, prefilter=True).reshape([Ny1, Nx1]
-                                                                       ) * dx1 * dy1 / dx0 / dy0
-                # Flux Scaling
-                if save_totalflux:
-                    totalflux = fitsdata.totalflux(istokes=idxs, ifreq=idxf)
-                    outfits.data[idxs, idxf] *= totalflux / \
-                        outfits.totalflux(istokes=idxs, ifreq=idxf)
+        for idxs, idxf in itertools.product(xrange(self.header["ns"]),xrange(self.header["nf"])):
+            outfits.data[idxs, idxf] = sn.map_coordinates(
+                fitsdata.data[idxs, idxf], coord, order=order,
+                mode='constant', cval=0.0, prefilter=True).reshape([Ny1, Nx1]
+                                                                   ) * dx1 * dy1 / dx0 / dy0
+            # Flux Scaling
+            if save_totalflux:
+                totalflux = fitsdata.totalflux(istokes=idxs, ifreq=idxf)
+                outfits.data[idxs, idxf] *= totalflux / \
+                    outfits.totalflux(istokes=idxs, ifreq=idxf)
 
         outfits.update_fits()
         return outfits
@@ -1104,154 +1109,125 @@ class IMFITS(object):
         outfits.update_fits()
         return outfits
 
-    def ds9flag(self, regfile, save_totalflux=False):
+    def compos(self,alpha=1.,angunit=None,ifreq=0, istokes=0):
         '''
-        Flagging the image with DS9region file
+        Returns the position of the center of mass in a specified angular unit.
+
+        Arg:
+          alpha (float):
+            if alpha != 0, then the image is powered by alpha prior to compute
+            the center of the mass.
+          angunit (string):
+            The angular unit for the position. If not specified, it will use
+            self.angunit.
+          istokes (integer):
+            index for Stokes Parameter
+          ifreq (integer):
+            index for Frequency
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+
+        Returns:
+          dictionary for the position
+        '''
+        if angunit is None:
+            angunit = self.angunit
+        conv = util.angconv("deg",angunit)
+
+        image = np.abs(self.data[ifreq, istokes])
+        if alpha!=1:
+            image = np.power(image, alpha)
+        pix = sn.measurements.center_of_mass(image)
+        x0 = (pix[1]+1-self.header["nxref"])*self.header["dx"]*conv
+        y0 = (pix[0]+1-self.header["nyref"])*self.header["dy"]*conv
+
+        x,y = self.get_xygrid(angunit=angunit, twodim=True)
+        outdic = {
+            "x0": x0,
+            "y0": y0,
+            "angunit": angunit
+        }
+        return outdic
+
+    def peakpos(self,angunit=None,ifreq=0,istokes=0):
+        '''
+        Returns the position of the peak in a specified angular unit.
+
+        Arg:
+          angunit (string):
+            The angular unit for the position. If not specified, it will use
+            self.angunit.
+          istokes (integer):
+            index for Stokes Parameter
+          ifreq (integer):
+            index for Frequency
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+
+        Returns:
+          dictionary for the position
+        '''
+        if angunit is None:
+            angunit = self.angunit
+
+        image = np.abs(self.data[ifreq, istokes])
+        pix = np.unravel_index(np.argmax(image),image.shape)
+
+        x,y = self.get_xygrid(angunit=angunit, twodim=True)
+        outdic = {
+            "x0": x[pix],
+            "y0": y[pix],
+            "angunit": angunit
+        }
+        return outdic
+
+    def refshift(self,x0=0.,y0=0.,angunit=None,save_totalflux=False):
+        '''
+        Shift the reference position to the specified coordinate.
 
         Args:
-          self: input imagefite.imagefits object
-          regfile (string): input DS9 region file
-          save_totalflux (boolean): If true, the total flux of the image will be conserved.
+          x0, y0 (float, default=0):
+            RA, Dec coordinate of the reference position
+          angunit (string, optional):
+            The angular unit of the coordinate. If not specified, self.angunit
+            will be used.
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.IMFIT object
         '''
-        # create output fits
-        outfits = copy.deepcopy(self)
+        if angunit is None:
+            angunit = self.angunit
+        conv = util.angconv(angunit,"deg")
 
-        # original file
-        xgrid = np.arange(self.header["nx"])
-        ygrid = np.arange(self.header["ny"])
-        X, Y = np.meshgrid(xgrid, ygrid)
+        newimage = copy.deepcopy(self)
+        newimage.header["nxref"]+=x0*conv/self.header["dx"]
+        newimage.header["nyref"]+=y0*conv/self.header["dy"]
+        newimage.update_fits()
+        newimage_shift = self.cpimage(newimage, save_totalflux=save_totalflux)
 
-        # Check which grids should be flagged
-        pixels = get_flagpixels(regfile, X, Y)
-        pixels = (pixels == False)
-        pixels = np.where(pixels)
+        return newimage_shift
 
-        for idxs in np.arange(self.header["ns"]):
-            for idxf in np.arange(self.header["nf"]):
-                image = outfits.data[idxs, idxf]
-                image[pixels] = 0.
-                outfits.data[idxs, idxf] = image
-                # Flux Scaling
-                if save_totalflux:
-                    totalflux = self.totalflux(istokes=idxs, ifreq=idxf)
-                    outfits.data[idxs, idxf] *= totalflux / image.sum()
-
-        # Update and Return
-        outfits.update_fits()
-        return outfits
-
-    def read_cleanbox(self, regfile):
-        # Read DS9-region file
-        f = open(regfile)
-        lines = f.readlines()
-        f.close()
-
-        # original file
-        xgrid = np.arange(self.header["nx"])
-        ygrid = np.arange(self.header["ny"])
-        X, Y = np.meshgrid(xgrid, ygrid)
-        area = np.zeros(X.shape, dtype="Bool")
-
-        # Read each line
-        for line in lines:
-            # Skipping line
-            if line[0] == "#":
-                continue
-            if "image" in line == True:
-                continue
-            if "(" in line == False:
-                continue
-            if "global" in line:
-                continue
-
-            # Replacing many characters to empty spaces
-            line = line.replace("(", " ")
-            line = line.replace(")", " ")
-            while "," in line:
-                line = line.replace(",", " ")
-
-            # split line to elements
-            elements = line.split(" ")
-            while "" in elements:
-                elements.remove("")
-            while "\n" in elements:
-                elements.remove("\n")
-
-            if len(elements) < 4:
-                continue
-
-            # Check whether the box is for "inclusion" or "exclusion"
-            if elements[0][0] == "-":
-                elements[0] = elements[0][1:]
-                exclusion = True
-            else:
-                exclusion = False
-
-            if elements[0] == "box":
-                tmparea = region_box(X, Y,
-                                      x0=np.float64(elements[1]),
-                                      y0=np.float64(elements[2]),
-                                      width=np.float64(elements[3]),
-                                      height=np.float64(elements[4]),
-                                      angle=np.float64(elements[5]))
-            elif elements[0] == "circle":
-                tmparea = region_circle(X, Y,
-                                         x0=np.float64(elements[1]),
-                                         y0=np.float64(elements[2]),
-                                         radius=np.float64(elements[3]))
-            elif elements[0] == "ellipse":
-                tmparea = region_ellipse(X, Y,
-                                          x0=np.float64(elements[1]),
-                                          y0=np.float64(elements[2]),
-                                          radius1=np.float64(elements[3]),
-                                          radius2=np.float64(elements[4]),
-                                          angle=np.float64(elements[5]))
-            else:
-                print("[WARNING] The shape %s is not available." %
-                      (elements[0]))
-
-            if not exclusion:
-                area += tmparea
-            else:
-                area[np.where(tmparea)] = False
-
-        return area
-
-    def comshift(self, save_totalflux=False, ifreq=0, istokes=0):
+    def comshift(self, alpha=1., save_totalflux=False, ifreq=0, istokes=0):
         '''
         Shift the image so that its center-of-mass position coincides with the reference pixel.
 
         Args:
+          alpha (float):
+            if alpha != 0, then the image is powered by alpha prior to compute
+            the center of the mass.
           istokes (integer):
-            index for Stokes Parameter at which the image will be edited
+            index for Stokes Parameter at which the shift will be computed.
           ifreq (integer):
-            index for Frequency at which the image will be edited
+            index for Frequency at which the shift will be computed.
           save_totalflux (boolean):
             If true, the total flux of the image will be conserved.
 
         Returns:
           imdata.IMFITS object
         '''
-        # create output fits
-        outfits = copy.deepcopy(self)
-        image = outfits.data[istokes, ifreq]
-        nxref = outfits.header["nxref"]
-        nyref = outfits.header["nyref"]
-
-        # move the center of mass to the actual center of the self
-        pix = sn.measurements.center_of_mass(image)
-        outfits.data[istokes, ifreq] = sn.interpolation.shift(
-            image, np.asarray([nyref - 1, nxref - 1]) - pix)
-
-        # scale total flux
-        if save_totalflux:
-            totalflux = self.totalflux(istokes=istokes, ifreq=ifreq)
-            outfits.data[istokes, ifreq] *= totalflux / \
-                outfits.totalflux(istokes=istokes, ifreq=ifreq)
-
-        # update FITS
-        outfits.update_fits()
-        return outfits
+        pos = self.compos(alpha=alpha,ifreq=ifreq, istokes=istokes)
+        return self.refshift(save_totalflux=save_totalflux, **pos)
 
     def peakshift(self, save_totalflux=False, ifreq=0, istokes=0):
         '''
@@ -1268,75 +1244,19 @@ class IMFITS(object):
         Returns:
           imdata.IMFITS object
         '''
-        # create output fits
-        outfits = copy.deepcopy(self)
-        image = outfits.data[istokes, ifreq]
-        nxref = outfits.header["nxref"]
-        nyref = outfits.header["nyref"]
-
-        # move the center of mass to the actual center of the self
-        pix = np.unravel_index(np.argmax(image), image.shape)
-        outfits.data[istokes, ifreq] = sn.interpolation.shift(
-            image, np.asarray([nyref - 1, nxref - 1]) - pix)
-        # scale total flux
-        if save_totalflux:
-            totalflux = self.totalflux(istokes=istokes, ifreq=ifreq)
-            outfits.data[istokes, ifreq] *= totalflux / \
-                outfits.totalflux(istokes=istokes, ifreq=ifreq)
-        # update FITS
-        outfits.update_fits()
-        return outfits
-
-    def zeropad(self, Mx, My):
-        '''
-        Uniformly pad zero and extend fov of the image to (My, Mx) pixels.
-
-        Args:
-          self: input imagefite.imagefits object
-          Mx (integer): Number of pixels in RA (x) direction for the padded image.
-          My (integer): Number of pixels in Dec(y) direction for the padded image.
-
-        Returns:
-          imdata.IMFITS object
-        '''
-        # create output fits
-        outfits = copy.deepcopy(self)
-        Nx = outfits.header["nx"]
-        Ny = outfits.header["ny"]
-        Nf = outfits.header["nf"]
-        Ns = outfits.header["ns"]
-        if (Nx > Mx):
-            print("[Error] please set a pixel size for RA  larger than original one!")
-            return -1
-        if (Ny > My):
-            print("[Error] please set a pixel size for Dec larger than original one!")
-            return -1
-        newdata = np.zeros([Ns, Nf, My, Mx])
-        for istokes in np.arange(Ns):
-            for ifreq in np.arange(Nf):
-                # update data
-                newdata[istokes, ifreq, np.around(My / 2 - Ny / 2):np.around(My / 2 - Ny / 2) + Ny, np.around(
-                    Mx / 2 - Nx / 2):np.around(Mx / 2 - Nx / 2) + Nx] = outfits.data[istokes, ifreq]
-        outfits.data = newdata
-
-        # update pixel info
-        outfits.header["nx"] = Mx
-        outfits.header["ny"] = My
-        outfits.header["nxref"] += Mx / 2 - Nx / 2
-        outfits.header["nyref"] += My / 2 - Ny / 2
-        outfits.update_fits()
-
-        return outfits
+        pos = self.peakpos(ifreq=ifreq, istokes=istokes)
+        return self.refshift(save_totalflux=save_totalflux, **pos)
 
     def rotate(self, angle=0, deg=True, save_totalflux=False):
         '''
         Rotate the input image
 
         Args:
-          self: input imagefite.imagefits object
           angle (float): Rotational Angle. Anti-clockwise direction will be positive (same to the Position Angle).
           deg (boolean): It true, then the unit of angle will be degree. Otherwise, it will be radian.
           save_totalflux (boolean): If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.IMFIT object
         '''
         # create output fits
         outfits = copy.deepcopy(self)
@@ -1350,22 +1270,21 @@ class IMFITS(object):
         #sina = np.sin(radangle)
         Nx = outfits.header["nx"]
         Ny = outfits.header["ny"]
-        for istokes in np.arange(self.header["ns"]):
-            for ifreq in np.arange(self.header["nf"]):
-                image = outfits.data[istokes, ifreq]
-                # rotate data
-                newimage = sn.rotate(image, degangle)
-                # get the size of new data
-                My = newimage.shape[0]
-                Mx = newimage.shape[1]
-                # take the center of the rotated image
-                outfits.data[istokes, ifreq] = newimage[My // 2 - Ny // 2:My // 2 - Ny // 2 + Ny,
-                                                        Mx // 2 - Nx // 2:Mx // 2 - Nx // 2 + Nx]
-                # Flux Scaling
-                if save_totalflux:
-                    totalflux = self.totalflux(istokes=istokes, ifreq=ifreq)
-                    outfits.data[istokes, ifreq] *= totalflux / \
-                        outfits.totalflux(istokes=istokes, ifreq=ifreq)
+        for istokes, ifreq in itertools.product(xrange(self.header["ns"]),xrange(self.header["nf"])):
+            image = outfits.data[istokes, ifreq]
+            # rotate data
+            newimage = sn.rotate(image, degangle)
+            # get the size of new data
+            My = newimage.shape[0]
+            Mx = newimage.shape[1]
+            # take the center of the rotated image
+            outfits.data[istokes, ifreq] = newimage[My // 2 - Ny // 2:My // 2 - Ny // 2 + Ny,
+                                                    Mx // 2 - Nx // 2:Mx // 2 - Nx // 2 + Nx]
+            # Flux Scaling
+            if save_totalflux:
+                totalflux = self.totalflux(istokes=istokes, ifreq=ifreq)
+                outfits.data[istokes, ifreq] *= totalflux / \
+                    outfits.totalflux(istokes=istokes, ifreq=ifreq)
         outfits.update_fits()
         return outfits
 
@@ -1510,6 +1429,10 @@ class IMFITS(object):
 
         return outfits
 
+
+    #---------------------------------------------------------------------------
+    # Feature Extraction
+    #---------------------------------------------------------------------------
     def edge_detect(self, method="prewitt", mask=None, sigma=1,
                     low_threshold=0.1, high_threshold=0.2):
         '''
