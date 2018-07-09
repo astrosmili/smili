@@ -409,7 +409,50 @@ class VisTable(UVTable):
                     varfcv=np.float64(varfcv)
                     )
 
-        return model,Ndata
+            return model,Ndata
+
+        else:
+            Ndata = 0
+            amptable = self.copy()
+            dammyreal = np.zeros(1, dtype=np.float64)
+            vfcvr = dammyreal
+            vfcvi = dammyreal
+            varfcv = dammyreal
+            vamp = np.array(amptable["amp"], dtype=np.float64)
+            varamp = np.square(np.array(amptable["sigma"], dtype=np.float64))
+            Ndata += len(vamp)
+
+            # get uv coordinates and uv indice
+            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
+                fcvtable=None, amptable=amptable, bstable=None, catable=None
+            )
+
+
+            # normalize u, v coordinates
+            u *= 2*np.pi*dx_rad
+            v *= 2*np.pi*dy_rad
+
+            # run model_fcv
+            model = fortlib.fftlib.model_amp(
+                    # Images
+                    iin=np.float64(Iin),
+                    xidx=np.int32(xidx),
+                    yidx=np.int32(yidx),
+                    nxref=np.float64(Nxref),
+                    nyref=np.float64(Nyref),
+                    nx=np.int32(Nx),
+                    ny=np.int32(Ny),
+                    # UV coordinates,
+                    u=u,
+                    v=v,
+                    #
+                    uvidxamp=np.int32(uvidxamp),
+                    vamp=np.float64(vamp),
+                    varamp=np.float64(varamp)
+                    )
+            return model,Ndata
+
+
 
 
     def chisq_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
