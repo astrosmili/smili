@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import astropy.constants as ac
 import astropy.time as at
+import datetime as dt
 
 
 # ------------------------------------------------------------------------------
@@ -174,11 +175,12 @@ class UVTable(pd.DataFrame):
             dgsthour[np.where(dgsthour>=1e-6)]=24
             dgsthour = np.add.accumulate(dgsthour)
             gsthour[1:] += dgsthour[:]
+            origin = utc.min().datetime.strftime("%Y-%m-%d")
         else:
             gsthour = self.gsthour.values
             gsthour[np.where(gsthour<wraphour)]+=24
+            origin = dt.datetime(2000,1,1,0,0,0)
 
-        origin = utc.min().datetime.strftime("%Y-%m-%d")
         return pd.to_datetime(gsthour, unit="h", origin=origin)
 
     def to_csv(self, filename, float_format=r"%22.16e", index=False,
