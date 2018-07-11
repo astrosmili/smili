@@ -234,7 +234,7 @@ class MOVIE(object):
         Returns:
           imdata.Movie object
         '''
-        pos = self.average().peakpos(alpha=alpha)
+        pos = self.average().peakpos(ifreq=ifreq, istokes=istokes)
         return self.refshift(save_totalflux=save_totalflux, **pos)
 
     def gauss_convolve(self, majsize, minsize=None, x0=None, y0=None, pa=0.0, scale=1.0, angunit=None, pos='rel', save_totalflux=False):
