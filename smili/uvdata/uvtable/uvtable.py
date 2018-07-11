@@ -17,6 +17,7 @@ import collections
 import numpy as np
 import pandas as pd
 import astropy.constants as ac
+import astropy.time as at
 
 
 # ------------------------------------------------------------------------------
@@ -121,7 +122,7 @@ class UVTable(pd.DataFrame):
 
         return conv
 
-    def get_unitlabel(self, uvunit=None):
+    def get_uvunitlabel(self, uvunit=None):
         '''
         Get a unit label name for uvunits.
         Available units are l[ambda], kl[ambda], ml[ambda], gl[ambda], m[eter]
@@ -153,6 +154,32 @@ class UVTable(pd.DataFrame):
             print("Error: uvunit=%s is not supported" % (unit2))
             return -1
         return unitlabel
+
+    def utc_astropytime(self):
+        return at.Time(np.datetime_as_string(self.utc.values))
+
+    def gst_datetime(self, continuous=True, wraphour=0):
+        '''
+        get GST in datetime
+        '''
+        self = self.sort_values(by="utc").reset_index(drop=True)
+        Ndata = len(self.utc)
+
+        utc = self.utc_astropytime()
+        gsthour = self.gsthour.values
+
+        if continuous:
+            dgsthour = -np.diff(gsthour)
+            dgsthour[np.where(dgsthour<1e-6)]=0
+            dgsthour[np.where(dgsthour>=1e-6)]=24
+            dgsthour = np.add.accumulate(dgsthour)
+            gsthour[1:] += dgsthour[:]
+        else:
+            gsthour = self.gsthour.values
+            gsthour[np.where(gsthour<wraphour)]+=24
+
+        origin = utc.min().datetime.strftime("%Y-%m-%d")
+        return pd.to_datetime(gsthour, unit="h", origin=origin)
 
     def to_csv(self, filename, float_format=r"%22.16e", index=False,
                index_label=False, **args):

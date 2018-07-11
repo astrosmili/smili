@@ -903,7 +903,7 @@ class UVFITS(object):
             antable=self.subarrays[subarr].antable
             Nant = len(antable["name"])
             for iant in xrange(Nant):
-                outdic[(subarr,iant+1)]=antable.loc[iant, key]
+                outdic[(subarr,iant+1)]=antable.loc[iant, key].strip(" ")
         return outdic
 
     def get_freq(self, center=True):

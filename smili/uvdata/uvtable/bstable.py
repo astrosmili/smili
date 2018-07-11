@@ -81,6 +81,84 @@ class BSTable(UVTable):
         else:
             self.uvunit = uvunit
 
+    def station_list(self, id=False):
+        '''
+        Return list of stations. If id=True, return list of station IDs.
+        '''
+        if id:
+            return np.unique([self["st1"],self["st2"],self["st3"]]).tolist()
+        else:
+            return np.unique([self["st1name"],self["st2name"],self["st3name"]]).tolist()
+
+    def station_dic(self, id2name=True):
+        '''
+        Return dictionary of stations. If id2name=True, return a dictionary
+        whose key is the station ID number and value is the station name.
+        Otherwise return a dictionary whose key is the name and value is ID.
+        '''
+        st1table = self.drop_duplicates(subset='st1')
+        st2table = self.drop_duplicates(subset='st2')
+        st3table = self.drop_duplicates(subset='st3')
+        if id2name:
+            outdict = dict(zip(st1table.st1.values, st1table.st1name.values))
+            outdict.update(dict(zip(st2table.st2.values, st2table.st2name.values)))
+            outdict.update(dict(zip(st3table.st3.values, st3table.st3name.values)))
+        else:
+            outdict = dict(zip(st1table.st1name.values,st1table.st1.values))
+            outdict.update(dict(zip(st2table.st2name.values,st2table.st2.values)))
+            outdict.update(dict(zip(st3table.st3name.values,st3table.st3.values)))
+        return outdict
+
+    def triangle_list(self, id=False):
+        '''
+        Return the list of baselines. If id=False, then the names of stations
+        will be returned. Otherwise, the ID numbers of stations will be returned.
+        '''
+        if id:
+            table = self.drop_duplicates(subset=['st1','st2','st3'])
+            return zip(table.st1.values,table.st2.values,table.st3.values)
+        else:
+            table = self.drop_duplicates(subset=['st1name','st2name','st3name'])
+            return zip(table.st1name.values,table.st2name.values,table.st3name.values)
+
+    def comp(self):
+        '''
+        Return full complex visibilities
+        '''
+        return self["amp"]*np.exp(1j*np.deg2rad(self["phase"]))
+
+    def real(self):
+        '''
+        Return the real part of full complex visibilities
+        '''
+        return np.real(self.comp())
+
+    def imag(self):
+        '''
+        Return the imag part of full complex visibilities
+        '''
+        return np.imag(self.comp())
+
+    def sigma_phase(self, deg=True):
+        '''
+        Return the phase error estimator using a high SNR limit formula
+
+        Args:
+            deg (boolean; default=True):
+                IF true, returns values in degree. Otherwide, values will be
+                returned in radian
+        '''
+        if deg:
+            return np.rad2deg(self["sigma"]/self["amp"])
+        else:
+            return self["sigma"]/self["amp"]
+
+    def snr(self):
+        '''
+        Return the SNR estimator
+        '''
+        return self["amp"]/self["sigma"]
+
     def eval_image(self, imfits, mask=None, istokes=0, ifreq=0):
         #uvdata.BSTable object (storing model closure phase)
         model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -406,7 +484,7 @@ class BSTable(UVTable):
         conv = self.uvunitconv(unit1="lambda", unit2=uvunit)
 
         # Label
-        unitlabel = self.get_unitlabel(uvunit)
+        unitlabel = self.get_uvunitlabel(uvunit)
 
         plotargs2 = copy.deepcopy(plotargs)
         plotargs2["label"] = ""
@@ -488,7 +566,7 @@ class BSTable(UVTable):
             return -1
 
         # Label
-        unitlabel = self.get_unitlabel(uvunit)
+        unitlabel = self.get_uvunitlabel(uvunit)
 
         # normalized by error
         plttable = copy.deepcopy(self)
@@ -510,12 +588,28 @@ class BSTable(UVTable):
         plt.xlim(0,)
         plt.ylim(-180, 180)
 
-    def vplot(self, station=1, timescale="utc", normerror=False, errorbar=True,
-              ls="none", marker=".", **plotargs):
+    def vplot(self,
+            axis1="utc",
+            axis2="phase",
+            triangle=None,
+            normerror1=False,
+            normerror2=None,
+            errorbar=True,
+            gst_continuous=True,
+            gst_wraphour=0.,
+            time_maj_loc=mdates.HourLocator(),
+            time_min_loc=mdates.MinuteLocator(byminute=np.arange(0,60,10)),
+            time_maj_fmt='%H:%M',
+            uvunit=None,
+            ls="none",
+            marker=".",
+            label=None,
+            **plotargs):
         '''
-        Plot visibility amplitudes as a function of baseline lengths
-        on the current axes. This method uses matplotlib.pyplot.plot() or
-        matplotlib.pyplot.errorbar().
+        Plot various type of data. Available types of data are
+        ["utc","gst","amp","phase","sigma","real","imag","snr",
+         "uvd(ist)mean","uvd(ist)min","uvd(ist)max",
+         "uvd(ist)1","uvd(ist)2","uvd(ist)3"]
 
         Args:
           uvunit (str, default = None):
@@ -535,106 +629,214 @@ class BSTable(UVTable):
             matplotlib.pyplot.errorbars().
             Defaults are {'ls': "none", 'marker': "."}.
         '''
-        # make dictionary of stations
-        st1table = self.drop_duplicates(subset='st1')
-        st2table = self.drop_duplicates(subset='st2')
-        st3table = self.drop_duplicates(subset='st3')
-        stdict = dict(zip(st1table["st1"], st1table["st1name"]))
-        stdict.update(dict(zip(st2table["st2"], st2table["st2name"])))
-        stdict.update(dict(zip(st3table["st3"], st3table["st3name"])))
-
-        if station is None:
-            st1 = 1
-            st1name = stdict[1]
+        # Check if triangle is specified
+        if triangle is None:
+            pltdata = self
         else:
-            st1 = int(station)
-            st1name = stdict[st1]
-
-        # edit timescale
-        if timescale=="gsthour" or timescale=="gst":
-            timescale = "gsthour"
-            #
-            ttable = self.drop_duplicates(subset=timescale)
-            time = np.array(ttable[timescale])
-            tmin = time[0]
-            tmax = time[-1]
-            #
-            if tmin > tmax:
-                self.loc[self.gsthour<=tmax, "gsthour"] += 24.
-
-        # setting limits of min and max
-        ttable = self.drop_duplicates(subset=timescale)
-        if timescale=="utc":
-            ttable[timescale] = pd.to_datetime(ttable[timescale])
-        if timescale=="gsthour":
-            ttable[timescale] = pd.to_datetime(ttable[timescale], unit="h")
-        #
-        time = np.array(ttable[timescale])
-        tmin = time[0]
-        tmax = time[-1]
-
-        # setting indices
-        tmptable = self.set_index(timescale)
-
-        # search data of baseline
-        tmptable = tmptable.query("st1 == @st1")
-
-        # normalized by error
-        if normerror:
-            pherr = np.rad2deg(tmptable["sigma"] / tmptable["amp"])
-            tmptable["phase"] /= pherr
-            errorbar = False
-
-        # convert timescale to pd.to_datetime
-        if timescale=="utc":
-            tmptable.index = pd.to_datetime(tmptable.index)
-        if timescale=="gsthour":
-            tmptable.index = pd.to_datetime(tmptable.index, unit="h")
-
-        # get antenna
-        st2 = np.int32((tmptable.drop_duplicates(subset=['st2', 'st3']))['st2'])
-        st3 = np.int32((tmptable.drop_duplicates(subset=['st2', 'st3']))['st3'])
-        Nant = len(st2)
-
-        # plotting data
-        fig, axs = plt.subplots(nrows=Nant, ncols=1, sharex=True, sharey=False)
-        fig.subplots_adjust(hspace=0.)
-        for iant in range(Nant):
-            ax = axs[iant]
-            plt.sca(ax)
-
-            plttable = tmptable.query("st2 == @st2[@iant] & st3 == @st3[@iant]")
-            if errorbar:
-                pherr = np.rad2deg(plttable["sigma"] / plttable["amp"])
-                plt.errorbar(plttable.index, plttable["phase"], pherr, ls=ls,
-                             marker=marker, **plotargs)
+            stndict = self.station_dic(id2name=True)
+            stidict = self.station_dic(id2name=False)
+            # make dictionary of stations
+            if isinstance(triangle[0], basestring):
+                st1 = stidict[triangle[0]]
             else:
-                plt.plot(plttable.index, plttable["phase"], ls=ls, marker=marker, **plotargs)
-            #
-            plt.text(0.97, 0.9, st1name.strip()+"-"+stdict[st2[iant]].strip()+"-"+stdict[st3[iant]].strip(),
-                     horizontalalignment='right', verticalalignment='top',
-                     transform=ax.transAxes, fontsize=8, color="black")
-            plt.xlim(tmin, tmax)
-            # major ticks
-            ax.yaxis.set_major_locator(ticker.FixedLocator([-90, 0, 90]))
-            for tick in ax.yaxis.get_major_ticks():
-                tick.label.set_fontsize(9)
-            #
-            plt.ylim(-180., 180.)
+                st1 = int(triangle[0])
+            if isinstance(triangle[1], basestring):
+                st2 = stidict[triangle[1]]
+            else:
+                st2 = int(triangle[1])
+            if isinstance(triangle[2], basestring):
+                st3 = stidict[triangle[2]]
+            else:
+                st3 = int(triangle[2])
+            st1, st2, st3 = sorted([st1,st2,st3])
+            st1name = stndict[st1]
+            st2name = stndict[st2]
+            st3name = stndict[st3]
+            pltdata = self.query("st1==@st1 & st2==@st2 & st3==@st3").reset_index(drop=True)
+            del stndict, stidict
+            if len(pltdata["st1"])==0:
+                print("No data can be plotted.")
+                return
 
-        # major ticks
-        ax.xaxis.set_major_locator(mdates.HourLocator(np.arange(0, 25, 6)))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H"))
-        #
-        for tick in ax.xaxis.get_major_ticks():
-            tick.label.set_fontsize(10)
-        # minor ticks
-        ax.xaxis.set_minor_locator(mdates.HourLocator(np.arange(0, 25, 2)))
-        #
-        if timescale=="utc":
-            plt.xlabel(r"Universal Time (UTC)")
-        elif timescale=="gsthour":
-            plt.xlabel(r"Greenwich Sidereal Time (GST)")
+        # Check label
+        if label is None:
+            if triangle is None:
+                label=""
+            else:
+                label="%s - %s - %s"%(st1name,st2name,st3name)
+
+        # check
+        if normerror2 is None:
+            normerror2 = normerror1
+
+        # Set Unit
+        if uvunit is None:
+            self.set_uvunit()
+            uvunit = self.uvunit
+
+        # Conversion Factor
+        uvunitconv = self.uvunitconv(unit1="lambda", unit2=uvunit)
+        # Label
+        uvunitlabel = self.get_uvunitlabel(uvunit)
+
+        # get data to be plotted
+        axises = [axis1.lower(),axis2.lower()]
+        normerrors = [normerror1, normerror2]
+        useerrorbar=False
+        errors=[]
+        pltarrays = []
+        axislabels = []
+        deflims = []
+        for i in xrange(2):
+            axis = axises[i]
+            normerror = normerrors[i]
+            if   "utc" in axis:
+                pltarrays.append(pltdata.utc.values)
+                axislabels.append("Universal Time")
+                deflims.append((None,None))
+                errors.append(None)
+            elif "gst" in axis:
+                pltarrays.append(pltdata.gst_datetime(continuous=gst_continuous, wraphour=gst_wraphour))
+                axislabels.append("Greenwich Sidereal Time")
+                deflims.append((None,None))
+                errors.append(None)
+            elif "real" in axis:
+                if not normerror:
+                    pltarrays.append(pltdata.real().values)
+                    axislabels.append("Real Part of Bispectrum (Jy$^3$)")
+                    errors.append(pltdata.sigma.values)
+                    if errorbar and (not useerrorbar):
+                        useerrorbar=True
+                else:
+                    pltarrays.append(pltdata.real().values/pltdata.sigma.values)
+                    axislabels.append("Error-normalized Real Part")
+                    errors.append(None)
+                deflims.append((None,None))
+            elif "imag" in axis:
+                if not normerror:
+                    pltarrays.append(pltdata.imag().values)
+                    axislabels.append("Imag Part of Bispectrum (Jy$^3$)")
+                    errors.append(pltdata.sigma.values)
+                    if errorbar and (not useerrorbar):
+                        useerrorbar=True
+                else:
+                    pltarrays.append(pltdata.imag().values/pltdata.sigma.values)
+                    axislabels.append("Error-normalized Imag Part")
+                    errors.append(None)
+                deflims.append((None,None))
+            elif "amp" in axis:
+                if not normerror:
+                    pltarrays.append(pltdata.amp.values)
+                    axislabels.append("Bispectrum Amplitude (Jy$^3$)")
+                    errors.append(pltdata.sigma.values)
+                    if errorbar and (not useerrorbar):
+                        useerrorbar=True
+                else:
+                    pltarrays.append(pltdata.amp.values/pltdata.sigma.values)
+                    axislabels.append("Error-normalized Amplitude")
+                    errors.append(None)
+                deflims.append((0,None))
+            elif "phase" in axis:
+                if not normerror:
+                    pltarrays.append(pltdata.phase.values)
+                    axislabels.append("Closure Phase (deg)")
+                    deflims.append((-180,180))
+                    errors.append(pltdata.sigma_phase().values)
+                    if errorbar and (not useerrorbar):
+                        useerrorbar=True
+                else:
+                    pltarrays.append(pltdata.phase.values/pltdata.sigma_phase().values)
+                    axislabels.append("Error-normalized Closure Phase")
+                    deflims.append((None,None))
+                    errors.append(None)
+            elif "sigma" in axis:
+                pltarrays.append(pltdata.sigma.values)
+                axislabels.append("Bispectrum Error (Jy$^3$)")
+                deflims.append((0,None))
+                errors.append(None)
+            elif "snr" in axis:
+                pltarrays.append(pltdata.snr().values)
+                axislabels.append("SNR")
+                deflims.append((0,None))
+                errors.append(None)
+            elif ("uvd" in axis) and ("1" in axis):
+                pltarrays.append(pltdata.uvdist12.values*uvunitconv)
+                axislabels.append("Baseline Length of the 1st Baseline (%s)"%(uvunitlabel))
+                deflims.append((None,None))
+                errors.append(None)
+            elif ("uvd" in axis) and ("2" in axis):
+                pltarrays.append(pltdata.uvdist23.values*uvunitconv)
+                axislabels.append("Baseline Length of the 2nd Baseline (%s)"%(uvunitlabel))
+                deflims.append((None,None))
+                errors.append(None)
+            elif ("uvd" in axis) and ("3" in axis):
+                pltarrays.append(pltdata.uvdist31.values*uvunitconv)
+                axislabels.append("Baseline Length of the 3rd Baseline (%s)"%(uvunitlabel))
+                deflims.append((None,None))
+                errors.append(None)
+            elif ("uvd" in axis) and ("max" in axis):
+                pltarrays.append(pltdata.uvdistmax.values*uvunitconv)
+                axislabels.append("Maximum Baseline Length (%s)"%(uvunitlabel))
+                deflims.append((None,None))
+                errors.append(None)
+            elif ("uvd" in axis) and ("min" in axis):
+                pltarrays.append(pltdata.uvdistmin.values*uvunitconv)
+                axislabels.append("Minimum Baseline Length (%s)"%(uvunitlabel))
+                deflims.append((None,None))
+                errors.append(None)
+            elif ("uvd" in axis):
+                pltarrays.append(pltdata.uvdistave.values*uvunitconv)
+                axislabels.append("Mean Baseline Length (%s)"%(uvunitlabel))
+                deflims.append((None,None))
+                errors.append(None)
+            else:
+                raise ValueError("Invalid axis type: %s"%(axis))
+
+        # plot
+        ax = plt.gca()
+
+        if useerrorbar:
+            plt.errorbar(
+                pltarrays[0],
+                pltarrays[1],
+                yerr=errors[1],
+                xerr=errors[0],
+                label=label,
+                marker=marker,
+                ls=ls,
+                **plotargs
+            )
+        else:
+            plt.plot(
+                pltarrays[0],
+                pltarrays[1],
+                label=label,
+                marker=marker,
+                ls=ls,
+                **plotargs
+            )
+
+        # set formatter if utc or gst will be plotted
+        for i in xrange(2):
+            axis = axises[i]
+            # Set time
+            if i==0:
+                axaxis = ax.xaxis
+            else:
+                axaxis = ax.yaxis
+            if "gst" in axis or "utc" in axis:
+                axaxis.set_major_locator(time_maj_loc)
+                axaxis.set_minor_locator(time_min_loc)
+                axaxis.set_major_formatter(mdates.DateFormatter(time_maj_fmt))
+            del axaxis
+
+            # Set labels and limits
+            if i==0:
+                plt.xlabel(axislabels[0])
+                plt.xlim(deflims[0])
+            else:
+                plt.ylabel(axislabels[1])
+                plt.ylim(deflims[1])
 
 class BSSeries(UVSeries):
 
