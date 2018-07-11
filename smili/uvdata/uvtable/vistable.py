@@ -1001,7 +1001,7 @@ class VisTable(UVTable):
             dependent (boolean; default=False):
                 If False, only independent dependent closure amplitudes will be formed.
                 Otherwise, dependent closure amplitudes also will be formed as well.
-            debias (boolean; default=False):
+            debias (boolean; default=True):
                 If True, visibility amplitudes will be debiased before closing
                 closure amplitudes.
         Returns:
