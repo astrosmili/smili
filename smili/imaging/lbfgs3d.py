@@ -445,12 +445,12 @@ def statistics(
         rchisqfcv = 0.
     else:
         isfcv = True
-        chisqfcv, rchisqfcv = vistable.chisq_image3d(imfitslist=initmovie.images,
+        chisqfcv, rchisqfcv = vistable.chisq_image3d(movie=initmovie,
                                                    mask=imagewin,
                                                    amptable=False,
                                                    istokes=istokes,
                                                    ifreq=ifreq,
-                                                   Nt=Nt)
+                                                   )
         Ndata += len(vistable)*2
 
     # Visibility Amplitude
@@ -460,12 +460,12 @@ def statistics(
         rchisqamp = 0.
     else:
         isamp = True
-        chisqamp, rchisqamp = amptable.chisq_image3d(imfitslist=initmovie.images,
+        chisqamp, rchisqamp = amptable.chisq_image3d(movie=initmovie,
                                                    mask=imagewin,
                                                    amptable=True,
                                                    istokes=istokes,
                                                    ifreq=ifreq,
-                                                   Nt=Nt)
+                                                   )
         Ndata += len(amptable)
 
     # Closure Phase
@@ -475,11 +475,11 @@ def statistics(
         rchisqcp = 0.
     else:
         iscp = True
-        chisqcp, rchisqcp = bstable.chisq_image3d(imfitslist=initmovie.images,
+        chisqcp, rchisqcp = bstable.chisq_image3d(movie=initmovie,
                                                 mask=imagewin,
                                                 istokes=istokes,
                                                 ifreq=ifreq,
-                                                Nt=Nt)
+                                                )
         Ndata += len(bstable)
 
     # Closure Amplitude
@@ -489,11 +489,11 @@ def statistics(
         rchisqca = 0.
     else:
         isca = True
-        chisqca, rchisqca = catable.chisq_image3d(imfitslist=initmovie.images,
+        chisqca, rchisqca = catable.chisq_image3d(movie=initmovie,
                                                 mask=imagewin,
                                                 istokes=istokes,
                                                 ifreq=ifreq,
-                                                Nt=Nt)
+                                                )
         Ndata += len(catable)
 
     # size of images
@@ -651,10 +651,14 @@ def statistics(
     return stats
 
 
-def plots(outimage, imageprm={}, filename=None,
-                     angunit="mas", uvunit="ml", plotargs={'ms': 1., }):
+def plots(outmovie, imageprm={}, filename=None,
+          angunit="uas", uvunit="ml", plotargs={'ms': 1., }):
     isinteractive = plt.isinteractive()
     backend = matplotlib.rcParams["backend"]
+
+    outimage = outmovie.average()
+    if angunit is None:
+        angunit=outimage.angunit
 
     if isinteractive:
         plt.ioff()
@@ -680,7 +684,7 @@ def plots(outimage, imageprm={}, filename=None,
         return -1
 
     # Get statistics
-    stats = statistics(outimage, **imageprm)
+    stats = statistics(outmovie, **imageprm)
 
     # Open File
     if filename is not None:
@@ -698,17 +702,19 @@ def plots(outimage, imageprm={}, filename=None,
         pdf.savefig()
         plt.close()
 
-    # Amplitude
+    # fcv
     if stats["isfcv"] == True:
         table = imageprm["vistable"]
+        if uvunit is None:
+            uvunit = table.uvunit
 
         # Get model data
-        model = table.eval_image(imfits=outimage,
+        model = table.eval_image3d(movie=outmovie,
                                  mask=None,
                                  amptable=False,
                                  istokes=0,
                                  ifreq=0)
-        resid = table.residual_image(imfits=outimage,
+        resid = table.residual_image3d(movie=outmovie,
                                      mask=None,
                                      amptable=False,
                                      istokes=0,
@@ -731,6 +737,7 @@ def plots(outimage, imageprm={}, filename=None,
         model.radplot(uvunit=uvunit,
                       datatype="amp",
                       color="red",
+                      errorbar=False,
                       **plotargs)
         plt.xlabel("")
 
@@ -743,6 +750,7 @@ def plots(outimage, imageprm={}, filename=None,
         model.radplot(uvunit=uvunit,
                       datatype="phase",
                       color="red",
+                      errorbar=False,
                       **plotargs)
         plt.xlabel("")
 
@@ -767,32 +775,36 @@ def plots(outimage, imageprm={}, filename=None,
 
         divider = make_axes_locatable(ax)  # Histgram
         cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
+        normresidr = resid["amp"]*np.cos(np.deg2rad(resid["phase"])) / resid["sigma"]
+        normresidi = resid["amp"]*np.sin(np.deg2rad(resid["phase"])) / resid["sigma"]
+        normresid = np.concatenate([normresidr, normresidi])
+        N = len(normresid)
+        ymin, ymax = ax.get_ylim()
+        y = np.linspace(ymin, ymax, 1000)
+        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
+        cax.hist(normresid, bins=np.int(np.sqrt(N)),
+                 normed=True, orientation='horizontal')
+        cax.plot(x, y, color="red")
+        cax.set_ylim(ax.get_ylim())
+        cax.axhline(0, color="black", ls="--")
+        cax.yaxis.set_major_formatter(nullfmt)
+        cax.xaxis.set_major_formatter(nullfmt)
         if filename is not None:
             pdf.savefig()
             plt.close()
 
     if stats["isamp"] == True:
         table = imageprm["amptable"]
+        if uvunit is None:
+            uvunit = table.uvunit
 
         # Get model data
-        model = table.eval_image(imfits=outimage,
+        model = table.eval_image3d(movie=outmovie,
                                  mask=None,
                                  amptable=True,
                                  istokes=0,
                                  ifreq=0)
-        resid = table.residual_image(imfits=outimage,
+        resid = table.residual_image3d(movie=outmovie,
                                      mask=None,
                                      amptable=True,
                                      istokes=0,
@@ -815,6 +827,7 @@ def plots(outimage, imageprm={}, filename=None,
         model.radplot(uvunit=uvunit,
                       datatype="amp",
                       color="red",
+                      errorbar=False,
                       **plotargs)
         plt.xlabel("")
 
@@ -834,18 +847,18 @@ def plots(outimage, imageprm={}, filename=None,
 
         divider = make_axes_locatable(ax)  # Histgram
         cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
+        normresid = resid["amp"] / resid["sigma"]
+        N = len(normresid)
+        ymin, ymax = ax.get_ylim()
+        y = np.linspace(ymin, ymax, 1000)
+        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
+        cax.hist(normresid, bins=np.int(np.sqrt(N)),
+                 normed=True, orientation='horizontal')
+        cax.plot(x, y, color="red")
+        cax.set_ylim(ax.get_ylim())
+        cax.axhline(0, color="black", ls="--")
+        cax.yaxis.set_major_formatter(nullfmt)
+        cax.xaxis.set_major_formatter(nullfmt)
         if filename is not None:
             pdf.savefig()
             plt.close()
@@ -853,13 +866,15 @@ def plots(outimage, imageprm={}, filename=None,
     # Closure Amplitude
     if stats["isca"] == True:
         table = imageprm["catable"]
+        if uvunit is None:
+            uvunit = table.uvunit
 
         # Get model data
-        model = table.eval_image(imfits=outimage,
+        model = table.eval_image3d(movie=outmovie,
                                  mask=None,
                                  istokes=0,
                                  ifreq=0)
-        resid = table.residual_image(imfits=outimage,
+        resid = table.residual_image3d(movie=outmovie,
                                      mask=None,
                                      istokes=0,
                                      ifreq=0)
@@ -879,7 +894,7 @@ def plots(outimage, imageprm={}, filename=None,
         table.radplot(uvunit=uvunit, uvdtype="ave", color="black", log=True,
                       **plotargs)
         model.radplot(uvunit=uvunit, uvdtype="ave", color="red", log=True,
-                      **plotargs)
+                      errorbar=False, **plotargs)
         plt.xlabel("")
 
         ax = axs[1]
@@ -897,18 +912,20 @@ def plots(outimage, imageprm={}, filename=None,
 
         divider = make_axes_locatable(ax)  # Histgram
         cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
+        normresid = resid["logamp"] / resid["logsigma"]
+        N = len(normresid)
+        ymin, ymax = ax.get_ylim()
+        xmin = np.min(normresid)
+        xmax = np.max(normresid)
+        y = np.linspace(ymin, ymax, 1000)
+        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
+        cax.hist(normresid, bins=np.int(np.sqrt(N)),
+                 normed=True, orientation='horizontal')
+        cax.plot(x, y, color="red")
+        cax.set_ylim(ax.get_ylim())
+        cax.axhline(0, color="black", ls="--")
+        cax.yaxis.set_major_formatter(nullfmt)
+        cax.xaxis.set_major_formatter(nullfmt)
         if filename is not None:
             pdf.savefig()
             plt.close()
@@ -916,13 +933,15 @@ def plots(outimage, imageprm={}, filename=None,
     # Closure Phase
     if stats["iscp"] == True:
         table = imageprm["bstable"]
+        if uvunit is None:
+            uvunit = table.uvunit
 
         # Get model data
-        model = table.eval_image(imfits=outimage,
+        model = table.eval_image3d(movie=outmovie,
                                  mask=None,
                                  istokes=0,
                                  ifreq=0)
-        resid = table.residual_image(imfits=outimage,
+        resid = table.residual_image3d(movie=outmovie,
                                      mask=None,
                                      istokes=0,
                                      ifreq=0)
@@ -940,7 +959,7 @@ def plots(outimage, imageprm={}, filename=None,
         table.radplot(uvunit=uvunit, uvdtype="ave", color="black",
                       **plotargs)
         model.radplot(uvunit=uvunit, uvdtype="ave", color="red",
-                      **plotargs)
+                      errorbar=False, **plotargs)
         plt.xlabel("")
 
         ax = axs[1]
@@ -952,27 +971,26 @@ def plots(outimage, imageprm={}, filename=None,
                       color="black",
                       **plotargs)
         plt.axhline(0, color="black", ls="--")
-        residcp = table["phase"] / np.rad2deg(table["sigma"] / table["amp"])
-        ymin = np.min(residcp)*1.1
-        ymax = np.max(residcp)*1.1
+        normresid = resid["phase"] / (np.rad2deg(resid["sigma"] / resid["amp"]))
+        N = len(normresid)
+        ymin = np.min(normresid)*1.1
+        ymax = np.max(normresid)*1.1
         plt.ylim(ymin,ymax)
         plt.ylabel("Normalized Residuals")
         plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
-        del residcp,ymin,ymax
+        del ymin,ymax
         divider = make_axes_locatable(ax)  # Histgram
         cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
+        ymin, ymax = ax.get_ylim()
+        y = np.linspace(ymin, ymax, 1000)
+        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
+        cax.hist(normresid, bins=np.int(np.sqrt(N)),
+                 normed=True, orientation='horizontal')
+        cax.plot(x, y, color="red")
+        cax.set_ylim(ax.get_ylim())
+        cax.axhline(0, color="black", ls="--")
+        cax.yaxis.set_major_formatter(nullfmt)
+        cax.xaxis.set_major_formatter(nullfmt)
         if filename is not None:
             pdf.savefig()
             plt.close()
@@ -983,9 +1001,12 @@ def plots(outimage, imageprm={}, filename=None,
     else:
         plt.show()
 
+    # Reset rcsetting
+    matplotlib.rcdefaults()
     if isinteractive:
         plt.ion()
         matplotlib.use(backend)
+
 
 
 
