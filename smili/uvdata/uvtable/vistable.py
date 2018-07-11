@@ -988,7 +988,7 @@ class VisTable(UVTable):
             outtab[column] = BSTable.bstable_types[i](outtab[column])
         return outtab
 
-    def make_catable(self, redundant=None, dependent=False):
+    def make_catable(self, redundant=None, dependent=False, debias=True):
         '''
         Form closure amplitudes from complex visibilities.
 
@@ -1001,6 +1001,9 @@ class VisTable(UVTable):
             dependent (boolean; default=False):
                 If False, only independent dependent closure amplitudes will be formed.
                 Otherwise, dependent closure amplitudes also will be formed as well.
+            debias (boolean; default=False):
+                If True, visibility amplitudes will be debiased before closing
+                closure amplitudes.
         Returns:
             uvdata.CATable object
         '''
