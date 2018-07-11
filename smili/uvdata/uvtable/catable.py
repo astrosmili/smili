@@ -635,7 +635,6 @@ class CATable(UVTable):
                 st4 = stidict[quadrature[3]]
             else:
                 st4 = int(quadrature[3])
-            st1, st2, st3, st4 = sorted([st1,st2,st3, st4])
             st1name = stndict[st1]
             st2name = stndict[st2]
             st3name = stndict[st3]
