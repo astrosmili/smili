@@ -688,18 +688,6 @@ class CATable(UVTable):
                 axislabels.append("Greenwich Sidereal Time")
                 deflims.append((None,None))
                 errors.append(None)
-            elif "amp" in axis:
-                if not normerror:
-                    pltarrays.append(pltdata.amp.values)
-                    axislabels.append("Closure Amplitude")
-                    errors.append(pltdata.sigma.values)
-                    if errorbar and (not useerrorbar):
-                        useerrorbar=True
-                else:
-                    pltarrays.append(pltdata.amp.values/pltdata.sigma.values)
-                    axislabels.append("Error-normalized Closure Amplitudes")
-                    errors.append(None)
-                deflims.append((0,None))
             elif "logamp" in axis:
                 if not normerror:
                     pltarrays.append(pltdata.logamp.values)
@@ -712,14 +700,26 @@ class CATable(UVTable):
                     axislabels.append("Error-normalized Log Closure Amplitudes")
                     errors.append(None)
                 deflims.append((0,None))
-            elif "sigma" in axis:
-                pltarrays.append(pltdata.sigma.values)
-                axislabels.append("Closure Amplitude Error")
-                deflims.append((0,None))
-                errors.append(None)
             elif "logsigma" in axis:
                 pltarrays.append(pltdata.sigma.values)
                 axislabels.append("Log Closure Amplitude Error")
+                deflims.append((0,None))
+                errors.append(None)
+            elif "amp" in axis:
+                if not normerror:
+                    pltarrays.append(pltdata.amp.values)
+                    axislabels.append("Closure Amplitude")
+                    errors.append(pltdata.sigma.values)
+                    if errorbar and (not useerrorbar):
+                        useerrorbar=True
+                else:
+                    pltarrays.append(pltdata.amp.values/pltdata.sigma.values)
+                    axislabels.append("Error-normalized Closure Amplitudes")
+                    errors.append(None)
+                deflims.append((0,None))
+            elif "sigma" in axis:
+                pltarrays.append(pltdata.sigma.values)
+                axislabels.append("Closure Amplitude Error")
                 deflims.append((0,None))
                 errors.append(None)
             elif "snr" in axis:
