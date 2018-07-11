@@ -699,7 +699,7 @@ class CATable(UVTable):
                     pltarrays.append(pltdata.logamp.values/pltdata.logsigma.values)
                     axislabels.append("Error-normalized Log Closure Amplitudes")
                     errors.append(None)
-                deflims.append((0,None))
+                deflims.append((None,None))
             elif "logsigma" in axis:
                 pltarrays.append(pltdata.sigma.values)
                 axislabels.append("Log Closure Amplitude Error")
