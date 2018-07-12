@@ -22,6 +22,9 @@ import astropy.io.fits as pyfits
 import astropy.time as at
 from astropy.convolution import convolve_fft
 
+# ds9
+import pyds9
+
 # matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -31,31 +34,38 @@ import itertools
 
 # internal
 from .. import fortlib, util
+from . import imregion
 
 #-------------------------------------------------------------------------
 # IMAGEFITS (Manupulating FITS FILES)
 #-------------------------------------------------------------------------
 class IMFITS(object):
     # Initialization
-    def __init__(self, fitsfile=None, fitstype="standard", uvfitsfile=None, source=None,
-                 dx=2., dy=None, nx=100, ny=None, nxref=None, nyref=None,
-                 angunit="uas", **args):
+    def __init__(self,
+            imfits=None, imfitstype="standard",
+            uvfits=None,
+            source=None,
+            #instrument=None,
+            #dateobs=None,
+            dx=2., dy=None, angunit="uas",
+            nx=100, ny=None, nxref=None, nyref=None,
+            **args):
         '''
         This is a class to handle image data, in particular, a standard image
         FITS data sets.
 
         The order of priority for duplicated parameters is
-            1 uvfitsfile (strongest),
-            2 source
-            3 fitsfile
-            4 dx, dy, nx, ny
+            1 uvfits (strongest)
+            2 source, instrument, dateobs
+            3 imfits
+            4 dx, dy, nx, ny, nxref, nyref
             5 other parameters (weakest).
 
         Args:
-            fitsfile (string or hdulist, optional):
+            imfits (string or hdulist, optional):
                 If specified, image will be loaded from the specified image fits file
                 or specified HDUlist object.
-            fitstype (string, optional, default="standard"):
+            imfitstype (string, optional, default="standard"):
                 Type of FITS images to be load. Currently we have three choices:
                     standard: assuming a format close to the AIPS IMAGE FITS format.
                               It can read images from AIPS, DIFMAP and CASA.
@@ -63,11 +73,11 @@ class IMFITS(object):
                             from the associated AIPS CC table.
                     ehtim: assuming a format close to that adopted in EHT imaging Library
                            which does not have a lot of header information.
-            uvfitsfile (string, optional):
-                If specified, date, source and frequency information will be loaded
+            uvfits (string, optional):
+                If specified, date, source, frequency information will be loaded
                 from header information of the input uvfits file
             source (string, optional):
-               The source of the image RA and Dec will be obtained from CDS
+               The source of the image RA and Dec will be obtained from CDS.
             dx (float, optional, default=2.):
                The pixel size along the RA axis. If dx > 0, the sign of dx
                will be switched.
@@ -111,7 +121,6 @@ class IMFITS(object):
                     the reference pixel of the Stokes axis
                 ds (float):
                     the grid size of the Stokes axis
-
                 observer (string)
                 telescope (string)
                 instrument (string)
@@ -123,6 +132,8 @@ class IMFITS(object):
         '''
         # get conversion factor for angular scale
         angconv = self.angconv(angunit, "deg")
+
+        # set the default angular unit
         self.angunit = angunit
 
         # get keys of Args
@@ -165,24 +176,24 @@ class IMFITS(object):
         self.data = np.zeros([self.header["ns"], self.header["nf"],
                               self.header["ny"], self.header["nx"]])
 
-        # Initialize from fitsfile
-        if fitsfile is not None:
-            if fitstype=="standard":
-                self.read_fits_standard(fitsfile)
-            elif fitstype=="ehtim":
-                self.read_fits_ehtim(fitsfile)
-            elif fitstype=="aipscc":
-                self.read_fits_aipscc(fitsfile)
+        # Initialize from the image fits file.
+        if imfits is not None:
+            if  imfitstype=="standard":
+                self.read_fits_standard(imfits)
+            elif imfitstype=="ehtim":
+                self.read_fits_ehtim(imfits)
+            elif imfitstype=="aipscc":
+                self.read_fits_aipscc(imfits)
             else:
-                raise ValueError("fitstype must be standard, ehtim or aipscc")
+                raise ValueError("imfitstype must be standard, ehtim or aipscc")
 
         # Set source coordinates
         if source is not None:
             self.set_source(source)
 
         # copy headers from uvfits file
-        if uvfitsfile is not None:
-            self.read_uvfitsheader(uvfitsfile)
+        if uvfits is not None:
+            self.read_uvfitsheader(uvfits)
 
         # initialize fitsdata
         self.update_fits()
@@ -248,8 +259,23 @@ class IMFITS(object):
         self.header_dtype = header_dtype
 
     # set source name and source coordinates
-    def set_source(self, source="SgrA*"):
-        srccoord = coord.SkyCoord.from_name(source)
+    def set_source(self, source="SgrA*", srccoord=None):
+        '''
+        Set the source name and the source coordinate to the header.
+        If source coordinate is not given, it will be taken from the CDS.
+
+        Args:
+            source (str; default="SgrA*"):
+                Source Name
+            srccoord (astropy.coordinates.Skycoord object; default=None):
+                Source position. If not specified, it is automatically pulled
+                from the CDS
+        '''
+        # get source coordinates if it is not given.
+        if srccoord is None:
+            srccoord = coord.SkyCoord.from_name(source)
+        elif not isinstance(srccoord, coord.sky_coordinate.SkyCoord):
+            raise ValueError("The source coordinate must be astropy.coordinates.sky_coordinate.SkyCoord obejct")
 
         # Information
         self.header["object"] = source
@@ -257,15 +283,28 @@ class IMFITS(object):
         self.header["y"] = srccoord.dec.deg
         self.update_fits()
 
-    # Read data from an image fits file
-    def read_fits_standard(self, fitsfile):
+    def set_instrument(self, instrument):
         '''
-        Read data from the image FITS file
+        Update headers for instrument, telescope and observer with a
+        specified name of the instrument.
+        '''
+        for key in "instrument,telescope,observer".split(","):
+            self.header[key]=self.header_dtype[key](instrument)
+
+    # Read data from an image fits file
+    def read_fits_standard(self, imfits):
+        '''
+        Read data from the image FITS file.
 
         Args:
-          fitsfile (string): input image FITS file
+            imfits (string or hdulist, optional):
+                If specified, image will be loaded from the specified image fits file
+                or specified HDUlist object.
         '''
-        hdulist = pyfits.open(fitsfile)
+        if isinstance(imfits, pyfits.hdu.hdulist.HDUList):
+            hdulist = copy.deepcopy(imfits)
+        else:
+            hdulist = pyfits.open(imfits)
         self.hdulist = hdulist
 
         keyname = "OBJECT"
@@ -318,61 +357,64 @@ class IMFITS(object):
                 iss = i + 1
 
         if isx != False:
-            self.header["nx"] = \
-                self.header_dtype["nx"](hdulist[0].header.get("NAXIS%d" % (isx)))
-            self.header["x"] = \
-                self.header_dtype["x"](hdulist[0].header.get("CRVAL%d" % (isx)))
-            self.header["dx"] = \
-                self.header_dtype["dx"](hdulist[0].header.get("CDELT%d" % (isx)))
-            self.header["nxref"] = \
-                self.header_dtype["nxref"](hdulist[0].header.get("CRPIX%d" % (isx)))
+            self.header["nx"]    = hdulist[0].header.get("NAXIS%d" % (isx))
+            self.header["x"]     = hdulist[0].header.get("CRVAL%d" % (isx))
+            self.header["dx"]    = hdulist[0].header.get("CDELT%d" % (isx))
+            self.header["nxref"] = hdulist[0].header.get("CRPIX%d" % (isx))
+            for key in "nx,x,dx,nxref".split(","):
+                self.header[key] = self.header_dtype[key](self.header[key])
         else:
             print("Warning: No image data along RA axis.")
 
         if isy != False:
-            self.header["ny"] = self.header_dtype["ny"](
-                hdulist[0].header.get("NAXIS%d" % (isy)))
-            self.header["y"] = self.header_dtype["y"](
-                hdulist[0].header.get("CRVAL%d" % (isy)))
-            self.header["dy"] = self.header_dtype["dy"](
-                hdulist[0].header.get("CDELT%d" % (isy)))
-            self.header["nyref"] = self.header_dtype["nyref"](
-                hdulist[0].header.get("CRPIX%d" % (isy)))
+            self.header["ny"]    = hdulist[0].header.get("NAXIS%d" % (isy))
+            self.header["y"]     = hdulist[0].header.get("CRVAL%d" % (isy))
+            self.header["dy"]    = hdulist[0].header.get("CDELT%d" % (isy))
+            self.header["nyref"] = hdulist[0].header.get("CRPIX%d" % (isy))
+            for key in "ny,y,dy,nyref".split(","):
+                self.header[key] = self.header_dtype[key](self.header[key])
         else:
             print("Warning: No image data along DEC axis.")
 
         if isf != False:
-            self.header["nf"] = self.header_dtype["nf"](
-                hdulist[0].header.get("NAXIS%d" % (isf)))
-            self.header["f"] = self.header_dtype["f"](
-                hdulist[0].header.get("CRVAL%d" % (isf)))
-            self.header["df"] = self.header_dtype["df"](
-                hdulist[0].header.get("CDELT%d" % (isf)))
-            self.header["nfref"] = self.header_dtype["nfref"](
-                hdulist[0].header.get("CRPIX%d" % (isf)))
+            self.header["nf"]    = hdulist[0].header.get("NAXIS%d" % (isf))
+            self.header["f"]     = hdulist[0].header.get("CRVAL%d" % (isf))
+            self.header["df"]    = hdulist[0].header.get("CDELT%d" % (isf))
+            self.header["nfref"] = hdulist[0].header.get("CRPIX%d" % (isf))
+            for key in "nf,f,df,nfref".split(","):
+                self.header[key] = self.header_dtype[key](self.header[key])
         else:
-            print("Warning: No image data along STOKES axis.")
+            print("Warning: No image data along FREQ axis.")
 
         if iss != False:
-            self.header["ns"] = self.header_dtype["ns"](
-                hdulist[0].header.get("NAXIS%d" % (iss)))
-            self.header["s"] = self.header_dtype["s"](
-                hdulist[0].header.get("CRVAL%d" % (iss)))
-            self.header["ds"] = self.header_dtype["ds"](
-                hdulist[0].header.get("CDELT%d" % (iss)))
-            self.header["nsref"] = self.header_dtype["nsref"](
-                hdulist[0].header.get("CRPIX%d" % (iss)))
+            self.header["ns"]    = hdulist[0].header.get("NAXIS%d" % (iss))
+            self.header["s"]     = hdulist[0].header.get("CRVAL%d" % (iss))
+            self.header["ds"]    = hdulist[0].header.get("CDELT%d" % (iss))
+            self.header["nsref"] = hdulist[0].header.get("CRPIX%d" % (iss))
+            for key in "ns,s,ds,nsref".split(","):
+                self.header[key] = self.header_dtype[key](self.header[key])
         else:
             print("Warning: No image data along STOKES axis.")
 
-        self.data = hdulist[0].data.reshape(
-            [self.header["ns"], self.header["nf"], self.header["ny"], self.header["nx"]])
+        self.data = hdulist[0].data.reshape([self.header["ns"],
+                                             self.header["nf"],
+                                             self.header["ny"],
+                                             self.header["nx"]])
 
         self.update_fits()
 
-    def read_fits_aipscc(self, fitsfile):
+    def read_fits_aipscc(self, imfits):
+        '''
+        Read data from the image FITS file. For the brightness distribution,
+        this function loads the AIPS CC table rather than data of the primary HDU.
+
+        Args:
+            imfits (string or hdulist, optional):
+                If specified, image will be loaded from the specified image fits file
+                or specified HDUlist object.
+        '''
         # Load FITS File
-        self.read_fits_standard(fitsfile)
+        self.read_fits_standard(imfits)
         self.header["nf"] = 1
         self.header["ns"] = 1
         Nx = self.header["nx"]
@@ -380,7 +422,7 @@ class IMFITS(object):
         self.data = np.zeros([1,1,Ny,Nx])
 
         # Get AIPS CC Table
-        aipscc = pyfits.open(fitsfile)["AIPS CC"]
+        aipscc = pyfits.open(imfits)["AIPS CC"]
         flux = aipscc.data["FLUX"]
         deltax = aipscc.data["DELTAX"]
         deltay = aipscc.data["DELTAY"]
@@ -389,55 +431,62 @@ class IMFITS(object):
             raise ValueError("Input FITS file has non point-source CC components, which are not currently supported.")
         ix = np.int64(np.round(deltax/self.header["dx"] + self.header["nxref"] - 1))
         iy = np.int64(np.round(deltay/self.header["dy"] + self.header["nyref"] - 1))
+        print("There are %d clean components in the AIPS CC Table."%(len(flux)))
+
+        # Add the brightness distribution to the image
+        count = 0
         for i in xrange(len(flux)):
             try:
-                self.data[0,0,iy[i],ix[i]] = flux[i]
+                self.data[0,0,iy[i],ix[i]] += flux[i]
             except:
-                pass
+                count += 1
+        if count > 0:
+            print("%d components are ignore since they are outside of the image FoV."%(count))
         self.update_fits()
 
-    def read_fits_ehtim(self, fitsfile):
+    def read_fits_ehtim(self, imfits):
         '''
-        Read data from the image FITS file
+        Read data from the image FITS file geneated from the eht-imaging library
 
         Args:
-          fitsfile (string): input image FITS file
+            imfits (string or hdulist, optional):
+                If specified, image will be loaded from the specified image fits file
+                or specified HDUlist object.
         '''
         import ehtim as eh
-        im = eh.image.load_fits(filename)
+        im = eh.image.load_fits(imfits)
         obsdate = at.Time(im.mjd, format="mjd")
         obsdate = "%04d-%02d-%02d"%(obsdate.datetime.year,obsdate.datetime.month,obsdate.datetime.day)
         self.header["object"] = im.source
-        self.header["nx"] = im.xdim
-        self.header["ny"] = im.ydim
         self.header["x"] = im.ra * 12
         self.header["y"] = im.dec
         self.header["dx"] = im.psize * util.angconv("rad","deg")
         self.header["dy"] = im.psize * util.angconv("rad","deg")
+        self.header["nx"] = im.xdim
+        self.header["ny"] = im.ydim
+        self.header["nxref"] = im.xdim/2.+1
+        self.header["nyref"] = im.ydim/2.+1
         self.header["f"] = im.rf
         self.header["dateobs"]=obsdate
-        self.header["telescope"]="EHT"
-        self.header["instrument"]="EHT"
-        self.header["observer"]="EHT"
         self.data = np.flipud(im.imvec.reshape([header["ny"],header["nx"]])).reshape([1,1,header["ny"],header["nx"]])
-
         self.update_fits()
 
-    def read_uvfitsheader(self, infits):
+    def read_uvfitsheader(self, uvfits):
         '''
         Read header information from uvfits file
 
         Args:
-          infits (string): input uv-fits file
+          uvfits (string): input uv-fits file
         '''
-        hdulist = pyfits.open(infits)
+        hdulist = pyfits.open(uvfits)
         hduinfos = hdulist.info(output=False)
         for hduinfo in hduinfos:
             idx = hduinfo[0]
             if hduinfo[1] == "PRIMARY":
                 grouphdu = hdulist[idx]
+
         if not 'grouphdu' in locals():
-            print("[Error] %s does not contain the Primary HDU" % (infits))
+            print("[Error] the input file does not contain the Primary HDU")
 
         if 'OBJECT' in grouphdu.header:
             self.header["object"] = self.header_dtype["object"](
@@ -628,14 +677,38 @@ class IMFITS(object):
         tab = pyfits.BinTableHDU.from_columns([c1, c2, c3, c4, c5, c6, c7])
         return tab
 
-    def save_fits(self, outfitsfile, overwrite=True):
+    def save_fits(self, outfitsfile=None, overwrite=True):
         '''
-        save the image(s) to the image FITS file.
+        save the image(s) to the image FITS file or HDUList.
 
         Args:
-            outfitsfile (string): file name
-            overwrite (boolean): It True, an existing file will be overwritten.
+            outfitsfile (string; default is None):
+                FITS file name. If not specified, then HDUList object will be
+                returned.
+            overwrite (boolean):
+                It True, an existing file will be overwritten.
+        Returns:
+            HDUList object if outfitsfile is None
         '''
+        print("This method 'save_fits' will be deleted in future. please use the 'to_fits' method")
+        self.to_fits(outfitsfile, overwrite)
+
+    def to_fits(self, outfitsfile=None, overwrite=True):
+        '''
+        save the image(s) to the image FITS file or HDUList.
+
+        Args:
+            outfitsfile (string; default is None):
+                FITS file name. If not specified, then HDUList object will be
+                returned.
+            overwrite (boolean):
+                It True, an existing file will be overwritten.
+        Returns:
+            HDUList object if outfitsfile is None
+        '''
+        if outfitsfile is None:
+            return copy.deepcopy(self.hdulist)
+
         if os.path.isfile(outfitsfile):
             if overwrite:
                 os.system("rm -f %s" % (outfitsfile))
@@ -732,6 +805,7 @@ class IMFITS(object):
         calculate the peak intensity of the image
 
         Args:
+          absolute (boolean): if True, it will pick up the peak of the absolute.
           istokes (integer): index for Stokes Parameter at which the peak intensity will be calculated
           ifreq (integer): index for Frequency at which the peak intensity will be calculated
         '''
@@ -766,6 +840,78 @@ class IMFITS(object):
             image = image[np.where(maskimage > 0.5)]
         return np.median(np.abs(image - np.median(image)))
 
+
+    def compos(self,alpha=1.,angunit=None,ifreq=0, istokes=0):
+        '''
+        Returns the position of the center of mass in a specified angular unit.
+
+        Arg:
+          alpha (float):
+            if alpha != 0, then the image is powered by alpha prior to compute
+            the center of the mass.
+          angunit (string):
+            The angular unit for the position. If not specified, it will use
+            self.angunit.
+          istokes (integer):
+            index for Stokes Parameter
+          ifreq (integer):
+            index for Frequency
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+
+        Returns:
+          dictionary for the position
+        '''
+        if angunit is None:
+            angunit = self.angunit
+        conv = util.angconv("deg",angunit)
+
+        image = np.abs(self.data[ifreq, istokes])
+        if alpha!=1:
+            image = np.power(image, alpha)
+        pix = sn.measurements.center_of_mass(image)
+        x0 = (pix[1]+1-self.header["nxref"])*self.header["dx"]*conv
+        y0 = (pix[0]+1-self.header["nyref"])*self.header["dy"]*conv
+
+        x,y = self.get_xygrid(angunit=angunit, twodim=True)
+        outdic = {
+            "x0": x0,
+            "y0": y0,
+            "angunit": angunit
+        }
+        return outdic
+
+    def peakpos(self,angunit=None,ifreq=0,istokes=0):
+        '''
+        Returns the position of the peak in a specified angular unit.
+
+        Arg:
+          angunit (string):
+            The angular unit for the position. If not specified, it will use
+            self.angunit.
+          istokes (integer):
+            index for Stokes Parameter
+          ifreq (integer):
+            index for Frequency
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+
+        Returns:
+          dictionary for the position
+        '''
+        if angunit is None:
+            angunit = self.angunit
+
+        image = np.abs(self.data[ifreq, istokes])
+        pix = np.unravel_index(np.argmax(image),image.shape)
+
+        x,y = self.get_xygrid(angunit=angunit, twodim=True)
+        outdic = {
+            "x0": x[pix],
+            "y0": y[pix],
+            "angunit": angunit
+        }
+        return outdic
 
     def imagecost(self, func, out, istokes=0, ifreq=0, compower=1.0):
         '''
@@ -817,8 +963,15 @@ class IMFITS(object):
     #-------------------------------------------------------------------------
     # Plotting
     #-------------------------------------------------------------------------
-    def imshow(self, logscale=False, angunit=None, dyrange=100,
-               vmin=None, cmap=cm.afmhot, istokes=0, ifreq=0, **imshow_args):
+    def imshow(self,
+            logscale=False,
+            dyrange=100,
+            vmin=None,
+            angunit=None,
+            istokes=0, ifreq=0,
+            cmap=cm.afmhot,
+            interpolation="bicubic",
+            **imshow_args):
         '''
         plot contours of the image
 
@@ -852,12 +1005,15 @@ class IMFITS(object):
                 vmin_scaled = np.log10(self.peak(istokes, ifreq)/dyrange)
             else:
                 vmin_scaled = np.log10(vmin)
+            plotdata[np.isnan(plotdata)] = vmin_scaled
             plotdata[np.where(plotdata < vmin_scaled)] = vmin_scaled
+
+        if logscale:
             plt.imshow(plotdata, extent=imextent, origin="lower", cmap=cmap,
-                       vmin=vmin_scaled, **imshow_args)
+                       vmin=vmin_scaled, interpolation=interpolation, **imshow_args)
         else:
             plt.imshow(self.data[istokes, ifreq], extent=imextent, origin="lower",
-                       cmap=cmap, vmin=vmin, **imshow_args)
+                       cmap=cmap, vmin=vmin, interpolation=interpolation, **imshow_args)
 
         # Axis Label
         if angunit.lower().find("pixel") == 0:
@@ -945,11 +1101,31 @@ class IMFITS(object):
     #-------------------------------------------------------------------------
     # DS9
     #-------------------------------------------------------------------------
-    def open_ds9(self):
-        pass
+    def open_pyds9(self,imregion=None,wait=10):
+        '''
+        Open pyds9 and plot the region.
+        This method uses pyds9.DS9().
 
-    def read_ds9reg(self):
-        pass
+        Args:
+            imregion (imdata.IMRegion object; default=None):
+                If specifed, imregion will be transferred to ds9 as well.
+            wait (float, default = 10):
+                seconds to wait for ds9 to start.
+        '''
+        try:
+            d = pyds9.DS9(wait=wait)
+        except ValueError:
+            print("ValueError: try a longer 'wait' time or installation of XPA.")
+        except:
+            print("Unexpected Error!")
+            raise
+        else:
+            d.set_pyfits(self.hdulist)
+            d.set('zoom to fit')
+            d.set('cmap heat')
+            for index, row in imregion.iterrows():
+                ds9reg = imregion.reg_to_ds9reg(row,self)
+                d.set("region","image; %s" % ds9reg)
 
     #-------------------------------------------------------------------------
     # Output some information to files
@@ -1000,12 +1176,16 @@ class IMFITS(object):
     #-------------------------------------------------------------------------
     def cpimage(self, fitsdata, save_totalflux=False, order=3):
         '''
-        Copy the first image into the image grid specified in the secondaly input image.
+        Copy the brightness ditribution of the input IMFITS object
+        into the image grid of this image data.
 
         Args:
-          fitsdata: input imagefite.imagefits object. This image will be copied into self.
-          self: input imagefite.imagefits object specifying the image grid where the orgfits data will be copied.
-          save_totalflux (boolean): If true, the total flux of the image will be conserved.
+          fitsdata (imdata.IMFITS object):
+            This image will be copied into the image grid of this data.
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.IMFITS object: the copied image data
         '''
         # generate output imfits object
         outfits = copy.deepcopy(self)
@@ -1051,13 +1231,38 @@ class IMFITS(object):
         Gaussian Convolution
 
         Args:
-          self: input imagefite.imagefits object
+          x0, y0 (float): the peak location of the gaussian in the unit of "angunit"
           majsize (float): Major Axis Size
           minsize (float): Minor Axis Size. If None, it will be same to the Major Axis Size (Circular Gaussian)
           angunit (string): Angular Unit for the sizes (uas, mas, asec or arcsec, amin or arcmin, degree)
           pa (float): Position Angle of the Gaussian
           scale (float): The sizes will be multiplied by this value.
           save_totalflux (boolean): If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.IMFITS object: the copied image data
+        '''
+        print("Warning: this function will be removed soon. Please use convolve_gauss.")
+        return self.convolve_gauss(majsize, minsize, x0, y0, pa, scale, angunit, pos, save_totalflux)
+
+    #def convolve(self, kernelimage):
+
+    #def convolve_geomodel(self, geomodel):
+
+    def convolve_gauss(self, majsize, minsize=None, x0=0, y0=0,
+                       pa=0., scale=1., angunit=None, save_totalflux=False):
+        '''
+        Gaussian Convolution
+
+        Args:
+          x0, y0 (float): the peak location of the gaussian in the unit of "angunit"
+          majsize (float): Major Axis Size
+          minsize (float): Minor Axis Size. If None, it will be same to the Major Axis Size (Circular Gaussian)
+          angunit (string): Angular Unit for the sizes (uas, mas, asec or arcsec, amin or arcmin, degree)
+          pa (float): Position Angle of the Gaussian
+          scale (float): The sizes will be multiplied by this value.
+          save_totalflux (boolean): If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.IMFITS object: the copied image data
         '''
         if minsize is None:
             minsize = majsize
@@ -1076,9 +1281,6 @@ class IMFITS(object):
             x0 = 0.
         if y0 is None:
             y0 = 0.
-        if pos=="rel":
-            x0 += Imxref
-            y0 += Imyref
 
         X, Y = outfits.get_xygrid(angunit=angunit, twodim=True)
         cospa = np.cos(np.deg2rad(pa))
@@ -1109,78 +1311,6 @@ class IMFITS(object):
         # Update and Return
         outfits.update_fits()
         return outfits
-
-    def compos(self,alpha=1.,angunit=None,ifreq=0, istokes=0):
-        '''
-        Returns the position of the center of mass in a specified angular unit.
-
-        Arg:
-          alpha (float):
-            if alpha != 0, then the image is powered by alpha prior to compute
-            the center of the mass.
-          angunit (string):
-            The angular unit for the position. If not specified, it will use
-            self.angunit.
-          istokes (integer):
-            index for Stokes Parameter
-          ifreq (integer):
-            index for Frequency
-          save_totalflux (boolean):
-            If true, the total flux of the image will be conserved.
-
-        Returns:
-          dictionary for the position
-        '''
-        if angunit is None:
-            angunit = self.angunit
-        conv = util.angconv("deg",angunit)
-
-        image = np.abs(self.data[ifreq, istokes])
-        if alpha!=1:
-            image = np.power(image, alpha)
-        pix = sn.measurements.center_of_mass(image)
-        x0 = (pix[1]+1-self.header["nxref"])*self.header["dx"]*conv
-        y0 = (pix[0]+1-self.header["nyref"])*self.header["dy"]*conv
-
-        x,y = self.get_xygrid(angunit=angunit, twodim=True)
-        outdic = {
-            "x0": x0,
-            "y0": y0,
-            "angunit": angunit
-        }
-        return outdic
-
-    def peakpos(self,angunit=None,ifreq=0,istokes=0):
-        '''
-        Returns the position of the peak in a specified angular unit.
-
-        Arg:
-          angunit (string):
-            The angular unit for the position. If not specified, it will use
-            self.angunit.
-          istokes (integer):
-            index for Stokes Parameter
-          ifreq (integer):
-            index for Frequency
-          save_totalflux (boolean):
-            If true, the total flux of the image will be conserved.
-
-        Returns:
-          dictionary for the position
-        '''
-        if angunit is None:
-            angunit = self.angunit
-
-        image = np.abs(self.data[ifreq, istokes])
-        pix = np.unravel_index(np.argmax(image),image.shape)
-
-        x,y = self.get_xygrid(angunit=angunit, twodim=True)
-        outdic = {
-            "x0": x[pix],
-            "y0": y[pix],
-            "angunit": angunit
-        }
-        return outdic
 
     def refshift(self,x0=0.,y0=0.,angunit=None,save_totalflux=False):
         '''
@@ -1289,6 +1419,47 @@ class IMFITS(object):
         outfits.update_fits()
         return outfits
 
+    def min_threshold(self, threshold=0.0, replace=0.0,
+                      relative=True, save_totalflux=False,
+                      istokes=0, ifreq=0):
+        '''
+        This is thresholding with the mininum value. This is slightly different
+        from hard thresholding, since this function resets all of pixels where
+        their brightness is smaller than a given threshold. On the other hand,
+        hard thresholding resets all of pixels where the absolute of their
+        brightness is smaller than the threshold.
+
+        Args:
+          istokes (integer): index for Stokes Parameter at which the image will be edited
+          ifreq (integer): index for Frequency at which the image will be edited
+          threshold (float): threshold
+          replace (float): the brightness to be replaced for thresholded pixels.
+          relative (boolean): If true, theshold & Replace value will be normalized with the peak intensity of the image
+          save_totalflux (boolean): If true, the total flux of the image will be conserved.
+        '''
+        # create output fits
+        outfits = copy.deepcopy(self)
+        if relative:
+            thres = threshold * self.peak(istokes=istokes, ifreq=ifreq)
+            repla = replace * self.peak(istokes=istokes, ifreq=ifreq)
+        else:
+            thres = threshold
+            repla = replace
+
+        # thresholding
+        image = outfits.data[istokes, ifreq]
+        t = np.where(self.data[istokes, ifreq] < thres)
+        image[t] = repla
+        outfits.data[istokes, ifreq] = image
+
+        # flux scaling
+        if save_totalflux:
+            totalflux = self.totalflux(istokes=istokes, ifreq=ifreq)
+            outfits.data[istokes, ifreq] *= totalflux / \
+                outfits.totalflux(istokes=istokes, ifreq=ifreq)
+        outfits.update_fits()
+        return outfits
+
     def hard_threshold(self, threshold=0.01, relative=True, save_totalflux=False,
                        istokes=0, ifreq=0):
         '''
@@ -1354,13 +1525,8 @@ class IMFITS(object):
         outfits.update_fits()
         return outfits
 
-
-    def from_geomodel(self, geomodel, istokes=0, ifreq=0, overwrite=True, usetheano=False):
+    def add_geomodel(self, geomodel, istokes=0, ifreq=0, overwrite=False, usetheano=False):
         '''
-        Args:
-            modelfunc (func, must be lambda x,y):
-                a function to compute brightness at x, y (in rad).
-                The unit of brightness must be Jy/rad^2
         '''
         # copy self (for output)
         outfits = copy.deepcopy(self)
@@ -1387,9 +1553,10 @@ class IMFITS(object):
             outfits.data[istokes,ifreq,:,:] += I
         return outfits
 
-
     def add_gauss(self, x0=0., y0=0., totalflux=1., majsize=1., minsize=None,
-                  pa=0., istokes=0, ifreq=0, angunit=None):
+                  pa=0., overwrite=False, istokes=0, ifreq=0, angunit=None):
+        '''
+        '''
         if angunit is None:
             angunit = self.angunit
 
@@ -1404,11 +1571,6 @@ class IMFITS(object):
             thmin = minsize
 
         # Calc X,Y grid
-        #yg = (np.arange(self.header["ny"]) - self.header["nyref"] +
-        #      1) * self.header["dy"] * 3600e3  # (mas)
-        #xg = (np.arange(self.header["nx"]) - self.header["nxref"] +
-        #      1) * self.header["dx"] * 3600e3  # (mas)
-        #X, Y = np.meshgrid(xg, yg)
         X, Y = self.get_xygrid(twodim=True, angunit=angunit)
 
         # Calc Gaussian Distribution
@@ -1426,10 +1588,11 @@ class IMFITS(object):
         gauss *= totalflux
 
         # add to original FITS file
-        outfits.data[istokes, ifreq] += gauss
-
+        if overwrite:
+            outfits.data[istokes,ifreq,:,:] = gauss
+        else:
+            outfits.data[istokes,ifreq,:,:] += gauss
         return outfits
-
 
     #---------------------------------------------------------------------------
     # Feature Extraction
@@ -1641,7 +1804,7 @@ def calc_metric(fitsdata, reffitsdata, metric="NRMSE", istokes1=0, ifreq1=0, ist
         calculation of metric on image domain or image gradient domain
 
     Returns:
-      ???
+      metrics
     '''
     from skimage.filters import prewitt
 
