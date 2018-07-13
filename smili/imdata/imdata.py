@@ -28,6 +28,7 @@ import pyds9
 # matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 # com_position, peak_position,shift_position
 import itertools
@@ -255,6 +256,14 @@ class IMFITS(object):
         header["nsref"] = np.int64(1)
         header_dtype["nsref"] = np.int64
 
+        # Beam information
+        header["bmaj"] = np.float64(0)
+        header_dtype["bmaj"] = np.float64
+        header["bmin"] = np.float64(0)
+        header_dtype["bmin"] = np.float64
+        header["bpa"] = np.float64(0)
+        header_dtype["bpa"] = np.float64
+
         self.header = header
         self.header_dtype = header_dtype
 
@@ -291,6 +300,33 @@ class IMFITS(object):
         for key in "instrument,telescope,observer".split(","):
             self.header[key]=self.header_dtype[key](instrument)
 
+    def set_observer(self, observer):
+        '''
+        Update headers for instrument, telescope and observer with a
+        specified name of the instrument.
+        '''
+        self.header["observer"]=self.header_dtype["observer"](observer)
+
+    def set_beam(self, majsize=0., minsize=0., pa=0., scale=1., angunit=None, **args):
+        '''
+        Set beam parameters into headers.
+
+        Args:
+            majsize, minsize (float, default=0):
+                major/minor-axis FWHM size
+            scale (float, default=1):
+                scaling factor that will be multiplied to maj/min size.
+            pa (float, default=0):
+                position angle in deg
+
+        '''
+        if angunit is None:
+            angunit = self.angunit
+        angconv = util.angconv(angunit, "deg")
+        self.header["bmaj"] = majsize * angconv * scale
+        self.header["bmin"] = minsize * angconv * scale
+        self.header["bpa"] = pa
+
     # Read data from an image fits file
     def read_fits_standard(self, imfits):
         '''
@@ -306,37 +342,6 @@ class IMFITS(object):
         else:
             hdulist = pyfits.open(imfits)
         self.hdulist = hdulist
-
-        keyname = "OBJECT"
-        try:
-            self.header["object"] = self.header_dtype["object"](hdulist[0].header.get(keyname))
-        except:
-            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
-
-        keyname = "TELESCOP"
-        try:
-            self.header["telescope"] = self.header_dtype["telescope"](hdulist[0].header.get(keyname))
-        except:
-            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
-
-        keyname = "INSTRUME"
-        try:
-            self.header["instrument"] = self.header_dtype["instrument"](hdulist[0].header.get(keyname))
-        except:
-            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
-
-        keyname = "OBSERVER"
-        try:
-            self.header["observer"] = self.header_dtype["observer"](hdulist[0].header.get(keyname))
-        except:
-            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
-
-        keyname = "DATE-OBS"
-        try:
-            self.header["dateobs"] = \
-                self.header_dtype["dateobs"](hdulist[0].header.get(keyname))
-        except:
-            print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
 
         isx = False
         isy = False
@@ -396,10 +401,46 @@ class IMFITS(object):
         else:
             print("Warning: No image data along STOKES axis.")
 
+        keys = "object,telescope,instrument,observer,dateobs".split(",")
+        for key in keys:
+            keyname = key.upper()[0:8]
+            try:
+                self.header[key] = hdulist[0].header.get(keyname)
+                self.header_dtype[key](self.header[key])
+            except:
+                print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
+
+        # load data
         self.data = hdulist[0].data.reshape([self.header["ns"],
                                              self.header["nf"],
                                              self.header["ny"],
                                              self.header["nx"]])
+
+        # get beam information
+        try:
+            bunit = hdulist[0].header.get("BUNIT").lower()
+        except:
+            bunit = "jy/pixel"
+
+        if bunit=="jy/beam":
+            keys = "bmaj,bmin,bpa".split(",")
+            for key in keys:
+                keyname = key.upper()
+                try:
+                    self.header[key] = hdulist[0].header.get(keyname)
+                    self.header_dtype[key](self.header[key])
+                except:
+                    print("warning: FITS file doesn't have a header info of '%s'"%(keyname))
+            self.data *= util.saconv(
+                x1=self.header["bmaj"],
+                y1=self.header["bmin"],
+                angunit1="deg",
+                satype1="beam",
+                x2=self.header["dx"],
+                y2=self.header["dy"],
+                angunit2="deg",
+                satype2="pixel",
+            )
 
         self.update_fits()
 
@@ -495,36 +536,14 @@ class IMFITS(object):
         if not 'grouphdu' in locals():
             print("[Error] the input file does not contain the Primary HDU")
 
-        if 'OBJECT' in grouphdu.header:
-            self.header["object"] = self.header_dtype["object"](
-                grouphdu.header.get('OBJECT'))
-        else:
-            self.header["object"] = self.header_dtype["object"]('None')
-
-        if 'TELESCOP' in grouphdu.header:
-            self.header["telescope"] = self.header_dtype["telescope"](
-#                telescope=grouphdu.header.get('TELESCOP'))
-                grouphdu.header.get('TELESCOP'))
-        else:
-            self.header["telescope"] = self.header_dtype["telescope"]('None')
-
-        if 'INSTRUME' in grouphdu.header:
-            self.header["instrument"] = self.header_dtype["instrument"](
-                grouphdu.header.get('INSTRUME'))
-        else:
-            self.header["instrument"] = self.header_dtype["instrument"]('None')
-
-        if 'OBSERVER' in grouphdu.header:
-            self.header["observer"] = self.header_dtype["observer"](
-                grouphdu.header.get('OBSERVER'))
-        else:
-            self.header["observer"] = self.header_dtype["observer"]('None')
-
-        if 'DATE-OBS' in grouphdu.header:
-            self.header["dateobs"] = self.header_dtype["dateobs"](
-                grouphdu.header.get('DATE-OBS'))
-        else:
-            self.header["dateobs"] = self.header_dtype["dateobs"]('None')
+        keys = "object,telescope,instrument,observer,dateobs".split(",")
+        for key in keys:
+            keyname = key.upper()[0:8]
+            try:
+                self.header[key] = grouphdu.header.get(keyname)
+                self.header_dtype[key](self.header[key])
+            except:
+                print("warning: UVFITS file doesn't have a header info of '%s'"%(keyname))
 
         naxis = grouphdu.header.get("NAXIS")
         for i in range(naxis):
@@ -563,6 +582,7 @@ class IMFITS(object):
         self.update_fits()
 
     def update_fits(self,
+                    bunit="JY/PIXEL",
                     cctab=True,
                     threshold=None,
                     relative=True,
@@ -570,6 +590,7 @@ class IMFITS(object):
         '''
         Reflect current self.data / self.header info to the image FITS data.
         Args:
+            bunit (str; default=bunit): unit of the brightness. ["JY/PIXEL", "JY/BEAM"] is available.
             cctab (boolean): If True, AIPS CC table is attached to fits file.
             istokes (integer): index for Stokes Parameter at which the image will be used for CC table.
             ifreq (integer): index for Frequency at which the image will be used for CC table.
@@ -596,7 +617,24 @@ class IMFITS(object):
                               (dtnow.year, dtnow.month, dtnow.day))
         hdulist[0].header.set("BSCALE",   np.float64(1.))
         hdulist[0].header.set("BZERO",    np.float64(0.))
-        hdulist[0].header.set("BUNIT",    "JY/PIXEL")
+        if bunit.upper() == "JY/PIXEL":
+            hdulist[0].header.set("BUNIT",    "JY/PIXEL")
+            bconv = 1
+        elif bunit.upper() == "JY/BEAM":
+            hdulist[0].header.set("BUNIT",    "JY/BEAM")
+            bconv = util.saconv(
+                x1=self.header["dx"],
+                y1=self.header["dy"],
+                angunit1="deg",
+                satype1="pixel",
+                x2=self.header["bmaj"],
+                y2=self.header["bmin"],
+                angunit2="deg",
+                satype2="beam",
+            )
+            hdulist[0].header.set("BMAJ",self.header["bmaj"])
+            hdulist[0].header.set("BMIN",self.header["bmin"])
+            hdulist[0].header.set("BPA",self.header["bpa"])
         hdulist[0].header.set("EQUINOX",  np.float64(2000.))
         hdulist[0].header.set("OBSRA",    np.float64(self.header["x"]))
         hdulist[0].header.set("OBSDEC",   np.float64(self.header["y"]))
@@ -623,10 +661,12 @@ class IMFITS(object):
         hdulist[0].header.set("CRPIX4",   np.int64(self.header["nsref"]))
         hdulist[0].header.set("CROTA4",   np.int64(0))
 
+        # scale angunit
+        hdulist[0].data *= bconv
 
         # Add AIPS CC Table
         if cctab:
-            aipscctab = self._aipscc(threshold=threshold, relative=relative,
+            aipscctab = self.to_aipscc(threshold=threshold, relative=relative,
                     istokes=istokes, ifreq=ifreq)
 
             hdulist.append(hdu=aipscctab)
@@ -635,122 +675,6 @@ class IMFITS(object):
             hdulist[next-1].name = 'AIPS CC'
 
         self.hdulist = hdulist
-
-    def _aipscc(self, threshold=None, relative=True,
-                    istokes=0, ifreq=0):
-        '''
-        Make AIPS CC table
-
-        Args:
-            istokes (integer): index for Stokes Parameter at which the image will be saved
-            ifreq (integer): index for Frequency at which the image will be saved
-            threshold (float): pixels with the absolute intensity smaller than this value will be ignored.
-            relative (boolean): If true, theshold value will be normalized with the peak intensity of the image.
-        '''
-        Nx = self.header["nx"]
-        Ny = self.header["ny"]
-        xg, yg = self.get_xygrid(angunit="deg")
-        X, Y = np.meshgrid(xg, yg)
-        X = X.reshape(Nx * Ny)
-        Y = Y.reshape(Nx * Ny)
-        flux = self.data[istokes, ifreq]
-        flux = flux.reshape(Nx * Ny)
-
-        # threshold
-        if threshold is None:
-            thres = np.finfo(np.float32).eps
-        else:
-            if relative:
-                thres = self.peak(istokes=istokes, ifreq=ifreq) * threshold
-            else:
-                thres = threshold
-        thres = np.abs(thres)
-
-        # adopt threshold
-        X = X[flux >= thres]
-        Y = Y[flux >= thres]
-        flux = flux[flux >= thres]
-
-        # make table columns
-        c1 = pyfits.Column(name='FLUX', array=flux, format='1E',unit='JY')
-        c2 = pyfits.Column(name='DELTAX', array=X, format='1E',unit='DEGREES')
-        c3 = pyfits.Column(name='DELTAY', array=Y, format='1E',unit='DEGREES')
-        c4 = pyfits.Column(name='MAJOR AX', array=np.zeros(len(flux)), format='1E',unit='DEGREES')
-        c5 = pyfits.Column(name='MINOR AX', array=np.zeros(len(flux)), format='1E',unit='DEGREES')
-        c6 = pyfits.Column(name='POSANGLE', array=np.zeros(len(flux)), format='1E',unit='DEGREES')
-        c7 = pyfits.Column(name='TYPE OBJ', array=np.zeros(len(flux)), format='1E',unit='CODE')
-
-        # make CC table
-        tab = pyfits.BinTableHDU.from_columns([c1, c2, c3, c4, c5, c6, c7])
-        return tab
-
-    def save_fits(self, outfitsfile=None, overwrite=True):
-        '''
-        save the image(s) to the image FITS file or HDUList.
-
-        Args:
-            outfitsfile (string; default is None):
-                FITS file name. If not specified, then HDUList object will be
-                returned.
-            overwrite (boolean):
-                It True, an existing file will be overwritten.
-        Returns:
-            HDUList object if outfitsfile is None
-        '''
-        print("This method 'save_fits' will be deleted in future. please use the 'to_fits' method")
-        self.to_fits(outfitsfile, overwrite)
-
-    def to_fits(self, outfitsfile=None, overwrite=True):
-        '''
-        save the image(s) to the image FITS file or HDUList.
-
-        Args:
-            outfitsfile (string; default is None):
-                FITS file name. If not specified, then HDUList object will be
-                returned.
-            overwrite (boolean):
-                It True, an existing file will be overwritten.
-        Returns:
-            HDUList object if outfitsfile is None
-        '''
-        if outfitsfile is None:
-            return copy.deepcopy(self.hdulist)
-
-        if os.path.isfile(outfitsfile):
-            if overwrite:
-                os.system("rm -f %s" % (outfitsfile))
-                self.hdulist.writeto(outfitsfile)
-            else:
-                print("Warning: does not overwrite %s" % (outfitsfile))
-        else:
-            self.hdulist.writeto(outfitsfile)
-
-    def winmod(self, imregion, save_totalflux=False):
-        '''
-        clear brightness distribution outside regions
-
-        Args:
-            region (imdata.ImRegTable object):
-                region data
-            save_totalflux (boolean; default=False):
-                if True, keep Totalflux
-        '''
-        # create output fits
-        outfits = copy.deepcopy(self)
-        imagewin = imregion.imagewin(outfits)
-
-        for idxs in np.arange(self.header["ns"]):
-            for idxf in np.arange(self.header["nf"]):
-                image = outfits.data[idxs, idxf]
-                masked = imagewin == False
-                image[np.where(masked)] = 0
-                outfits.data[idxs, idxf] = image
-                if save_totalflux:
-                    totalflux = self.totalflux(istokes=idxs, ifreq=idxf)
-                    outfits.data[idxs, idxf] *= totalflux / image.sum()
-        # Update and Return
-        outfits.update_fits()
-        return outfits
 
     def angconv(self, unit1="deg", unit2="deg"):
         '''
@@ -762,6 +686,28 @@ class IMFITS(object):
     #-------------------------------------------------------------------------
     # Getting Some information about images
     #-------------------------------------------------------------------------
+    def get_beam(self, angunit=None):
+        '''
+        get beam parameters
+
+        Args:
+          angunit (string): Angular unit (uas, mas, asec or arcsec, amin or arcmin, degree)
+        '''
+        if angunit is None:
+            angunit = self.angunit
+
+        conv = util.angconv("deg", angunit)
+
+        outdic = {}
+        outdic["majsize"] = self.header["bmaj"] * conv
+        outdic["minsize"] = self.header["bmin"] * conv
+        outdic["pa"] = self.header["bpa"]
+        outdic["x0"] = 0.
+        outdic["y0"] = 0.
+        outdic["scale"] = 1.
+        outdic["angunit"] = angunit
+        return outdic
+
     def get_xygrid(self, twodim=False, angunit=None):
         '''
         calculate the grid of the image
@@ -785,6 +731,36 @@ class IMFITS(object):
             xg, yg = np.meshgrid(xg, yg)
         return xg, yg
 
+    def get_bconv(self,fluxunit="Jy",saunit="beam"):
+        '''
+        derive a conversion factor to convert the unit of the intensity
+        to the one using the specified flux and solid angle units.
+        '''
+        fluxconv = util.fluxconv("Jy", fluxunit)
+
+        if saunit.lower() == "beam":
+            saconv = util.saconv(
+                x1=self.header["dx"],
+                y1=self.header["dy"],
+                angunit1="deg",
+                satype1="pixel",
+                x2=self.header["bmaj"],
+                y2=self.header["bmin"],
+                angunit2="deg",
+                satype2="beam",
+            )
+        elif saunit.lower() == "pixel":
+            saconv = 1
+        else:
+            saconv = util.angconv("deg",saunit) ** 2
+        return fluxconv * saconv
+
+    def get_imarray(self,fluxunit="Jy",saunit="pixel"):
+        '''
+        returns np.array of the brightness distributions in a specified unit
+        '''
+        return self.data * self.get_bconv(fluxunit,saunit)
+
     def get_imextent(self, angunit=None):
         '''
         calculate the field of view of the image
@@ -807,9 +783,66 @@ class IMFITS(object):
         ymin = (1 - Nyref - 0.5) * dy
         return np.asarray([xmax, xmin, ymin, ymax]) * self.angconv("deg", angunit)
 
+    def get_angunitlabel(self, angunit=None):
+        '''
+        Get the angular unit of the specifed angunit. If not given,
+        it will be taken by self.angunit
+        '''
+        if angunit is None:
+            angunit = self.angunit
+
+        # Axis Label
+        if angunit.lower().find("pixel") == 0:
+            unit = "pixel"
+        elif angunit.lower().find("uas") == 0:
+            unit = r"$\rm \mu$as"
+        elif angunit.lower().find("mas") == 0:
+            unit = "mas"
+        elif angunit.lower().find("arcsec") * angunit.lower().find("asec") == 0:
+            unit = "arcsec"
+        elif angunit.lower().find("arcmin") * angunit.lower().find("amin") == 0:
+            unit = "arcmin"
+        elif angunit.lower().find("deg") == 0:
+            unit = "deg"
+        else:
+            unit = "mas"
+        return unit
+
+    def get_fluxunitlabel(self, fluxunit="Jy"):
+        '''
+        Get the angular unit of the specifed angunit. If not given,
+        it will be taken by self.angunit
+        '''
+        # Axis Label
+        if   fluxunit.lower().find("jy") == 0:
+            unit = "Jy"
+        elif fluxunit.lower().find("mjy") == 0:
+            unit = "mJy"
+        elif fluxunit.lower().find("ujy") == 0:
+            unit = r"$\rm \mu$Jy"
+        elif fluxunit.lower().find("si") == 0:
+            unit = r"W m$^{-2}$ Hz$^{-1}$"
+        elif fluxunit.lower().find("cgs") == 0:
+            unit = r"erg s cm$^{-2}$ Hz$^{-1}$"
+        return unit
+
+    def get_saunitlabel(self, saunit="pixel"):
+        '''
+        Get the angular unit of the specifed angunit. If not given,
+        it will be taken by self.angunit
+        '''
+        # Axis Label
+        if   saunit.lower().find("pixel") == 0:
+            unit = r"Pixel$^{-1}$"
+        elif saunit.lower().find("beam") == 0:
+            unit = r"Beam$^{-1}$"
+        else:
+            unit = self.get_angunitlabel(angunit=saunit) + r"$^{-2}$"
+        return unit
+
     def peak(self, absolute=False, istokes=0, ifreq=0):
         '''
-        calculate the peak intensity of the image
+        calculate the peak intensity of the image in Jy/Pixel
 
         Args:
           absolute (boolean): if True, it will pick up the peak of the absolute.
@@ -825,7 +858,7 @@ class IMFITS(object):
 
     def totalflux(self, istokes=0, ifreq=0):
         '''
-        calculate the total flux of the image
+        Calculate the total flux density of the image
 
         Args:
           istokes (integer): index for Stokes Parameter at which the total flux will be calculated
@@ -846,7 +879,6 @@ class IMFITS(object):
             maskimage = imregion.maskimage(self)
             image = image[np.where(maskimage > 0.5)]
         return np.median(np.abs(image - np.median(image)))
-
 
     def compos(self,alpha=1.,angunit=None,ifreq=0, istokes=0):
         '''
@@ -975,9 +1007,14 @@ class IMFITS(object):
             dyrange=100,
             vmin=None,
             angunit=None,
+            fluxunit="jy",
+            saunit="pixel",
+            restore=False,
+            colorbar=False,
+            colorbarprm={},
             istokes=0, ifreq=0,
             cmap=cm.afmhot,
-            interpolation="bicubic",
+            interpolation="none",
             **imshow_args):
         '''
         plot contours of the image
@@ -986,11 +1023,27 @@ class IMFITS(object):
           logscale (boolean):
             If True, the color contour will be on log scales. Otherise,
             the color contour will be on linear scales.
+          dyrange (float; default=100):
+            Dynamic range of the log color contour.
+          vmin (float):
+            The minimum value of the color contour.
+            If logscale=True, dyrange will be used.
+          relative (boolean, default=True):
+            If True, vmin will be the relative value to the peak.
           angunit (string):
             Angular Unit for the axis labels (pixel, uas, mas, asec or arcsec,
             amin or arcmin, degree)
-          vmin (string):
-            minimum value of the color contour in Jy/pixel
+          saunit (string):
+            Angular Unit for the solid angle (pixel, uas, mas, asec or arcsec,
+            amin or arcmin, degree, beam). If restore is True, saunit will be
+            forced to be "beam".
+          restore (boolean, default=True):
+            If True, the image will be blurred by a Gaussian specified with
+            beam parameters in the header.
+          colorbar (boolean, default=False):
+            If True, the colorbar will be shown.
+          colorbarprm (dic, default={}):
+            parameters for pyplot.colorbar
           istokes (integer):
             index for Stokes Parameter at which the image will be plotted
           ifreq (integer):
@@ -1000,48 +1053,65 @@ class IMFITS(object):
         if angunit is None:
             angunit = self.angunit
 
+        if restore:
+            saunit="beam"
+
+        bconv = self.get_bconv(fluxunit=fluxunit, saunit=saunit)
+
         # Get Image Axis
         if angunit == "pixel":
             imextent = None
         else:
             imextent = self.get_imextent(angunit)
 
-        if logscale:
-            plotdata = np.log10(self.data[istokes, ifreq])
-            if vmin is None:
-                vmin_scaled = np.log10(self.peak(istokes, ifreq)/dyrange)
-            else:
-                vmin_scaled = np.log10(vmin)
-            plotdata[np.isnan(plotdata)] = vmin_scaled
-            plotdata[np.where(plotdata < vmin_scaled)] = vmin_scaled
+        # get twodim array
+        if restore:
+            imarr = self.convolve_gauss(
+                majsize=self.header["bmaj"],
+                minsize=self.header["bmin"],
+                pa=self.header["bpa"],
+                angunit="deg"
+            )
+            peak = imarr.peak() / bconv
+            imarr = imarr.get_imarray()[istokes,ifreq] / bconv
+        else:
+            peak = self.peak() * bconv
+            imarr = self.get_imarray()[istokes,ifreq] * bconv
 
         if logscale:
-            plt.imshow(plotdata, extent=imextent, origin="lower", cmap=cmap,
-                       vmin=vmin_scaled, interpolation=interpolation, **imshow_args)
+            vmin = None
+            norm = mcolors.LogNorm(vmin=peak/dyrange, vmax=peak)
+            imarr[np.where(imarr<peak/dyrange)] = peak/dyrange
         else:
-            plt.imshow(self.data[istokes, ifreq], extent=imextent, origin="lower",
-                       cmap=cmap, vmin=vmin, interpolation=interpolation, **imshow_args)
+            if vmin is not None and relative:
+                vmin *= peak
+            norm = None
+
+        plt.imshow(
+            imarr, origin="lower", extent=imextent, vmin=vmin,
+            cmap=cmap, interpolation=interpolation, norm=norm,
+            **imshow_args
+        )
 
         # Axis Label
-        if angunit.lower().find("pixel") == 0:
-            unit = "pixel"
-        elif angunit.lower().find("uas") == 0:
-            unit = r"$\rm \mu$as"
-        elif angunit.lower().find("mas") == 0:
-            unit = "mas"
-        elif angunit.lower().find("arcsec") * angunit.lower().find("asec") == 0:
-            unit = "arcsec"
-        elif angunit.lower().find("arcmin") * angunit.lower().find("amin") == 0:
-            unit = "arcmin"
-        elif angunit.lower().find("deg") == 0:
-            unit = "deg"
-        else:
-            unit = "mas"
-        plt.xlabel("Relative RA (%s)" % (unit))
-        plt.ylabel("Relative Dec (%s)" % (unit))
+        angunitlabel = self.get_angunitlabel(angunit)
+        plt.xlabel("Relative RA (%s)" % (angunitlabel))
+        plt.ylabel("Relative Dec (%s)" % (angunitlabel))
+
+        if colorbar:
+            self.colorbar(fluxunit=fluxunit, saunit=saunit, **colorbarprm)
+
+    def colorbar(self, fluxunit="Jy", saunit="pixel", **colorbarprm):
+        '''
+        add colorbar
+        '''
+        clb = plt.colorbar(**colorbarprm)
+        fluxunitlabel = self.get_fluxunitlabel(fluxunit)
+        saunitlabel = self.get_saunitlabel(saunit)
+        clb.set_label("Intensity (%s %s)"%(fluxunitlabel, saunitlabel))
 
     def contour(self, cmul=None, levels=None, angunit=None,
-                colors="white", relative=True,
+                colors="white", ls="-",
                 istokes=0, ifreq=0,
                 **contour_args):
         '''
@@ -1069,7 +1139,7 @@ class IMFITS(object):
         image = self.data[istokes, ifreq]
 
         if cmul is None:
-            vmin = np.abs(image).max() * 0.01
+            vmin = self.peak() * 0.01
         else:
             if relative:
                 vmin = cmul * np.abs(image).max()
@@ -1083,27 +1153,11 @@ class IMFITS(object):
         clevels = vmin * np.asarray(clevels)
 
         plt.contour(image, extent=imextent, origin="lower",
-                    colors=colors, levels=clevels, ls="-", **contour_args)
-        # plt.contour(image,extent=imextent,origin="lower",
-        #            colors=colors,levels=-levels,ls="--",**contour_args)
-        # Axis Label
-        if angunit.lower().find("pixel") == 0:
-            unit = "pixel"
-        elif angunit.lower().find("uas") == 0:
-            unit = r"$\rm \mu$as"
-        elif angunit.lower().find("mas") == 0:
-            unit = "mas"
-        elif angunit.lower().find("arcsec") * angunit.lower().find("asec") == 0:
-            unit = "arcsec"
-        elif angunit.lower().find("arcmin") * angunit.lower().find("amin") == 0:
-            unit = "arcmin"
-        elif angunit.lower().find("deg") == 0:
-            unit = "deg"
-        else:
-            unit = "mas"
+                    colors=colors, levels=clevels, ls=ls, **contour_args)
 
-        plt.xlabel("Relative RA (%s)" % (unit))
-        plt.ylabel("Relative Dec (%s)" % (unit))
+        angunitlabel = self.get_angunitlabel(angunit)
+        plt.xlabel("Relative RA (%s)" % (angunitlabel))
+        plt.ylabel("Relative Dec (%s)" % (angunitlabel))
 
     #-------------------------------------------------------------------------
     # DS9
@@ -1167,6 +1221,81 @@ class IMFITS(object):
     #-------------------------------------------------------------------------
     # Output some information to files
     #-------------------------------------------------------------------------
+    def to_fits(self, outfitsfile=None, overwrite=True, bunit="Jy/pixel"):
+        '''
+        save the image(s) to the image FITS file or HDUList.
+
+        Args:
+            outfitsfile (string; default is None):
+                FITS file name. If not specified, then HDUList object will be
+                returned.
+            overwrite (boolean):
+                It True, an existing file will be overwritten.
+        Returns:
+            HDUList object if outfitsfile is None
+        '''
+        self.update_fits(bunit=bunit)
+
+        if outfitsfile is None:
+            return copy.deepcopy(self.hdulist)
+
+        if os.path.isfile(outfitsfile):
+            if overwrite:
+                os.system("rm -f %s" % (outfitsfile))
+                self.hdulist.writeto(outfitsfile)
+            else:
+                print("Warning: does not overwrite %s" % (outfitsfile))
+        else:
+            self.hdulist.writeto(outfitsfile)
+
+    def to_aipscc(self, threshold=None, relative=True,
+                    istokes=0, ifreq=0):
+        '''
+        Make AIPS CC table
+
+        Args:
+            istokes (integer): index for Stokes Parameter at which the image will be saved
+            ifreq (integer): index for Frequency at which the image will be saved
+            threshold (float): pixels with the absolute intensity smaller than this value will be ignored.
+            relative (boolean): If true, theshold value will be normalized with the peak intensity of the image.
+        '''
+        Nx = self.header["nx"]
+        Ny = self.header["ny"]
+        xg, yg = self.get_xygrid(angunit="deg")
+        X, Y = np.meshgrid(xg, yg)
+        X = X.reshape(Nx * Ny)
+        Y = Y.reshape(Nx * Ny)
+        flux = self.data[istokes, ifreq]
+        flux = flux.reshape(Nx * Ny)
+
+        # threshold
+        if threshold is None:
+            thres = np.finfo(np.float32).eps
+        else:
+            if relative:
+                thres = self.peak(istokes=istokes, ifreq=ifreq) * threshold
+            else:
+                thres = threshold
+        thres = np.abs(thres)
+
+        # adopt threshold
+        X = X[flux >= thres]
+        Y = Y[flux >= thres]
+        flux = flux[flux >= thres]
+
+        # make table columns
+        c1 = pyfits.Column(name='FLUX', array=flux, format='1E',unit='JY')
+        c2 = pyfits.Column(name='DELTAX', array=X, format='1E',unit='DEGREES')
+        c3 = pyfits.Column(name='DELTAY', array=Y, format='1E',unit='DEGREES')
+        c4 = pyfits.Column(name='MAJOR AX', array=np.zeros(len(flux)), format='1E',unit='DEGREES')
+        c5 = pyfits.Column(name='MINOR AX', array=np.zeros(len(flux)), format='1E',unit='DEGREES')
+        c6 = pyfits.Column(name='POSANGLE', array=np.zeros(len(flux)), format='1E',unit='DEGREES')
+        c7 = pyfits.Column(name='TYPE OBJ', array=np.zeros(len(flux)), format='1E',unit='CODE')
+
+        # make CC table
+        tab = pyfits.BinTableHDU.from_columns([c1, c2, c3, c4, c5, c6, c7])
+        return tab
+
     def to_difmapmod(self, outfile, threshold=None, relative=True,
                      istokes=0, ifreq=0):
         '''
@@ -1208,9 +1337,55 @@ class IMFITS(object):
             f.write(line)
         f.close()
 
+    def save_fits(self, outfitsfile=None, overwrite=True, bunit="Jy/pixel"):
+        '''
+        save the image(s) to the image FITS file or HDUList.
+
+        Args:
+            outfitsfile (string; default is None):
+                FITS file name. If not specified, then HDUList object will be
+                returned.
+            overwrite (boolean):
+                It True, an existing file will be overwritten.
+        Returns:
+            HDUList object if outfitsfile is None
+        '''
+        print("Warning: this method will be removed soon. please use the 'to_fits' method.")
+        if outfitsfile is None:
+            self.to_fits(outfitsfile, overwrite, bunit)
+        else:
+            return self.to_fits(outfitsfile, overwrite, bunit)
+
     #-------------------------------------------------------------------------
     # Editing images
     #-------------------------------------------------------------------------
+    def winmod(self, imregion, save_totalflux=False):
+        '''
+        clear brightness distribution outside regions
+
+        Args:
+            region (imdata.ImRegTable object):
+                region data
+            save_totalflux (boolean; default=False):
+                if True, keep Totalflux
+        '''
+        # create output fits
+        outfits = copy.deepcopy(self)
+        imagewin = imregion.imagewin(outfits)
+
+        for idxs in np.arange(self.header["ns"]):
+            for idxf in np.arange(self.header["nf"]):
+                image = outfits.data[idxs, idxf]
+                masked = imagewin == False
+                image[np.where(masked)] = 0
+                outfits.data[idxs, idxf] = image
+                if save_totalflux:
+                    totalflux = self.totalflux(istokes=idxs, ifreq=idxf)
+                    outfits.data[idxs, idxf] *= totalflux / image.sum()
+        # Update and Return
+        outfits.update_fits()
+        return outfits
+
     def cpimage(self, fitsdata, save_totalflux=False, order=3):
         '''
         Copy the brightness ditribution of the input IMFITS object
@@ -1262,8 +1437,73 @@ class IMFITS(object):
         outfits.update_fits()
         return outfits
 
+    #def convolve(self, kernelimage):
+
+    #def convolve_geomodel(self, geomodel):
+
+    def convolve_gauss(self, majsize, minsize=None, x0=0, y0=0,
+                       pa=0., scale=1., angunit=None, save_totalflux=False):
+        '''
+        Gaussian Convolution
+
+        Args:
+          x0, y0 (float): the peak location of the gaussian in the unit of "angunit"
+          majsize (float): Major Axis Size
+          minsize (float): Minor Axis Size. If None, it will be same to the Major Axis Size (Circular Gaussian)
+          angunit (string): Angular Unit for the sizes (uas, mas, asec or arcsec, amin or arcmin, degree)
+          pa (float): Position Angle of the Gaussian
+          scale (float; default=False): The sizes will be multiplied by this value.
+          restore (boolean; default=False): if True, omit the flux normalizing factor
+          save_totalflux (boolean): If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.IMFITS object
+        '''
+        if minsize is None:
+            minsize = majsize
+
+        if angunit is None:
+            angunit = self.angunit
+
+        # Create outputdata
+        outfits = copy.deepcopy(self)
+
+        # Create Gaussian
+        imextent = outfits.get_imextent(angunit)
+        if x0 is None:
+            x0 = 0.
+        if y0 is None:
+            y0 = 0.
+
+        X, Y = outfits.get_xygrid(angunit=angunit, twodim=True)
+        cospa = np.cos(np.deg2rad(pa))
+        sinpa = np.sin(np.deg2rad(pa))
+        X1 = (X - x0) * cospa - (Y - y0) * sinpa
+        Y1 = (X - x0) * sinpa + (Y - y0) * cospa
+        majsig = majsize / np.sqrt(2 * np.log(2)) / 2 * scale
+        minsig = minsize / np.sqrt(2 * np.log(2)) / 2 * scale
+        gauss = np.exp(-X1 * X1 / 2 / minsig / minsig - Y1 * Y1 / 2 / majsig / majsig)
+        #gauss /= 2*np.pi*majsig*minsig
+
+        # Replace nan with zero
+        gauss[np.isnan(gauss)] = 0
+
+        # Convolusion (except:gauss is zero array)
+        if np.any(gauss != 0):
+            for idxs, idxf in itertools.product(xrange(outfits.header["ns"]),xrange(outfits.header["nf"])):
+                orgimage = outfits.data[idxs, idxf]
+                newimage = convolve_fft(orgimage, gauss, normalize_kernel=True)
+                outfits.data[idxs, idxf] = newimage
+                # Flux Scaling
+                if save_totalflux:
+                    totalflux = self.totalflux(istokes=idxs, ifreq=idxf)
+                    outfits.data[idxs, idxf] *= totalflux / outfits.totalflux(istokes=idxs, ifreq=idxf)
+
+        # Update and Return
+        outfits.update_fits()
+        return outfits
+
     def gauss_convolve(self, majsize, minsize=None, x0=None, y0=None,
-                       pa=0., scale=1., angunit=None, pos="rel", save_totalflux=False):
+                       pa=0., scale=1., angunit=None, save_totalflux=False):
         '''
         Gaussian Convolution
 
@@ -1280,74 +1520,6 @@ class IMFITS(object):
         '''
         print("Warning: this function will be removed soon. Please use convolve_gauss.")
         return self.convolve_gauss(majsize, minsize, x0, y0, pa, scale, angunit, pos, save_totalflux)
-
-    #def convolve(self, kernelimage):
-
-    #def convolve_geomodel(self, geomodel):
-
-    def convolve_gauss(self, majsize, minsize=None, x0=0, y0=0,
-                       pa=0., scale=1., angunit=None, save_totalflux=False):
-        '''
-        Gaussian Convolution
-
-        Args:
-          x0, y0 (float): the peak location of the gaussian in the unit of "angunit"
-          majsize (float): Major Axis Size
-          minsize (float): Minor Axis Size. If None, it will be same to the Major Axis Size (Circular Gaussian)
-          angunit (string): Angular Unit for the sizes (uas, mas, asec or arcsec, amin or arcmin, degree)
-          pa (float): Position Angle of the Gaussian
-          scale (float): The sizes will be multiplied by this value.
-          save_totalflux (boolean): If true, the total flux of the image will be conserved.
-        Returns:
-          imdata.IMFITS object: the copied image data
-        '''
-        if minsize is None:
-            minsize = majsize
-
-        if angunit is None:
-            angunit = self.angunit
-
-        # Create outputdata
-        outfits = copy.deepcopy(self)
-
-        # Create Gaussian
-        imextent = outfits.get_imextent(angunit)
-        Imxref = (imextent[0] + imextent[1]) / 2.
-        Imyref = (imextent[2] + imextent[3]) / 2.
-        if x0 is None:
-            x0 = 0.
-        if y0 is None:
-            y0 = 0.
-
-        X, Y = outfits.get_xygrid(angunit=angunit, twodim=True)
-        cospa = np.cos(np.deg2rad(pa))
-        sinpa = np.sin(np.deg2rad(pa))
-        X1 = (X - x0) * cospa - (Y - y0) * sinpa
-        Y1 = (X - x0) * sinpa + (Y - y0) * cospa
-        majsig = majsize / np.sqrt(2 * np.log(2)) / 2 * scale
-        minsig = minsize / np.sqrt(2 * np.log(2)) / 2 * scale
-        gauss = np.exp(-X1 * X1 / 2 / minsig / minsig - Y1 * Y1 / 2 / majsig / majsig)
-        gauss/= 2*np.pi*majsig*minsig
-
-        # Replace nan with zero
-        gauss[np.isnan(gauss)] = 0
-
-        # Convolusion (except:gauss is zero array)
-        if np.any(gauss != 0):
-            for idxs in np.arange(outfits.header["ns"]):
-                for idxf in np.arange(outfits.header["nf"]):
-                    orgimage = outfits.data[idxs, idxf]
-                    newimage = convolve_fft(orgimage, gauss)
-                    outfits.data[idxs, idxf] = newimage
-                    # Flux Scaling
-                    if save_totalflux:
-                        totalflux = self.totalflux(istokes=idxs, ifreq=idxf)
-                        outfits.data[idxs, idxf] *= totalflux / \
-                            outfits.totalflux(istokes=idxs, ifreq=idxf)
-
-        # Update and Return
-        outfits.update_fits()
-        return outfits
 
     def refshift(self,x0=0.,y0=0.,angunit=None,save_totalflux=False):
         '''
@@ -1561,10 +1733,8 @@ class IMFITS(object):
                 outfits.totalflux(istokes=istokes, ifreq=ifreq)
         outfits.update_fits()
         return outfits
-
+    '''
     def add_geomodel(self, geomodel, istokes=0, ifreq=0, overwrite=False, usetheano=False):
-        '''
-        '''
         # copy self (for output)
         outfits = copy.deepcopy(self)
 
@@ -1589,10 +1759,25 @@ class IMFITS(object):
         else:
             outfits.data[istokes,ifreq,:,:] += I
         return outfits
+    '''
 
-    def add_gauss(self, x0=0., y0=0., totalflux=1., majsize=1., minsize=None,
-                  pa=0., overwrite=False, istokes=0, ifreq=0, angunit=None):
+    def add_gauss(self, x0=0., y0=0., totalflux=1., majsize=1., minsize=None, scale=1.0,
+                  pa=0., overwrite=False, istokes=0, ifreq=0, fluxunit="Jy", angunit=None):
         '''
+        Gaussian Convolution
+
+        Args:
+          x0, y0 (float): the peak location of the gaussian in the unit of "angunit"
+          totalflux (float): total flux density
+          majsize (float): Major Axis Size
+          minsize (float): Minor Axis Size. If None, it will be same to the Major Axis Size (Circular Gaussian)
+          fluxunit (string): unit of the total flux density (Jy, mJy, uJy, si, cgs)
+          angunit (string): Angular Unit for the sizes (uas, mas, asec or arcsec, amin or arcmin, degree)
+          pa (float): Position Angle of the Gaussian
+          scale (float): The sizes will be multiplied by this value.
+          overwrite (boolean; default=False): If True, the image will be overwritten by this Gaussian.
+        Returns:
+          imdata.IMFITS object
         '''
         if angunit is None:
             angunit = self.angunit
@@ -1622,7 +1807,7 @@ class IMFITS(object):
         gauss = np.exp(-X2 * X2 / 2 / minsig / minsig -
                        Y2 * Y2 / 2 / majsig / majsig)
         gauss /= gauss.sum()
-        gauss *= totalflux
+        gauss *= totalflux * util.fluxconv(fluxunit,"Jy")
 
         # add to original FITS file
         if overwrite:
