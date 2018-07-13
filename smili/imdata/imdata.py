@@ -1078,17 +1078,17 @@ class IMFITS(object):
                 pa=self.header["bpa"],
                 angunit="deg"
             )
+            imarr = imarr.get_imarray()[istokes,ifreq] * fluxconv * saconv
             if vmax is None:
-                peak = imarr.peak() * fluxconv / saconv
+                peak = imarr.max()
             else:
                 peak = vmax
-            imarr = imarr.get_imarray()[istokes,ifreq] * fluxconv / saconv
         else:
+            imarr = self.get_imarray()[istokes,ifreq] * fluxconv * saconv
             if vmax is None:
-                peak = imarr.peak() * fluxconv * saconv
+                peak = imarr.max()
             else:
                 peak = vmax
-            imarr = self.get_imarray()[istokes,ifreq] * fluxconv * saconv
 
         if scale.lower()=="log":
             vmin = None

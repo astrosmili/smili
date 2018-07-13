@@ -237,12 +237,11 @@ class MOVIE(object):
         pos = self.average().peakpos(ifreq=ifreq, istokes=istokes)
         return self.refshift(save_totalflux=save_totalflux, **pos)
 
-    def gauss_convolve(self, majsize, minsize=None, x0=None, y0=None, pa=0.0, scale=1.0, angunit=None, pos='rel', save_totalflux=False):
+    def convolve_gauss(self, majsize, minsize=None, x0=None, y0=None, pa=0.0, scale=1.0, angunit=None, pos='rel', save_totalflux=False):
         '''
-
         '''
         outmovie=copy.deepcopy(self)
-        outmovie.images = [self.images[i].gauss_convolve(
+        outmovie.images = [self.images[i].convolve_gauss(
                                 majsize=majsize,
                                 minsize=minsize,
                                 x0=x0, y0=y0,
@@ -251,7 +250,6 @@ class MOVIE(object):
                                 save_totalflux=save_totalflux)
                            for i in xrange(self.Nt)]
         return outmovie
-
 
     def set_frmidx(self,uvtable):
         '''

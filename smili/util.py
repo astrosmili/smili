@@ -164,7 +164,7 @@ def saconv(x1=1.,y1=None,angunit1="deg",satype1="pixel",
         satype2 = satype1
     solidang1 = solidang(x1,y1,angunit1,satype1,angunitout=angunit1)
     solidang2 = solidang(x2,y2,angunit2,satype2,angunitout=angunit1)
-    return np.abs(solidang1/solidang2)
+    return np.abs(solidang2/solidang1)
 
 def prt(obj, indent="", output=False):
     '''
