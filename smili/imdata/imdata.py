@@ -56,7 +56,7 @@ class IMFITS(object):
 
         The order of priority for duplicated parameters is
             1 uvfits (strongest)
-            2 source, instrument, dateobs
+            2 source
             3 imfits
             4 dx, dy, nx, ny, nxref, nyref
             5 other parameters (weakest).
@@ -468,7 +468,8 @@ class IMFITS(object):
         self.header["nyref"] = im.ydim/2.+1
         self.header["f"] = im.rf
         self.header["dateobs"]=obsdate
-        self.data = np.flipud(im.imvec.reshape([header["ny"],header["nx"]])).reshape([1,1,header["ny"],header["nx"]])
+        self.data = np.flipud(im.imvec.reshape([self.header["ny"],self.header["nx"]]))
+        self.data = self.data.reshape([1,1,self.header["ny"],self.header["nx"]])
         self.update_fits()
 
     def read_uvfitsheader(self, uvfits):
@@ -476,10 +477,16 @@ class IMFITS(object):
         Read header information from uvfits file
 
         Args:
-          uvfits (string): input uv-fits file
+          uvfits (string or hdulist):
+            input uv-fits file specified by its filename or HDUList object.
         '''
-        hdulist = pyfits.open(uvfits)
+        if isinstance(uvfits, pyfits.hdu.hdulist.HDUList):
+            hdulist = copy.deepcopy(uvfits)
+        else:
+            hdulist = pyfits.open(uvfits)
+        self.hdulist = hdulist
         hduinfos = hdulist.info(output=False)
+        
         for hduinfo in hduinfos:
             idx = hduinfo[0]
             if hduinfo[1] == "PRIMARY":
