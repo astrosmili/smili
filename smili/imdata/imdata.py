@@ -1003,8 +1003,9 @@ class IMFITS(object):
     # Plotting
     #-------------------------------------------------------------------------
     def imshow(self,
-            logscale=False,
+            scale="linear",
             dyrange=100,
+            gamma=0.5,
             vmin=None,
             angunit=None,
             fluxunit="jy",
@@ -1020,11 +1021,12 @@ class IMFITS(object):
         plot contours of the image
 
         Args:
-          logscale (boolean):
-            If True, the color contour will be on log scales. Otherise,
-            the color contour will be on linear scales.
+          scale (str; default="linear"):
+            Transfar function. Availables are "linear", "log", "gamma"
           dyrange (float; default=100):
             Dynamic range of the log color contour.
+          gamma (float; default=1/2.):
+            Gamma parameter for scale="gamma".
           vmin (float):
             The minimum value of the color contour.
             If logscale=True, dyrange will be used.
@@ -1056,7 +1058,8 @@ class IMFITS(object):
         if restore:
             saunit="beam"
 
-        bconv = self.get_bconv(fluxunit=fluxunit, saunit=saunit)
+        fluxconv = self.get_bconv(fluxunit=fluxunit, saunit="pixel")
+        saconv = self.get_bconv(fluxunit="Jy", saunit=saunit)
 
         # Get Image Axis
         if angunit == "pixel":
@@ -1072,20 +1075,30 @@ class IMFITS(object):
                 pa=self.header["bpa"],
                 angunit="deg"
             )
-            peak = imarr.peak() / bconv
-            imarr = imarr.get_imarray()[istokes,ifreq] / bconv
+            peak = imarr.peak() * fluxconv / saconv
+            imarr = imarr.get_imarray()[istokes,ifreq] * fluxconv / saconv
         else:
-            peak = self.peak() * bconv
-            imarr = self.get_imarray()[istokes,ifreq] * bconv
+            peak = self.peak() * fluxconv * saconv
+            imarr = self.get_imarray()[istokes,ifreq] * fluxconv * saconv
 
-        if logscale:
+        if scale.lower()=="log":
             vmin = None
             norm = mcolors.LogNorm(vmin=peak/dyrange, vmax=peak)
             imarr[np.where(imarr<peak/dyrange)] = peak/dyrange
-        else:
+        elif scale.lower()=="gamma":
+            if vmin is not None and relative:
+                vmin *= peak
+            elif vmin is None:
+                vmin = 0.
+            norm = mcolors.PowerNorm(vmin=peak/dyrange, vmax=peak, gamma=gamma)
+            imarr[np.where(np.abs(imarr)<0)] = 0
+        elif scale.lower()=="linear":
             if vmin is not None and relative:
                 vmin *= peak
             norm = None
+        else:
+            raise ValueError("Invalid scale parameters. Available: 'linear', 'log', 'gamma'")
+        imarr[np.isnan(imarr)] = 0
 
         plt.imshow(
             imarr, origin="lower", extent=imextent, vmin=vmin,
