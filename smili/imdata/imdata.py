@@ -486,7 +486,7 @@ class IMFITS(object):
             hdulist = pyfits.open(uvfits)
         self.hdulist = hdulist
         hduinfos = hdulist.info(output=False)
-        
+
         for hduinfo in hduinfos:
             idx = hduinfo[0]
             if hduinfo[1] == "PRIMARY":
@@ -1130,9 +1130,39 @@ class IMFITS(object):
             d.set_pyfits(self.hdulist)
             d.set('zoom to fit')
             d.set('cmap heat')
-            for index, row in imregion.iterrows():
-                ds9reg = imregion.reg_to_ds9reg(row,self)
-                d.set("region","image; %s" % ds9reg)
+            if imregion is not None:
+                for index, row in imregion.iterrows():
+                    ds9reg = imregion.reg_to_ds9reg(row,self)
+                    d.set("region","image; %s" % ds9reg)
+
+    def load_pyds9(self,angunit=None,wait=10):
+        '''
+        Load DS9 region to IMRegion.
+        This method uses pyds9.DS9().
+
+        Args:
+            angunit (str, default = None):
+                The angular unit of region. If None, it will take from
+                the default angunit of the image
+            wait (float, default = 10):
+                seconds to wait for ds9 to start.
+        Returns:
+            imdata.IMRegion object
+        '''
+        if angunit is None:
+            angunit = self.angunit
+
+        try:
+            d = pyds9.DS9(wait=wait)
+        except ValueError:
+            print("ValueError: try longer 'wait' time or installation of XPA.")
+        except:
+            print("Unexpected Error!")
+            raise
+        else:
+            ds9reg = d.get("regions -system image")
+            region = imregion.ds9reg_to_reg(ds9reg=ds9reg,image=self,angunit=angunit)
+            return region
 
     #-------------------------------------------------------------------------
     # Output some information to files
