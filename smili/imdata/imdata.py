@@ -1006,6 +1006,7 @@ class IMFITS(object):
             scale="linear",
             dyrange=100,
             gamma=0.5,
+            vmax=None,
             vmin=None,
             angunit=None,
             fluxunit="jy",
@@ -1027,11 +1028,13 @@ class IMFITS(object):
             Dynamic range of the log color contour.
           gamma (float; default=1/2.):
             Gamma parameter for scale="gamma".
+          vmax (float):
+            The maximum value of the color contour.
           vmin (float):
             The minimum value of the color contour.
             If logscale=True, dyrange will be used.
           relative (boolean, default=True):
-            If True, vmin will be the relative value to the peak.
+            If True, vmin will be the relative value to the peak or vmax.
           angunit (string):
             Angular Unit for the axis labels (pixel, uas, mas, asec or arcsec,
             amin or arcmin, degree)
@@ -1075,12 +1078,18 @@ class IMFITS(object):
                 pa=self.header["bpa"],
                 angunit="deg"
             )
-            peak = imarr.peak() * fluxconv / saconv
+            if vmax is None:
+                peak = imarr.peak() * fluxconv / saconv
+            else:
+                peak = vmax * fluxconv / saconv
             imarr = imarr.get_imarray()[istokes,ifreq] * fluxconv / saconv
         else:
-            peak = self.peak() * fluxconv * saconv
+            if vmax is None:
+                peak = imarr.peak() * fluxconv * saconv
+            else:
+                peak = vmax * fluxconv * saconv
             imarr = self.get_imarray()[istokes,ifreq] * fluxconv * saconv
-
+        
         if scale.lower()=="log":
             vmin = None
             norm = mcolors.LogNorm(vmin=peak/dyrange, vmax=peak)
