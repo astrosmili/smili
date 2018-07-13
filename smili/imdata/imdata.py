@@ -1081,15 +1081,15 @@ class IMFITS(object):
             if vmax is None:
                 peak = imarr.peak() * fluxconv / saconv
             else:
-                peak = vmax * fluxconv / saconv
+                peak = vmax
             imarr = imarr.get_imarray()[istokes,ifreq] * fluxconv / saconv
         else:
             if vmax is None:
                 peak = imarr.peak() * fluxconv * saconv
             else:
-                peak = vmax * fluxconv * saconv
+                peak = vmax
             imarr = self.get_imarray()[istokes,ifreq] * fluxconv * saconv
-        
+
         if scale.lower()=="log":
             vmin = None
             norm = mcolors.LogNorm(vmin=peak/dyrange, vmax=peak)
