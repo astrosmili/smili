@@ -459,15 +459,18 @@ class UVFITS(object):
 
         self.visdata = visdata
 
-    def write_fits(self, filename, overwrite=True):
+    def to_uvfits(self, filename=None, overwrite=True):
         '''
-        save to uvfits file. The data will be uv-sorted.
+        save to uvfits file. If the filename is not given, then
+        return HDUList object
 
         Args:
-          infile (string or pyfits.HDUList object): input uvfits data
-
+            filename (str):
+                Output uvfits filename
+            overwrite (boolean; default=True)
+                If True, overwrite when the specified file already exiests.
         Returns:
-          uvdata.UVFITS object
+          astropy.io.fits.HDUList object if filename=None.
         '''
         if self.ismultisrc:
             raise ValueError("Sorry, this library currently can not create multi-source UVFITS data.")
@@ -477,7 +480,10 @@ class UVFITS(object):
         hdulist.append(self._create_fqtab())
         hdulist += self._create_antab()
         hdulist = pf.HDUList(hdulist)
-        hdulist.writeto(filename, overwrite=overwrite)
+        if output is None:
+            return hdulist
+        else:
+            hdulist.writeto(filename, overwrite=overwrite)
 
     def _create_ghdu_single(self):
         # Generate Randam Group
@@ -1304,27 +1310,21 @@ class UVFITS(object):
         # Sort visdata
         print("(1/5) Sort Visibility Data")
         outfits.visdata.sort(by=["subarray","ant1","ant2","source","utc"])
+        Ndata = len(outfits.visdata.coord)
 
         # Check number of Baselines
         print("(2/5) Check Number of Baselines")
         # pick up combinations
-        combset = []
-        comblst = []
-        sappend = combset.append
-        lappend = comblst.append
-        for idx in outfits.visdata.coord.index:
-            tmp = outfits.visdata.coord.loc[idx,["subarray","ant1","ant2","source","freqsel"]].tolist()
-            lappend(tmp)
-            if tmp not in combset:
-                sappend(tmp)
-        del sappend,lappend,tmp
-        cindex = comblst.index
-        ccount = comblst.count
-        stlst = np.asarray([cindex(comb) for comb in combset], dtype=np.int32)
-        edlst = np.asarray([ccount(comb) for comb in combset], dtype=np.int32)
-        del cindex, ccount
-        edlst += stlst
-        stlst += 1
+        select = outfits.visdata.coord.drop_duplicates(subset=["subarray","ant1","ant2","source","freqsel"])
+        combset = zip(
+            select.subarray.values,
+            select.ant1.values,
+            select.ant2.values,
+            select.source.values,
+            select.freqsel.values
+        )
+        stlst = np.asarray(select.index.tolist(), dtype=np.int32)+1
+        edlst = np.asarray(select.index.tolist()+[Ndata], dtype=np.int32)[1:]
         Nidx = len(stlst)
 
         print("(3/5) Create Timestamp")
@@ -1378,7 +1378,7 @@ class UVFITS(object):
         outfits.visdata.coord["inttim"] = np.float64(inttim)
         outfits.visdata.coord["freqsel"] = np.int64(np.concatenate(freqsel))
         del utc,usec,vsec,wsec,subarray,ant1,ant2,source,inttim,freqsel
-        del combset,comblst,stlst,edlst,Nt,Nidx
+        del combset,stlst,edlst,Nt,Nidx
         outfits.visdata.coord = outfits.visdata.coord.loc[isdata,:]
         outfits.visdata.coord.reset_index(drop=True,inplace=True)
         outfits.visdata.sort()

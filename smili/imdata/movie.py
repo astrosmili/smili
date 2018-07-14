@@ -109,7 +109,6 @@ class MOVIE(object):
         outmovie.images = [copy.deepcopy(image) for i in xrange(self.Nt)]
         return outmovie
 
-
     def add_gauss(self,**gaussprm):
 
         '''
@@ -121,7 +120,6 @@ class MOVIE(object):
         Returns:
             imdata.MOVIE object including gaussian model
         '''
-
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].add_gauss(**gaussprm) for i in xrange(self.Nt)]
         return outmovie
@@ -137,7 +135,6 @@ class MOVIE(object):
             save_totalflux (boolean; default=False):
                 if True, keep Totalflux
         '''
-
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].winmod(imregion,save_totalflux) for i in xrange(self.Nt)]
         return outmovie
@@ -172,7 +169,6 @@ class MOVIE(object):
           relative (boolean): If true, theshold value will be normalized with the peak intensity of the image
           save_totalflux (boolean): If true, the total flux of the image will be conserved.
         '''
-
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].soft_threshold(
                                 threshold=threshold,
@@ -237,7 +233,8 @@ class MOVIE(object):
         pos = self.average().peakpos(ifreq=ifreq, istokes=istokes)
         return self.refshift(save_totalflux=save_totalflux, **pos)
 
-    def convolve_gauss(self, majsize, minsize=None, x0=None, y0=None, pa=0.0, scale=1.0, angunit=None, pos='rel', save_totalflux=False):
+    def convolve_gauss(self, majsize, minsize=None, x0=None, y0=None, pa=0.0,
+                             scale=1.0, angunit=None, pos='rel', save_totalflux=False):
         '''
         '''
         outmovie=copy.deepcopy(self)
@@ -322,8 +319,6 @@ class MOVIE(object):
                     self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
                 writer.grab_frame()
 
-
-    #========================
     def to_fits(self,filename="snapshot"):
         '''
         Args:
@@ -376,11 +371,9 @@ class MOVIE(object):
             time[it]=it*self.tint.value
         plt.plot(time,lightcurve)
 
-
     def imshow(self,it,**imshowprm):
         image=self.images[it]
         image.imshow(**imshowprm)
-
 
     def save_fits(self,filename=None):
         if filename is None:
