@@ -307,7 +307,7 @@ class IMFITS(object):
         '''
         self.header["observer"]=self.header_dtype["observer"](observer)
 
-    def set_beam(self, majsize=0., minsize=0., pa=0., scale=1., angunit=None, **args):
+    def set_beam(self, majsize=0., minsize=0., pa=0., scale=1., angunit=None):
         '''
         Set beam parameters into headers.
 
@@ -501,7 +501,7 @@ class IMFITS(object):
         self.header["object"] = im.source
         self.header["x"] = im.ra * 12
         self.header["y"] = im.dec
-        self.header["dx"] = im.psize * util.angconv("rad","deg")
+        self.header["dx"] = -np.abs(im.psize * util.angconv("rad","deg"))
         self.header["dy"] = im.psize * util.angconv("rad","deg")
         self.header["nx"] = im.xdim
         self.header["ny"] = im.ydim
@@ -702,8 +702,6 @@ class IMFITS(object):
         outdic["majsize"] = self.header["bmaj"] * conv
         outdic["minsize"] = self.header["bmin"] * conv
         outdic["pa"] = self.header["bpa"]
-        outdic["x0"] = 0.
-        outdic["y0"] = 0.
         outdic["scale"] = 1.
         outdic["angunit"] = angunit
         return outdic
@@ -1008,7 +1006,7 @@ class IMFITS(object):
             gamma=0.5,
             vmax=None,
             vmin=None,
-            angunit=None,
+            relative=False,
             fluxunit="jy",
             saunit="pixel",
             restore=False,
@@ -1019,7 +1017,8 @@ class IMFITS(object):
             interpolation="none",
             **imshow_args):
         '''
-        plot contours of the image
+        Plot the image.
+        To change the angular unit, please change IMFITS.angunit.
 
         Args:
           scale (str; default="linear"):
@@ -1032,12 +1031,9 @@ class IMFITS(object):
             The maximum value of the color contour.
           vmin (float):
             The minimum value of the color contour.
-            If logscale=True, dyrange will be used.
+            If logscale=True, dyrange will be used to set vmin.
           relative (boolean, default=True):
             If True, vmin will be the relative value to the peak or vmax.
-          angunit (string):
-            Angular Unit for the axis labels (pixel, uas, mas, asec or arcsec,
-            amin or arcmin, degree)
           saunit (string):
             Angular Unit for the solid angle (pixel, uas, mas, asec or arcsec,
             amin or arcmin, degree, beam). If restore is True, saunit will be
@@ -1055,20 +1051,15 @@ class IMFITS(object):
             index for Frequency at which the image will be plotted
           **imshow_args: Args will be input in matplotlib.pyplot.imshow
         '''
-        if angunit is None:
-            angunit = self.angunit
+        # Get Image Axis
+        angunit = self.angunit
+        imextent = self.get_imextent(angunit)
 
         if restore:
             saunit="beam"
 
         fluxconv = self.get_bconv(fluxunit=fluxunit, saunit="pixel")
         saconv = self.get_bconv(fluxunit="Jy", saunit=saunit)
-
-        # Get Image Axis
-        if angunit == "pixel":
-            imextent = None
-        else:
-            imextent = self.get_imextent(angunit)
 
         # get twodim array
         if restore:
@@ -1109,8 +1100,8 @@ class IMFITS(object):
             raise ValueError("Invalid scale parameters. Available: 'linear', 'log', 'gamma'")
         imarr[np.isnan(imarr)] = 0
 
-        plt.imshow(
-            imarr, origin="lower", extent=imextent, vmin=vmin,
+        im = plt.imshow(
+            imarr, origin="lower", extent=imextent, vmin=vmin, vmax=vmax,
             cmap=cmap, interpolation=interpolation, norm=norm,
             **imshow_args
         )
@@ -1121,7 +1112,63 @@ class IMFITS(object):
         plt.ylabel("Relative Dec (%s)" % (angunitlabel))
 
         if colorbar:
-            self.colorbar(fluxunit=fluxunit, saunit=saunit, **colorbarprm)
+            clb = self.colorbar(fluxunit=fluxunit, saunit=saunit, **colorbarprm)
+            return im,clb
+        else:
+            return im
+
+    def plot_beam(self, boxfc="black", boxec="white", beamfc="black", beamec="white",
+                  lw=1., alpha=0.5, x0=0.05, y0=0.05, boxsize=1.5, zorder=None):
+        '''
+        Plot beam in the header.
+        To change the angular unit, please change IMFITS.angunit.
+
+        Args:
+            x0, y0 (float, default=0.05):
+                leftmost, lowermost location of the box
+                if relative=True, the value is on transAxes coordinates
+            relative (boolean, default=True):
+                If True, the relative coordinate to the current axis will be
+                used to plot data
+            boxsize (float, default=1.5):
+                Relative size of the box to the major axis size.
+            boxfc, boxec (color formatter):
+                Face and edge colors of the box
+            beamfc, beamec (color formatter):
+                Face and edge colors of the beam
+            lw (float, default=1): linewidth
+            alpha (float, default=0.5): transparency parameter (0<1) for the face color
+        '''
+        angunit = self.angunit
+        angconv = util.angconv("deg",angunit)
+
+        majsize = self.header["bmaj"] * angconv
+        minsize = self.header["bmin"] * angconv
+        pa = self.header["bpa"]
+
+        offset = np.max([majsize, minsize])/2*boxsize
+
+        # get the current axes
+        ax = plt.gca()
+
+        # center
+        xedge, yedge = ax.transData.inverted().transform(ax.transAxes.transform((x0,y0)))
+        xcen = xedge - offset
+        ycen = yedge + offset
+
+        # get ellipce shapes
+        xe,ye = _plot_beam_ellipse(majsize, minsize, pa)
+        xe += xcen
+        ye += ycen
+
+        xb, yb = _plot_beam_box(offset*2, offset*2)
+        xb += xcen
+        yb += ycen
+
+        plt.fill(xb, yb, fc=boxfc, alpha=alpha , zorder=zorder)
+        plt.fill(xe, ye, fc=beamfc, alpha=alpha , zorder=zorder)
+        plt.plot(xe, ye, lw, color=beamec, zorder=zorder)
+        plt.plot(xb, yb, lw, color=boxec, zorder=zorder)
 
     def colorbar(self, fluxunit="Jy", saunit="pixel", **colorbarprm):
         '''
@@ -1131,8 +1178,10 @@ class IMFITS(object):
         fluxunitlabel = self.get_fluxunitlabel(fluxunit)
         saunitlabel = self.get_saunitlabel(saunit)
         clb.set_label("Intensity (%s %s)"%(fluxunitlabel, saunitlabel))
+        return clb
 
-    def contour(self, cmul=None, levels=None, angunit=None,
+    def contour(self, cmul=None, relative=True,
+                levels=None,
                 colors="white", ls="-",
                 istokes=0, ifreq=0,
                 **contour_args):
@@ -1148,14 +1197,9 @@ class IMFITS(object):
           levels: contour level. This will be multiplied with cmul.
           **contour_args: Args will be input in matplotlib.pyplot.contour
         '''
-        if angunit is None:
-            angunit = self.angunit
-
         # Get Image Axis
-        if angunit == "pixel":
-            imextent = None
-        else:
-            imextent = self.get_imextent(angunit)
+        angunit = self.angunit
+        imextent = self.get_imextent(angunit)
 
         # Get image
         image = self.data[istokes, ifreq]
@@ -1174,12 +1218,14 @@ class IMFITS(object):
             clevels = np.asarray(levels)
         clevels = vmin * np.asarray(clevels)
 
-        plt.contour(image, extent=imextent, origin="lower",
-                    colors=colors, levels=clevels, ls=ls, **contour_args)
+        CS = plt.contour(image, extent=imextent, origin="lower",
+                         colors=colors, levels=clevels, ls=ls, **contour_args)
 
         angunitlabel = self.get_angunitlabel(angunit)
         plt.xlabel("Relative RA (%s)" % (angunitlabel))
         plt.ylabel("Relative Dec (%s)" % (angunitlabel))
+        return CS
+
 
     #-------------------------------------------------------------------------
     # DS9
@@ -1464,7 +1510,9 @@ class IMFITS(object):
     #def convolve_geomodel(self, geomodel):
 
     def convolve_gauss(self, majsize, minsize=None, x0=0, y0=0,
-                       pa=0., scale=1., angunit=None, save_totalflux=False):
+                       pa=0., scale=1., angunit=None,
+                       set_beam=True,
+                       save_totalflux=False):
         '''
         Gaussian Convolution
 
@@ -1476,6 +1524,7 @@ class IMFITS(object):
           pa (float): Position Angle of the Gaussian
           scale (float; default=False): The sizes will be multiplied by this value.
           restore (boolean; default=False): if True, omit the flux normalizing factor
+          set_beam (boolean; default=True): update header file with this blurring beam
           save_totalflux (boolean): If true, the total flux of the image will be conserved.
         Returns:
           imdata.IMFITS object
@@ -1520,28 +1569,12 @@ class IMFITS(object):
                     totalflux = self.totalflux(istokes=idxs, ifreq=idxf)
                     outfits.data[idxs, idxf] *= totalflux / outfits.totalflux(istokes=idxs, ifreq=idxf)
 
+        if set_beam:
+            outfits.set_beam(majsize=majsize, minsize=minsize, pa=pa, scale=scale, angunit=angunit)
+
         # Update and Return
         outfits.update_fits()
         return outfits
-
-    def gauss_convolve(self, majsize, minsize=None, x0=None, y0=None,
-                       pa=0., scale=1., angunit=None, save_totalflux=False):
-        '''
-        Gaussian Convolution
-
-        Args:
-          x0, y0 (float): the peak location of the gaussian in the unit of "angunit"
-          majsize (float): Major Axis Size
-          minsize (float): Minor Axis Size. If None, it will be same to the Major Axis Size (Circular Gaussian)
-          angunit (string): Angular Unit for the sizes (uas, mas, asec or arcsec, amin or arcmin, degree)
-          pa (float): Position Angle of the Gaussian
-          scale (float): The sizes will be multiplied by this value.
-          save_totalflux (boolean): If true, the total flux of the image will be conserved.
-        Returns:
-          imdata.IMFITS object: the copied image data
-        '''
-        print("Warning: this function will be removed soon. Please use convolve_gauss.")
-        return self.convolve_gauss(majsize, minsize, x0, y0, pa, scale, angunit, pos, save_totalflux)
 
     def refshift(self,x0=0.,y0=0.,angunit=None,save_totalflux=False):
         '''
@@ -2084,6 +2117,24 @@ def calc_metric(fitsdata, reffitsdata, metric="NRMSE", istokes1=0, ifreq1=0, ist
     return metrics
 
 
+def _plot_beam_ellipse(Dmaj, Dmin, PA):
+    theta = np.deg2rad(np.arange(0.0, 360.0, 1.0))
+    x = 0.5 * Dmaj * np.sin(theta)
+    y = 0.5 * Dmin * np.cos(theta)
+
+    rtheta = np.radians(PA)
+    R = np.array([
+        [np.cos(rtheta), -np.sin(rtheta)],
+        [np.sin(rtheta),  np.cos(rtheta)],
+        ])
+    y, x = np.dot(R, np.array([y, x]))
+    return x,y
+
+def _plot_beam_box(Lx, Ly):
+    x = np.array([0,Lx,Lx,0,0]) - Lx/2.
+    y = np.array([0,0,Ly,Ly,0]) - Ly/2.
+    return x,y
+'''
 #-------------------------------------------------------------------------
 # Fllowings are subfunctions for ds9flag and read_cleanbox
 #-------------------------------------------------------------------------
@@ -2177,3 +2228,4 @@ def region_ellipse(X, Y, x0, y0, radius1, radius2, angle):
     X1 = dX * cosa + dY * sina
     Y1 = -dX * sina + dY * cosa
     return X1 * X1 / radius1 / radius1 + Y1 * Y1 / radius2 / radius2 <= 1
+'''
