@@ -840,7 +840,7 @@ class IMFITS(object):
             unit = self.get_angunitlabel(angunit=saunit) + r"$^{-2}$"
         return unit
 
-    def peak(self, absolute=False, istokes=0, ifreq=0):
+    def peak(self, absolute=False, fluxunit="Jy", saunit="pixel", istokes=0, ifreq=0):
         '''
         calculate the peak intensity of the image in Jy/Pixel
 
@@ -852,11 +852,11 @@ class IMFITS(object):
         if absolute:
             t = np.argmax(np.abs(self.data[istokes, ifreq]))
             t = np.unravel_index(t, [self.header["ny"], self.header["nx"]])
-            return self.data[istokes, ifreq][t]
+            return self.data[istokes, ifreq][t] * self.get_bconv(fluxunit=fluxunit, saunit=saunit)
         else:
-            return self.data[istokes, ifreq].max()
+            return self.data[istokes, ifreq].max() * self.get_bconv(fluxunit=fluxunit, saunit=saunit)
 
-    def totalflux(self, istokes=0, ifreq=0):
+    def totalflux(self, fluxunit="Jy", istokes=0, ifreq=0):
         '''
         Calculate the total flux density of the image
 
@@ -864,9 +864,9 @@ class IMFITS(object):
           istokes (integer): index for Stokes Parameter at which the total flux will be calculated
           ifreq (integer): index for Frequency at which the total flux will be calculated
         '''
-        return self.data[istokes, ifreq].sum()
+        return self.data[istokes, ifreq].sum() * util.fluxconv("Jy", fluxunit)
 
-    def mad(self, imregion=None, istokes=0, ifreq=0):
+    def mad(self, imregion=None, fluxunit="Jy", saunit="pixel", istokes=0, ifreq=0):
         '''
         calculate the median absolute deviation of the image
 
@@ -878,7 +878,7 @@ class IMFITS(object):
         if imregion is not None:
             maskimage = imregion.maskimage(self)
             image = image[np.where(maskimage > 0.5)]
-        return np.median(np.abs(image - np.median(image)))
+        return np.median(np.abs(image - np.median(image))) * self.get_bconv(fluxunit=fluxunit, saunit=saunit)
 
     def compos(self,alpha=1.,angunit=None,ifreq=0, istokes=0):
         '''
@@ -1008,6 +1008,7 @@ class IMFITS(object):
             gamma=0.5,
             vmax=None,
             vmin=None,
+            relative=True,
             angunit=None,
             fluxunit="jy",
             saunit="pixel",
