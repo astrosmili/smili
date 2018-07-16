@@ -163,7 +163,6 @@ class UVTable(pd.DataFrame):
         '''
         get GST in datetime
         '''
-        self = self.sort_values(by="utc").reset_index(drop=True)
         Ndata = len(self.utc)
 
         utc = self.utc_astropytime()

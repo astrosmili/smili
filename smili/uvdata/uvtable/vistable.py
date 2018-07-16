@@ -1585,6 +1585,8 @@ class VisTable(UVTable):
             matplotlib.pyplot.errorbars().
             Defaults are {'ls': "none", 'marker': "."}.
         '''
+        self = self.sort_values(by="utc").reset_index(drop=True)
+
         # Check if baseline is specified
         if baseline is None:
             pltdata = self

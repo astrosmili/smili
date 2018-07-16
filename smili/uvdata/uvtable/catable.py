@@ -612,6 +612,8 @@ class CATable(UVTable):
             matplotlib.pyplot.errorbars().
             Defaults are {'ls': "none", 'marker': "."}.
         '''
+        self = self.sort_values(by="utc").reset_index(drop=True)
+        
         # Check if quadrature is specified
         if quadrature is None:
             pltdata = self

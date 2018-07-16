@@ -623,7 +623,7 @@ def plots(outimage, imageprm={}, filename=None, plotargs={'ms': 1., }):
         matplotlib.rcdefaults()
 
     plt.figure()
-    outimage.imshow(angunit=angunit)
+    outimage.imshow()
     if filename is not None:
         pdf.savefig()
         plt.close()
