@@ -234,7 +234,7 @@ class MOVIE(object):
         return self.refshift(save_totalflux=save_totalflux, **pos)
 
     def convolve_gauss(self, majsize, minsize=None, x0=None, y0=None, pa=0.0,
-                             scale=1.0, angunit=None, pos='rel', save_totalflux=False):
+                             scale=1.0, angunit=None, save_totalflux=False):
         '''
         '''
         outmovie=copy.deepcopy(self)
@@ -243,7 +243,7 @@ class MOVIE(object):
                                 minsize=minsize,
                                 x0=x0, y0=y0,
                                 pa=pa, scale=scale,
-                                angunit=angunit, pos=pos,
+                                angunit=angunit,
                                 save_totalflux=save_totalflux)
                            for i in xrange(self.Nt)]
         return outmovie
