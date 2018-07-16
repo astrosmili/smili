@@ -480,10 +480,14 @@ class UVFITS(object):
         hdulist.append(self._create_fqtab())
         hdulist += self._create_antab()
         hdulist = pf.HDUList(hdulist)
-        if output is None:
+        if filename is None:
             return hdulist
         else:
             hdulist.writeto(filename, overwrite=overwrite)
+
+    def write_fits(self, filename=None, overwrite=True):
+        print("Warning: this method will be removed soon. Please use `to_uvfits` method")
+        self.to_uvfits(filename,overwrite)
 
     def _create_ghdu_single(self):
         # Generate Randam Group
