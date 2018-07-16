@@ -688,7 +688,6 @@ def plots(outimage, imageprm={}, filename=None, plotargs={'ms': 1., }):
                       **plotargs)
         plt.axhline(0, color="black", ls="--")
         plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
         plt.legend(ncol=2)
 
         divider = make_axes_locatable(ax)  # Histgram
@@ -756,7 +755,6 @@ def plots(outimage, imageprm={}, filename=None, plotargs={'ms': 1., }):
         ymin = np.min(resid["amp"]/resid["sigma"])*1.1
         plt.ylim(ymin,)
         plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
 
         divider = make_axes_locatable(ax)  # Histgram
         cax = divider.append_axes("right", size="10%", pad=0.05)
@@ -818,7 +816,6 @@ def plots(outimage, imageprm={}, filename=None, plotargs={'ms': 1., }):
                       **plotargs)
         plt.axhline(0, color="black", ls="--")
         plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
 
         divider = make_axes_locatable(ax)  # Histgram
         cax = divider.append_axes("right", size="10%", pad=0.05)
@@ -884,7 +881,6 @@ def plots(outimage, imageprm={}, filename=None, plotargs={'ms': 1., }):
         ymax = np.max(normresid)*1.1
         plt.ylim(ymin,ymax)
         plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
         del ymin,ymax
         divider = make_axes_locatable(ax)  # Histgram
         cax = divider.append_axes("right", size="10%", pad=0.05)
