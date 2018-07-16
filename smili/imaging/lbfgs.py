@@ -599,36 +599,15 @@ def iterative_imaging(initimage, imageprm, Niter=10,
             oldimage = newimage
     return oldimage
 
-def plots(outimage, imageprm={}, filename=None,
-          angunit=None, uvunit=None, plotargs={'ms': 1., }):
+def plots(outimage, imageprm={}, filename=None, plotargs={'ms': 1., }):
     isinteractive = plt.isinteractive()
     backend = matplotlib.rcParams["backend"]
-
-    if angunit is None:
-        angunit=outimage.angunit
 
     if isinteractive:
         plt.ioff()
         matplotlib.use('Agg')
 
     nullfmt = NullFormatter()
-
-    # Label
-    if uvunit.lower().find("l") == 0:
-        unitlabel = r"$\lambda$"
-    elif uvunit.lower().find("kl") == 0:
-        unitlabel = r"$10^3 \lambda$"
-    elif uvunit.lower().find("ml") == 0:
-        unitlabel = r"$10^6 \lambda$"
-    elif uvunit.lower().find("gl") == 0:
-        unitlabel = r"$10^9 \lambda$"
-    elif uvunit.lower().find("m") == 0:
-        unitlabel = "m"
-    elif uvunit.lower().find("km") == 0:
-        unitlabel = "km"
-    else:
-        print("Error: uvunit=%s is not supported" % (unit2))
-        return -1
 
     # Get statistics
     stats = statistics(outimage, **imageprm)
@@ -652,8 +631,6 @@ def plots(outimage, imageprm={}, filename=None,
     # fcv
     if stats["isfcv"] == True:
         table = imageprm["vistable"]
-        if uvunit is None:
-            uvunit = table.uvunit
 
         # Get model data
         model = table.eval_image(imfits=outimage,
@@ -677,12 +654,10 @@ def plots(outimage, imageprm={}, filename=None,
 
         ax = axs[0]
         plt.sca(ax)
-        table.radplot(uvunit=uvunit,
-                      datatype="amp",
+        table.radplot(datatype="amp",
                       color="black",
                       **plotargs)
-        model.radplot(uvunit=uvunit,
-                      datatype="amp",
+        model.radplot(datatype="amp",
                       color="red",
                       errorbar=False,
                       **plotargs)
@@ -690,12 +665,10 @@ def plots(outimage, imageprm={}, filename=None,
 
         ax = axs[1]
         plt.sca(ax)
-        table.radplot(uvunit=uvunit,
-                      datatype="phase",
+        table.radplot(datatype="phase",
                       color="black",
                       **plotargs)
-        model.radplot(uvunit=uvunit,
-                      datatype="phase",
+        model.radplot(datatype="phase",
                       color="red",
                       errorbar=False,
                       **plotargs)
@@ -703,14 +676,12 @@ def plots(outimage, imageprm={}, filename=None,
 
         ax = axs[2]
         plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      datatype="real",
+        resid.radplot(datatype="real",
                       normerror=True,
                       errorbar=False,
                       color="blue",
                       **plotargs)
-        resid.radplot(uvunit=uvunit,
-                      datatype="imag",
+        resid.radplot(datatype="imag",
                       normerror=True,
                       errorbar=False,
                       color="red",
@@ -742,8 +713,6 @@ def plots(outimage, imageprm={}, filename=None,
 
     if stats["isamp"] == True:
         table = imageprm["amptable"]
-        if uvunit is None:
-            uvunit = table.uvunit
 
         # Get model data
         model = table.eval_image(imfits=outimage,
@@ -767,12 +736,10 @@ def plots(outimage, imageprm={}, filename=None,
 
         ax = axs[0]
         plt.sca(ax)
-        table.radplot(uvunit=uvunit,
-                      datatype="amp",
+        table.radplot(datatype="amp",
                       color="black",
                       **plotargs)
-        model.radplot(uvunit=uvunit,
-                      datatype="amp",
+        model.radplot(datatype="amp",
                       color="red",
                       errorbar=False,
                       **plotargs)
@@ -780,8 +747,7 @@ def plots(outimage, imageprm={}, filename=None,
 
         ax = axs[1]
         plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      datatype="amp",
+        resid.radplot(datatype="amp",
                       normerror=True,
                       errorbar=False,
                       color="black",
@@ -813,8 +779,6 @@ def plots(outimage, imageprm={}, filename=None,
     # Closure Amplitude
     if stats["isca"] == True:
         table = imageprm["catable"]
-        if uvunit is None:
-            uvunit = table.uvunit
 
         # Get model data
         model = table.eval_image(imfits=outimage,
@@ -838,16 +802,15 @@ def plots(outimage, imageprm={}, filename=None,
         plt.sca(ax)
 
 
-        table.radplot(uvunit=uvunit, uvdtype="ave", color="black", log=True,
+        table.radplot(uvdtype="ave", color="black", log=True,
                       **plotargs)
-        model.radplot(uvunit=uvunit, uvdtype="ave", color="red", log=True,
+        model.radplot(uvdtype="ave", color="red", log=True,
                       errorbar=False, **plotargs)
         plt.xlabel("")
 
         ax = axs[1]
         plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      uvdtype="ave",
+        resid.radplot(uvdtype="ave",
                       log=True,
                       normerror=True,
                       errorbar=False,
@@ -880,8 +843,6 @@ def plots(outimage, imageprm={}, filename=None,
     # Closure Phase
     if stats["iscp"] == True:
         table = imageprm["bstable"]
-        if uvunit is None:
-            uvunit = table.uvunit
 
         # Get model data
         model = table.eval_image(imfits=outimage,
@@ -903,16 +864,15 @@ def plots(outimage, imageprm={}, filename=None,
 
         ax = axs[0]
         plt.sca(ax)
-        table.radplot(uvunit=uvunit, uvdtype="ave", color="black",
+        table.radplot(uvdtype="ave", color="black",
                       **plotargs)
-        model.radplot(uvunit=uvunit, uvdtype="ave", color="red",
+        model.radplot(uvdtype="ave", color="red",
                       errorbar=False, **plotargs)
         plt.xlabel("")
 
         ax = axs[1]
         plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      uvdtype="ave",
+        resid.radplot(uvdtype="ave",
                       normerror=True,
                       errorbar=False,
                       color="black",
@@ -969,9 +929,7 @@ def pipeline(
         docv=False,
         seed=1,
         nfold=10,
-        cvsumtablefile="summary.cv.csv",
-        angunit="uas",
-        uvunit="gl"):
+        cvsumtablefile="summary.cv.csv"):
     '''
     A pipeline imaging function using imaging and related fucntions.
 
@@ -997,10 +955,6 @@ def pipeline(
             Number of folds in CV.
         cvsumtablefile (string; default = "cvsummary.csv"):
             The name of the output csv file that summerizes results of CV.
-        angunit (string; default = None):
-            Angular units for plotting results.
-        uvunit (string; default = None):
-            Units of baseline lengths for plotting results.
 
     Returns:
         sumtable:
@@ -1086,8 +1040,7 @@ def pipeline(
 
         filename = header + ".summary.pdf"
         filename = os.path.join(workdir, filename)
-        plots(newimage, imageprm, filename=filename,
-                         angunit=angunit, uvunit=uvunit)
+        plots(newimage, imageprm, filename=filename)
 
         newstats = statistics(newimage, **imageprm)
 
@@ -1171,8 +1124,7 @@ def pipeline(
                 # Make Plots
                 filename = cvheader + ".t.summary.pdf"
                 filename = os.path.join(cvworkdir, filename)
-                plots(cvnewimage, cvimageprm, filename=filename,
-                                 angunit=angunit, uvunit=uvunit)
+                plots(cvnewimage, cvimageprm, filename=filename)
 
                 # Check Training data
                 trainstats = statistics(cvnewimage,
@@ -1192,8 +1144,7 @@ def pipeline(
                 # Make Plots
                 filename = cvheader + ".v.summary.pdf"
                 filename = os.path.join(cvworkdir, filename)
-                plots(cvnewimage, cvimageprm, filename=filename,
-                                 angunit=angunit, uvunit=uvunit)
+                plots(cvnewimage, cvimageprm, filename=filename)
 
                 #   Check Statistics
                 validstats = statistics(cvnewimage, **cvimageprm)
