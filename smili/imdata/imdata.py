@@ -1534,6 +1534,7 @@ class IMFITS(object):
 
         if angunit is None:
             angunit = self.angunit
+        angconv = util.angconv("deg", angunit)
 
         # Create outputdata
         outfits = copy.deepcopy(self)
@@ -1545,7 +1546,9 @@ class IMFITS(object):
         if y0 is None:
             y0 = 0.
 
-        X, Y = outfits.get_xygrid(angunit=angunit, twodim=True)
+        X = (np.arange(outfits.header["nx"]) - outfits.header["nx"]/2.) * outfits.header["dx"] * angconv
+        Y = (np.arange(outfits.header["ny"]) - outfits.header["ny"]/2.) * outfits.header["dy"] * angconv
+        X, Y = np.meshgrid(X,Y)
         cospa = np.cos(np.deg2rad(pa))
         sinpa = np.sin(np.deg2rad(pa))
         X1 = (X - x0) * cospa - (Y - y0) * sinpa

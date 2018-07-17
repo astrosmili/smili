@@ -983,11 +983,13 @@ class UVFITS(object):
 
     def get_utc(self):
         '''
+        Get the list of UTC in astropy.time.Time object
         '''
         return at.Time(np.datetime_as_string(self.visdata.coord["utc"]), scale="utc")
 
     def get_gst(self):
         '''
+        Get the list of UTC in astropy.time.sidereal_time object
         '''
         return self.get_utc().sidereal_time('apparent', 'greenwich')
 
@@ -2106,7 +2108,6 @@ def _selfcal_error_func(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
     Pamp = [(np.sqrt(gain[i]**2+gain[i+Nant]**2)-1)/std_amp for i in xrange(Nant)]
     Ppha = [np.arctan2(gain[i+Nant],gain[i])/std_pha for i in xrange(Nant)]
     return np.hstack([np.real(dV),np.imag(dV),Pamp,Ppha])
-
 
 def _selfcal_error_dfunc(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
     ddV = np.zeros([Ndata*2+Nant*2,Nant*2])
