@@ -125,6 +125,38 @@ subroutine NUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
   !print *, ' ier = ',ier
 end subroutine
 
+subroutine NUFFT_adj_real1D(u,v,Vreal,Vimag,I2d,Nx,Ny,Nuv)
+  !
+  !  Adjoint Non-uniform Fast Fourier Transform
+  !    This funcion using the FINUFFT library.
+  !
+  implicit none
+
+  integer,  intent(in) :: Nx, Ny, Nuv
+  real(dp), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
+                                         ! multiplied by 2*pi*dx, 2*pi*dy
+  real(dp), intent(in) :: Vreal(Nuv),Vimag(Nuv)  ! Complex Visibility
+  real(dp), intent(out):: I2d(Nx*Ny) ! Two Dimensional Image
+  complex(dpc):: I2d_cmp(Nx,Ny) ! Two Dimensional Image
+
+  ! Some Other Parameters for FINUFFT
+  !   Sign of the exponent in the adjoint Fourier Transformation
+  !     0: positive (the textbook standard TMS)
+  !     1: negative (the standard in Radio Astronomy)
+  integer, parameter:: iflag=1
+  !   numerical Accuracy required for FINUFFT
+  real(dp),  parameter :: eps=ffteps
+  !   error log
+  integer :: ier
+  ! Call FINUFFT subroutine
+
+  call finufft2d1_f(Nuv,u,v,dcmplx(Vreal,Vimag),iflag,eps,Nx,Ny,I2d_cmp,ier)
+  I2d = reshape(realpart(I2d_cmp), (/Nx*Ny/))
+
+  ! debug
+  !print *, ' ier = ',ier
+end subroutine
+
 
 subroutine NUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
   !
@@ -155,7 +187,6 @@ subroutine NUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
 
   ! Call FINUFFT subroutine
   call finufft2d1_f(Nuv,u,v,Vreal+i_dpc*Vimag,iflag,eps,Nx,Ny,I2d,ier)
-
   Ireal = reshape(realpart(I2d), (/Nx*Ny/))
   Iimag = reshape(imagpart(I2d), (/Nx*Ny/))
 end subroutine
