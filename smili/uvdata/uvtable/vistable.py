@@ -1839,6 +1839,115 @@ class VisTable(UVTable):
         else:
             plt.xlabel("Universal Time")
 
+    def map_beam(self,image,errorweight=0,istokes=0,ifreq=0):
+        '''
+        This method calculates the synthesized beam
+
+        Args:
+            image (imdata.IMFITS object): image for grid size
+            errorweight: index of weight
+
+        Returns:
+            imdata.IMFITS object of synthesized beam map
+        '''
+        #model image
+        Imodel=image.data[istokes,ifreq,:,:]
+        # u-v coverage
+        u = np.copy(self["u"].values)
+        v = np.copy(self["v"].values)
+        dx_rad = np.deg2rad(image.header["dx"])
+        dy_rad = np.deg2rad(image.header["dy"])
+        u *= 2*np.pi*dx_rad
+        v *= 2*np.pi*dy_rad
+        ut = np.concatenate([u,-u])
+        vt = np.concatenate([v,-v])
+        Nuv = len(ut)
+        Nx = image.header["nx"]
+        Ny = image.header["ny"]
+        # u-v coverage
+        Vsynsr = np.ones(Nuv,dtype=np.float64)
+        Vsynsi = np.zeros(Nuv,dtype=np.float64)
+        # weight
+        weight  = self["sigma"].values**errorweight
+        weightc = np.concatenate([weight,weight])
+        sum_w   = weight.sum()
+        Vinreal = Vsynsr*weightc/sum_w
+        Vinimag = Vsynsi*weightc/sum_w
+        # synthesized beam
+        Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)/(Nx*Ny*(2*np.pi)**2)
+        Isyns = Isyns.reshape([Ny,Nx])
+        imageout = copy.deepcopy(image)
+        imageout.data[istokes,ifreq]=Isyns
+        return imageout
+
+    def map_residual(self,image,errorweight=0,istokes=0,ifreq=0):
+        '''
+        This method calculates the residual map by using visibility and model image
+
+        Args:
+            images (imdata.IMFITS object): model image
+            errorweight: index of weight
+
+        Returns:
+            imdata.IMFITS object of residual map
+        '''
+        #model image
+        Imodel=image.data[istokes,ifreq,:,:]
+        # u-v coverage
+        u = np.copy(self["u"].values)
+        v = np.copy(self["v"].values)
+        dx_rad = np.deg2rad(image.header["dx"])
+        dy_rad = np.deg2rad(image.header["dy"])
+        u *= 2*np.pi*dx_rad
+        v *= 2*np.pi*dy_rad
+        ut = np.concatenate([u,-u])
+        vt = np.concatenate([v,-v])
+        Nuv = len(ut)
+        Nx = image.header["nx"]
+        Ny = image.header["ny"]
+        phase = np.deg2rad(np.array(self["phase"], dtype=np.float64))
+        amp = np.array(self["amp"], dtype=np.float64)
+        Vfcvr = np.float64(amp*np.cos(phase))
+        Vfcvi = np.float64(amp*np.sin(phase))
+        Vfcvrt = np.concatenate([Vfcvr,Vfcvr])
+        Vfcvit = np.concatenate([Vfcvi,-Vfcvi])
+        # visibiliy of reconstructed image
+        Vreal,Vimag=fortlib.fftlib.nufft_fwd_real(ut,vt,Imodel,Nx,Ny,Nuv)
+        # weight
+        weight  = self["sigma"].values**errorweight
+        weightc = np.concatenate([weight,weight])
+        sum_w   = weight.sum()
+        # weighted residual visibility
+        Vinreal = (Vfcvrt-Vreal)*weightc/sum_w
+        Vinimag = (Vfcvit-Vimag)*weightc/sum_w
+        # residual image
+        residual=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)/(Nx*Ny*(2*np.pi)**2)
+        residual = residual.reshape([Ny,Nx])
+        imageout = copy.deepcopy(image)
+        imageout.data[istokes,ifreq]=residual
+
+        return imageout
+
+    def map_clean(self,image,errorweight=0,istokes=0,ifreq=0):
+        '''
+        This method calculates the residual map by using visibility and model image
+
+        Args:
+            images (imdata.IMFITS object): model image
+            errorweight: index of weight
+        Returns:
+            imdata.IMFITS object of residual+model image
+        '''
+        #model image
+        Imodel = image.data[istokes,ifreq,:,:]
+        Nx     = image.header["nx"]
+        Ny     = image.header["ny"]
+        residual = self.map_residual(image,errorweight=0)
+        imageout = copy.deepcopy(image)
+        imageout.data[istokes,ifreq]=residual.data[istokes,ifreq]+Imodel
+
+        return imageout
+
 class VisSeries(UVSeries):
 
     @property
