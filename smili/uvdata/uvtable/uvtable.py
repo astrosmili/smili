@@ -156,16 +156,16 @@ class UVTable(pd.DataFrame):
             return -1
         return unitlabel
 
-    def utc_astropytime(self):
+    def get_utc(self):
         return at.Time(np.datetime_as_string(self.utc.values))
 
-    def gst_datetime(self, continuous=True, wraphour=0):
+    def get_gst_datetime(self, continuous=True, wraphour=0):
         '''
         get GST in datetime
         '''
         Ndata = len(self.utc)
 
-        utc = self.utc_astropytime()
+        utc = self.get_utc()
         gsthour = self.gsthour.values
 
         if continuous:

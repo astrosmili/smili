@@ -570,6 +570,69 @@ class CATable(UVTable):
             plt.ylabel(r"Closure Amplitude")
         plt.xlim(0,)
 
+    def tplot(self,
+            axis1="utc",
+            gst_continuous=True,
+            gst_wraphour=0.,
+            time_maj_loc=mdates.HourLocator(),
+            time_min_loc=mdates.MinuteLocator(byminute=np.arange(0,60,10)),
+            time_maj_fmt='%H:%M',
+            ls="none",
+            marker=".",
+            label=None,
+            **plotargs):
+        '''
+        Plot time-coverage of data. Available types for the xaxis is
+        ["utc","gst"]
+
+        Args:
+          **plotargs:
+            You can set parameters of matplotlib.pyplot.plot() or
+            matplotlib.pyplot.errorbars().
+            Defaults are {'ls': "none", 'marker': "."}.
+        '''
+        plttable = copy.deepcopy(self)
+
+        # Get GST
+        if "gst" in axis1.lower():
+            plttable = plttable.sort_values(by="utc").reset_index(drop=True)
+            plttable["gst"] = plttable.get_gst_datetime(continuous=gst_continuous, wraphour=gst_wraphour)
+
+        # Station List
+        stations = plttable.station_list()[::-1]
+        Nst = len(stations)
+
+        # Plotting
+        ax = plt.gca()
+        for stname in stations:
+            pltdata = plttable.query("st1name == @stname | st2name == @stname | st3name == @stname | st4name == @stname")
+            Ndata = len(pltdata)
+
+            # y value
+            antid = np.ones(Ndata)
+            antid[:] = stations.index(stname)
+
+            # x value
+            if "gst" in axis1.lower():
+                axis1data = pltdata.gst.values
+            else:
+                axis1data = pltdata.utc.values
+
+            plt.plot(axis1data, antid, ls=ls, marker=marker, label=label, **plotargs)
+
+        # y-tickes
+        ax.set_yticks(np.arange(Nst))
+        ax.set_yticklabels(stations)
+        plt.ylabel("Station")
+
+        # x-tickes
+        ax.xaxis.set_major_locator(time_maj_loc)
+        ax.xaxis.set_minor_locator(time_min_loc)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter(time_maj_fmt))
+        if "gst" in axis1.lower():
+            plt.xlabel("Greenwich Sidereal Time")
+        else:
+            plt.xlabel("Universal Time")
 
     def vplot(self,
             axis1="utc",
@@ -613,7 +676,7 @@ class CATable(UVTable):
             Defaults are {'ls': "none", 'marker': "."}.
         '''
         self = self.sort_values(by="utc").reset_index(drop=True)
-        
+
         # Check if quadrature is specified
         if quadrature is None:
             pltdata = self
@@ -685,7 +748,7 @@ class CATable(UVTable):
                 deflims.append((None,None))
                 errors.append(None)
             elif "gst" in axis:
-                pltarrays.append(pltdata.gst_datetime(continuous=gst_continuous, wraphour=gst_wraphour))
+                pltarrays.append(pltdata.get_gst_datetime(continuous=gst_continuous, wraphour=gst_wraphour))
                 axislabels.append("Greenwich Sidereal Time")
                 deflims.append((None,None))
                 errors.append(None)

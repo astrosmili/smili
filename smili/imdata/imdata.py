@@ -46,7 +46,8 @@ class IMFITS(object):
             imfits=None, imfitstype="standard",
             uvfits=None,
             source=None,
-            #instrument=None,
+            instrument=None,
+            observer=None,
             #dateobs=None,
             dx=2., dy=None, angunit="uas",
             nx=100, ny=None, nxref=None, nyref=None,
@@ -57,7 +58,7 @@ class IMFITS(object):
 
         The order of priority for duplicated parameters is
             1 uvfits (strongest)
-            2 source
+            2 source, instrument, observer
             3 imfits
             4 dx, dy, nx, ny, nxref, nyref
             5 other parameters (weakest).
@@ -79,6 +80,10 @@ class IMFITS(object):
                 from header information of the input uvfits file
             source (string, optional):
                The source of the image RA and Dec will be obtained from CDS.
+            instrument (string, optional):
+               The name of instrument, telescope.
+            observer (string, optional):
+               The name of instrument, telescope.
             dx (float, optional, default=2.):
                The pixel size along the RA axis. If dx > 0, the sign of dx
                will be switched.
@@ -188,7 +193,13 @@ class IMFITS(object):
             else:
                 raise ValueError("imfitstype must be standard, ehtim or aipscc")
 
-        # Set source coordinates
+        # Set source, observer, instrument
+        if instrument is not None:
+            self.set_instrument(instrument)
+
+        if observer is not None:
+            self.set_observer(observer)
+
         if source is not None:
             self.set_source(source)
 
@@ -294,10 +305,10 @@ class IMFITS(object):
 
     def set_instrument(self, instrument):
         '''
-        Update headers for instrument, telescope and observer with a
+        Update headers for instrument and telescope with a
         specified name of the instrument.
         '''
-        for key in "instrument,telescope,observer".split(","):
+        for key in "instrument,telescope".split(","):
             self.header[key]=self.header_dtype[key](instrument)
 
     def set_observer(self, observer):

@@ -18,6 +18,8 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import scipy.ndimage as sn
+
+# astropy
 import astropy.time as at
 import astropy.coordinates as coord
 import astropy.io.fits as pyfits
@@ -25,6 +27,8 @@ from astropy.convolution import convolve_fft
 
 # matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import matplotlib.cm as cm
 
 # for to_movie
 import matplotlib
@@ -39,61 +43,122 @@ from . import imdata
 # IMAGEFITS (Manupulating FITS FILES)
 #-------------------------------------------------------------------------
 class MOVIE(object):
-    def __init__(self, tstart=None, tend=None, Nt=None, format=None, **imgprm):
+    def __init__(self, timetable=None, tcen=None, tint=None, **imgprm):
         '''
         This will create a blank movie on specified time frames.
 
         Args:
-            tstart (format readable with astropy.time.Time):
-                start time
-            tend (datetime):
-                end time
-            Nt (integer):
-                number of frames
-            format (string):
-                The format for tstart and tend.
-                See documentations of astropy.time.Time for available
-                data formats
+            tcen (format readable with astropy.time.Time):
+                the central time of each time frame
+            tint (float):
+                the integration time of each time frame in sec
             **imgprm:
                 Parameters for the blank image at each frame.
                 See documentations for imdata.IMFITS for parameters.
         Returns:
             imdata.MOVIE object
         '''
-        if tstart is None:
-            raise ValueError("tstart is not specified.")
+        if timetable is not None:
+            tmtable = pd.read_csv(timetable)
+            if "utc" in tmtable.columns:
+                tmtable["utc"] = at.Time(tmtable["utc"].values.tolist()).datetime
         else:
-            self.tstart = at.Time(tstart, format=format)
+            if tcen is None:
+                raise ValueError("tcen is not specified.")
+            else:
+                utc = at.Time(tcen)
 
-        if tend is None:
-            raise ValueError("tend is not specified.")
-        else:
-            self.tend = at.Time(tend, format=format)
+            tmtable = pd.DataFrame()
+            tmtable["utc"]     = utc.datetime
+            tmtable["gsthour"] = utc.sidereal_time("apparent", "greenwich").hour
+            self.Nt = len(utc)
 
-        if Nt is None:
-            raise ValueError("tstart is not specified.")
-        else:
-            self.Nt = np.int64(Nt)
+            if len(utc) < 2:
+                raise ValueError("You need at least two time frames.")
 
-        tstsec = self.tstart.cxcsec
-        tedsec = self.tend.cxcsec
-        utcarr = np.linspace(tstsec,tedsec,self.Nt)
-        utcarr = at.Time(utcarr, format="cxcsec")
-
-        tmtable = pd.DataFrame()
-        tmtable["utc"]     = utcarr.datetime
-        tmtable["gsthour"] = utcarr.sidereal_time("apparent", "greenwich").hour
+            if hasattr(tint, "__iter__"):
+                if len(utc) != len(tint):
+                    raise ValueError("len(utc) != len(tint)")
+                else:
+                    tmtable["tint"] = tint
+            else:
+                tmtable["tint"] = [tint for i in xrange(self.Nt)]
         self.timetable = tmtable
 
         # Initialize images
         self.images = [imdata.IMFITS(**imgprm) for i in xrange(self.Nt)]
 
+    #---------------------------------------------------------------------------
+    # Get some information of movie data
+    #---------------------------------------------------------------------------
     def get_utc(self):
         '''
+        get utc in astropy.time.Time object
         '''
         return at.Time(np.datetime_as_string(self.timetable["utc"]), scale="utc")
 
-    def initmovie(self,image):
+    def get_gst_datetime(self, continuous=False, wraphour=0):
+        '''
+        get GST in datetime
+        '''
+        Ndata = len(self.utc)
+
+        utc = self.get_utc()
+        gsthour = self.timetable.gsthour.values
+
+        if continuous:
+            dgsthour = -np.diff(gsthour)
+            dgsthour[np.where(dgsthour<1e-6)]=0
+            dgsthour[np.where(dgsthour>=1e-6)]=24
+            dgsthour = np.add.accumulate(dgsthour)
+            gsthour[1:] += dgsthour[:]
+            origin = utc.min().datetime.strftime("%Y-%m-%d")
+        else:
+            gsthour = self.gsthour.values
+            gsthour[np.where(gsthour<wraphour)]+=24
+            origin = dt.datetime(2000,1,1,0,0,0)
+
+        return pd.to_datetime(gsthour, unit="h", origin=origin)
+
+    def average(self):
+        '''
+        Get an averaged image.
+
+        Args:
+            movie_image (IMFITS):
+            filename
+        Returns:
+            ave_movie (np.array)
+        '''
+        outimage = copy.deepcopy(self.images[0])
+        outimage.data[0,0] = self.get_3darray().mean(axis=0)
+        outimage.update_fits()
+        return outimage
+
+    def get_3darray(self):
+        '''
+        Output 3-dimensional array for movie. Its dimension will be [Nt, Ny, Nx].
+
+        Returns:
+            3d ndarray object contains 3-dimensional images
+        '''
+        return np.asarray([self.images[i].data[0,0] for i in xrange(self.Nt)])
+
+    def get_lightcurve(self):
+        '''
+        Args:
+            movie_list
+        Returns:
+        '''
+        movie = self.get_3darray()
+        lightcurve = movie.sum(axis=2)
+        lightcurve = lightcurve.sum(axis=1)
+        return lightcurve
+
+    #---------------------------------------------------------------------------
+    # Edit Movies
+    #---------------------------------------------------------------------------
+    def set_image(self, image):
 
         '''
         This will make the initial movie by superposing input images
@@ -104,15 +169,15 @@ class MOVIE(object):
         Returns:
             imdata.MOVIE ovbject
         '''
-
         outmovie=copy.deepcopy(self)
         outmovie.images = [copy.deepcopy(image) for i in xrange(self.Nt)]
         return outmovie
 
+
     def add_gauss(self,**gaussprm):
 
         '''
-        add gayssian model to the initial movie
+        add a Gaussian model to the initial movie
 
         Args:
             gaussprm
@@ -137,6 +202,32 @@ class MOVIE(object):
         '''
         outmovie=copy.deepcopy(self)
         outmovie.images = [self.images[i].winmod(imregion,save_totalflux) for i in xrange(self.Nt)]
+        return outmovie
+
+    def min_threshold(self,  threshold=0.0, replace=0.0,
+                      relative=True, save_totalflux=False):
+        '''
+        This is thresholding with the mininum value. This is slightly different
+        from hard thresholding, since this function resets all of pixels where
+        their brightness is smaller than a given threshold. On the other hand,
+        hard thresholding resets all of pixels where the absolute of their
+        brightness is smaller than the threshold.
+
+        Args:
+          threshold (float): threshold
+          replace (float): the brightness to be replaced for thresholded pixels.
+          relative (boolean): If true, theshold & Replace value will be normalized with the peak intensity of the image
+          save_totalflux (boolean): If true, the total flux of the image will be conserved.
+        '''
+
+
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [self.images[i].min_threshold(
+                                threshold=threshold,
+                                relative=relative,
+                                replace=replace,
+                                save_totalflux=save_totalflux)
+                           for i in xrange(self.Nt)]
         return outmovie
 
     def hard_threshold(self, threshold=0.01, relative=True, save_totalflux=False):
@@ -248,6 +339,10 @@ class MOVIE(object):
                            for i in xrange(self.Nt)]
         return outmovie
 
+
+    #---------------------------------------------------------------------------
+    # Edit other objects
+    #---------------------------------------------------------------------------
     def set_frmidx(self,uvtable):
         '''
         This method will put a frame index to the input uvtable, based on
@@ -272,134 +367,32 @@ class MOVIE(object):
         outtable.reset_index(drop=True, inplace=True) # reindexing
 
         # get an array and non-redundant array of utc time stamps in uvtable
-        dutcarr = at.Time(np.datetime_as_string(outtable.utc.values))
-        dutcset = at.Time(np.datetime_as_string(outtable.utc.unique()))
+        dutcarr = outtable.get_utc().cxcsec
+        dutcset = outtable.drop_duplicates(subset="utc").get_utc().cxcsec
 
         # get an array of utc time stamps of this movie
-        mutcarr = at.Time(np.datetime_as_string(self.timetable.utc.values))
+        mutcarr = self.get_utc().cxcsec
+        mutcint = self.timetable.tint
 
         outtable["frmidx"] = np.zeros(len(outtable.utc), dtype='int32')
+        outtable.loc[:, "frmidx"] = -1
         for i in xrange(len(dutcset)):
-            deltat = mutcarr - dutcset[i]
-            deltat.format = "sec"
-            deltat = np.abs(deltat.value)
-            outtable.loc[dutcarr==dutcset[i], "frmidx"] = np.argmin(deltat)
+            idx = np.abs(mutcarr - dutcset[i]) < mutcint/2
+            if True in idx:
+                outtable.loc[dutcarr==dutcset[i], "frmidx"] = np.where(idx)[0][0]
 
+        if -1 in outtable.frmidx.values:
+            print("WARNING: there are data sets not on movie frames. Please check time coverages of data and movie")
         outtable.sort_values(by=["frmidx", "utc", "stokesid", "ch", "st1", "st2"], inplace=True)
         outtable.reset_index(drop=True, inplace=True)
         return outtable
 
-    def to_movie(self, filename, vmin=0, vmax=None, vmax_type=None, fps=15, dpi=100, **imshowprm):
-        '''
-        Args:
-            filename (string; mandatory):
-                output filename
-            vmin, vmax:
-            logscale
-            xregion, yregion
-            filename
-        Returns:
-            movie.mp4
-        '''
-
-        FFMpegWriter = manimation.writers['ffmpeg']
-        #metadata = dict(title='Movie', artist='Matplotlib',
-        #                comment='Movie support!')
-        writer = FFMpegWriter(fps=fps)
-
-        if vmax is None:
-            vmax = self.to_3darray().max()
-        fig = plt.figure()
-        with writer.saving(fig, filename, dpi):
-            for it in xrange(self.Nt):  # 回数
-                if(vmax_type is "eachtime"):
-                    vmax =lightcurve()[it]
-                    self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
-                else:
-                    self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
-                writer.grab_frame()
-
-    def to_fits(self,filename="snapshot"):
-        '''
-        Args:
-            filename
-        Returns:
-            filename+"%03d.fits"%(it)
-        '''
-        for it in xrange(self.Nt):
-            self.images[it].save_fits(filename+"%03d.fits"%(it))
-
-    def average(self):
-        '''
-        Args:
-            movie_image (IMFITS):
-            filename
-        Returns:
-            ave_movie (np.array)
-        '''
-        outimage = copy.deepcopy(self.images[0])
-        outimage.data[0,0] = self.to_3darray().mean(axis=0)
-        outimage.update_fits()
-        return outimage
-
-    def to_3darray(self):
-        '''
-        Output 3-dimensional array for movie. Its dimension will be [Nt, Ny, Nx].
-
-        Returns:
-            3d ndarray object contains 3-dimensional images
-        '''
-        return np.asarray([self.images[i].data[0,0] for i in xrange(self.Nt)])
-
-    def lightcurve(self):
-        '''
-        Args:
-            movie_list
-        Returns:
-        '''
-        movie = self.to_3darray()
-        lightcurve = movie.sum(axis=2)
-        lightcurve = lightcurve.sum(axis=1)
-        return lightcurve
-
-    def plot_lc(self):
-        Nt = self.Nt
-        lightcurve=self.lightcurve()
-
-        time = np.zeros(Nt)
-        for it in xrange(Nt):
-            time[it]=it*self.tint.value
-        plt.plot(time,lightcurve)
-
-    def imshow(self,it,**imshowprm):
-        image=self.images[it]
-        image.imshow(**imshowprm)
-
-    def save_fits(self,filename=None):
-        if filename is None:
-            filename = "%0"+"%d"%(np.int64(np.log10(self.Nt)+1))+"d.fits"
-        for i in xrange(self.Nt):
-            self.images[i].save_fits(filename%(i))
-
-    # load関数の原型
-    def load_fits(self,filename=None):
-        loadmovie=copy.deepcopy(self)
-        if filename is None:
-            filename = "%0"+"%d"%(np.int64(np.log10(self.Nt)+1))+"d.fits"
-        for i in xrange(self.Nt):
-            loadmovie.images[i]=imdata.IMFITS(filename%(i))
-            loadmovie.images[i].update_fits()
-        return loadmovie
-
-
-    def split_uvfits(self,uvfitslist):
-
+    def split_uvfits(self, uvfitslist):
         '''
         Args:
 
         Returns:
         '''
-
         # Number of uvfitslist components
         Nuvfits = len(uvfitslist)
 
@@ -411,7 +404,7 @@ class MOVIE(object):
         dutc = utc[1:] - utc[:-1]
         utcbound = utc[:-1]+dutc/2
 
-        print("Split uvfits objects for each time frame.")
+        print("Split uvfits objects to each time frame.")
         for ifrm in tqdm(range(self.Nt)):
             # list of uvframe components and iuvfits in a frame
             uvfits_framelist=[]
@@ -442,7 +435,6 @@ class MOVIE(object):
         return uvfits_framelist_list,uvfits_idlist_list
 
     def selfcal(self,uvfitslist,std_amp=100,std_pha=100):
-
         '''
         This perform a self calibration to concatenated uvfits (uvfits_frame_cal)
         and make list of cltable
@@ -451,11 +443,11 @@ class MOVIE(object):
 
         Returns:
         '''
-
         Nuvfits = len(uvfitslist)
         uvfits_framelist_list,uvfits_idlist_list=self.split_uvfits(uvfitslist)
 
         cltable_list_list = []
+        print("Start selfcal")
         for it in tqdm(xrange(self.Nt)):
             if uvfits_framelist_list[it] is None:
                 cltable_list_list.append(None)
@@ -463,6 +455,163 @@ class MOVIE(object):
             cltable_list = [uvfits.selfcal(self.images[it],std_amp,std_pha) for uvfits in uvfits_framelist_list[it]]
             cltable_list_list.append(cltable_list)
         return uvfits_framelist_list,uvfits_idlist_list,cltable_list_list
+
+    #---------------------------------------------------------------------------
+    # Load data
+    #---------------------------------------------------------------------------
+    def read_fits(self, filenames, check=True, **imgprm):
+        '''
+        load images from list of filenames
+
+        Args:
+            filenames (list of str):
+                list of filenames
+            check (boolean; default=True)
+                check if number of files are consistent with self.Nt
+            **imgprm: other parameters of imdata.IMFITS
+        '''
+        if check and self.Nt != len(filenames):
+            raise ValueError("The number of files are not consistent with the number of time frames.")
+
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [imdata.IMFITS(filename) for filename in filenames]
+        return outmovie
+
+    #---------------------------------------------------------------------------
+    # Output
+    #---------------------------------------------------------------------------
+    def to_movie(self, filename, vmin=0, vmax=None, vmax_type=None, fps=15, dpi=100, **imshowprm):
+        '''
+        Args:
+            filename (string; mandatory):
+                output filename
+            vmin, vmax:
+            logscale
+            xregion, yregion
+            filename
+        Returns:
+            movie.mp4
+        '''
+
+        FFMpegWriter = manimation.writers['ffmpeg']
+        #metadata = dict(title='Movie', artist='Matplotlib',
+        #                comment='Movie support!')
+        writer = FFMpegWriter(fps=fps)
+
+        if vmax is None:
+            vmax = self.get_3darray().max()
+        fig = plt.figure()
+        with writer.saving(fig, filename, dpi):
+            for it in xrange(self.Nt):  # 回数
+                if(vmax_type is "eachtime"):
+                    vmax =lightcurve()[it]
+                    self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
+                else:
+                    self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
+                writer.grab_frame()
+
+    def to_csv(self, filename):
+        '''
+        Save the time table to a csv file
+        '''
+        self.timetable.to_csv(filename)
+
+    def to_fits(self,header="movie",ext="fits"):
+        '''
+        Save movies into series of image FITS files.
+        The filename would be header + ".%03d." + ext.
+        (e.g. movie.001.fits)
+
+
+
+        Args:
+            header (str; default="movie"): header of the filename
+            ext (str; default="fits"): extention of the file
+        Returns:
+            filename+"%03d.fits"%(it)
+        '''
+        for it in xrange(self.Nt):
+            self.images[it].to_fits(header+".%03d."%(it)+ext)
+
+    #---------------------------------------------------------------------------
+    # Plotting
+    #---------------------------------------------------------------------------
+    def plot_lightcurve(self,
+            axis1="utc",
+            fluxunit="jy",
+            gst_continuous=False,
+            gst_wraphour=0.,
+            time_maj_loc=mdates.HourLocator(),
+            time_min_loc=mdates.MinuteLocator(byminute=np.arange(0,60,10)),
+            time_maj_fmt='%H:%M',
+            ls="none",
+            marker=".",
+            label=None,
+            **plotargs):
+        '''
+        Args:
+          **plotargs:
+            You can set parameters of matplotlib.pyplot.plot() or
+            matplotlib.pyplot.errorbars().
+            Defaults are {'ls': "none", 'marker': "."}.
+        '''
+        timetable = copy.deepcopy(self.timetable)
+        timetable["totalflux"] = self.get_lightcurve() * util.fluxconv("jy", fluxunit)
+        if "gst" in axis1.lower():
+            timetable["gst"] = self.get_gst_datetime(continuous=gst_continuous, wraphour=gst_wraphour)
+            timetable.sort_values(by="gst", inplace=True)
+            axis1data = timetable.gst.values
+        else:
+            timetable.sort_values(by="utc", inplace=True)
+            axis1data = timetable.utc.values
+
+        # Plotting
+        ax = plt.gca()
+        plt.plot(axis1data, timetable.totalflux.values, ls=ls, marker=marker, label=label, **plotargs)
+
+        # Yaxis
+        plt.ylabel("Total flux density (%s)"%(imdata.IMFITS().get_fluxunitlabel(fluxunit)))
+
+        # x-tickes
+        ax.xaxis.set_major_locator(time_maj_loc)
+        ax.xaxis.set_minor_locator(time_min_loc)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter(time_maj_fmt))
+        if "gst" in axis1.lower():
+            plt.xlabel("Greenwich Sidereal Time")
+        else:
+            plt.xlabel("Universal Time")
+
+    def plot_tspan(self,
+            time_maj_loc=mdates.HourLocator(),
+            time_min_loc=mdates.MinuteLocator(byminute=np.arange(0,60,10)),
+            time_maj_fmt='%H:%M',
+            colors=None,
+            alpha=0.2,
+            **plotargs):
+        '''
+        Args:
+          **plotargs:
+            You can set parameters of matplotlib.pyplot.plot() or
+            matplotlib.pyplot.errorbars().
+            Defaults are {'ls': "none", 'marker': "."}.
+        '''
+        if colors is None:
+            colors = cm.jet(np.linspace(0,1,self.Nt))
+
+        utccen = self.get_utc()
+        tint = at.TimeDelta(self.timetable.tint.values, format="sec")/2
+        utcst = utccen - tint
+        utced = utccen + tint
+
+
+        # Plotting
+        ax = plt.gca()
+        for i in xrange(self.Nt):
+            ax.axvspan(xmin=utcst[i].datetime, xmax=utced[i].datetime, alpha=alpha, color=colors[i])
+
+    def imshow(self, it,**imshowprm):
+        image=self.images[it]
+        image.imshow(**imshowprm)
 
 def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
 

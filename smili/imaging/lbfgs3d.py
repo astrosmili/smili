@@ -259,23 +259,22 @@ def imaging3d(
         #elif transform=="gamma": # gamma correction
         #    fluxscale = (fluxscale)**transprm
 
-        lambl1_sim = lambl1 / (fluxscale * Nyx)
-        lambtv_sim = lambtv / (4 * fluxscale * Nyx)
-        lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx)
-        #lambmem_sim = lambmem / np.abs(fluxscale*np.log(fluxscale) * Nyx)
+        lambl1_sim = lambl1 / (fluxscale * Nyx * Nt)
+        lambtv_sim = lambtv / (4 * fluxscale * Nyx * Nt)
+        lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx * Nt)
+        lambrt_sim = lambrt / (2 * fluxscale**2 * Nyx * Nt)
+        lambri_sim = lambri / (fluxscale**2 * Nyx * Nt)
     else:
         lambl1_sim = lambl1
         lambtv_sim = lambtv
         lambtsv_sim = lambtsv
+        lambrt_sim = lambrt
+        lambri_sim = lambri
     lambmem_sim = -1
+    lambrs_sim = -1
 
     # Center of Mass regularization
     lambcom_sim = lambcom # No normalization for COM regularization
-
-    # Dynamical Imaging regularization
-    lambrt_sim = lambrt # No normalization for Rt regularization
-    lambri_sim = lambri # No normalization for Ri regularization
-    lambrs_sim = lambrs # No normalization for Rs regularization
 
     # get uv coordinates and uv indice
     u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = tools.get_uvlist_loop(
