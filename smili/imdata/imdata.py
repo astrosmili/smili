@@ -2133,15 +2133,15 @@ def calc_metric(fitsdata, reffitsdata, metric="NRMSE", istokes1=0, ifreq1=0, ist
 
 def _plot_beam_ellipse(Dmaj, Dmin, PA):
     theta = np.deg2rad(np.arange(0.0, 360.0, 1.0))
-    x = 0.5 * Dmaj * np.sin(theta)
-    y = 0.5 * Dmin * np.cos(theta)
+    x = 0.5 * Dmin * np.sin(theta)
+    y = 0.5 * Dmaj * np.cos(theta)
 
-    rtheta = np.radians(PA)
+    rtheta = -np.radians(PA)
     R = np.array([
         [np.cos(rtheta), -np.sin(rtheta)],
         [np.sin(rtheta),  np.cos(rtheta)],
         ])
-    y, x = np.dot(R, np.array([y, x]))
+    x, y = np.dot(R, np.array([x, y]))
     return x,y
 
 def _plot_beam_box(Lx, Ly):

@@ -1850,32 +1850,44 @@ class VisTable(UVTable):
         Returns:
             imdata.IMFITS object of synthesized beam map
         '''
-        #model image
-        Imodel=image.data[istokes,ifreq,:,:]
+        Nx = image.header["nx"]
+        Ny = image.header["ny"]
+        Nxref = image.header["nxref"]
+        Nyref = image.header["nyref"]
+        dx_rad = np.deg2rad(image.header["dx"])
+        dy_rad = np.deg2rad(image.header["dy"])
+
         # u-v coverage
         u = np.copy(self["u"].values)
         v = np.copy(self["v"].values)
-        dx_rad = np.deg2rad(image.header["dx"])
-        dy_rad = np.deg2rad(image.header["dy"])
         u *= 2*np.pi*dx_rad
         v *= 2*np.pi*dy_rad
         ut = np.concatenate([u,-u])
         vt = np.concatenate([v,-v])
         Nuv = len(ut)
-        Nx = image.header["nx"]
-        Ny = image.header["ny"]
+
         # u-v coverage
-        Vsynsr = np.ones(Nuv,dtype=np.float64)
-        Vsynsi = np.zeros(Nuv,dtype=np.float64)
+        dix = Nxref - Nx/2 - 1
+        diy = Nyref - Ny/2 - 1
+        Vsynsc = np.exp(1j * (ut*dix + vt*diy) * -1)
+        Vsynsr = np.real(Vsynsc)
+        Vsynsi = np.imag(Vsynsc)
+
         # weight
-        weight  = self["sigma"].values**errorweight
-        weightc = np.concatenate([weight,weight])
-        sum_w   = weight.sum()
+        if errorweight==0:
+            weightc = 1.
+            sum_w = Nuv
+        else:
+            weight  = np.power(self["sigma"].values, errorweight)
+            weightc = np.concatenate([weight,weight])
+            sum_w   = weightc.sum()
         Vinreal = Vsynsr*weightc/sum_w
         Vinimag = Vsynsi*weightc/sum_w
+
         # synthesized beam
-        Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)/(Nx*Ny*(2*np.pi)**2)
+        Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
         Isyns = Isyns.reshape([Ny,Nx])
+
         imageout = copy.deepcopy(image)
         imageout.data[istokes,ifreq]=Isyns
         return imageout
@@ -1893,38 +1905,79 @@ class VisTable(UVTable):
         '''
         #model image
         Imodel=image.data[istokes,ifreq,:,:]
+        Nx = image.header["nx"]
+        Ny = image.header["ny"]
+        Nxref = image.header["nxref"]
+        Nyref = image.header["nyref"]
+        dx_rad = np.deg2rad(image.header["dx"])
+        dy_rad = np.deg2rad(image.header["dy"])
+
         # u-v coverage
         u = np.copy(self["u"].values)
         v = np.copy(self["v"].values)
-        dx_rad = np.deg2rad(image.header["dx"])
-        dy_rad = np.deg2rad(image.header["dy"])
-        u *= 2*np.pi*dx_rad
-        v *= 2*np.pi*dy_rad
+        u *= 2*np.pi*dx_rad * -1
+        v *= 2*np.pi*dy_rad * -1
         ut = np.concatenate([u,-u])
         vt = np.concatenate([v,-v])
         Nuv = len(ut)
-        Nx = image.header["nx"]
-        Ny = image.header["ny"]
+        del u,v
+
+
+        #----------------------------------
+        # Residual Map
+        # visibility data
         phase = np.deg2rad(np.array(self["phase"], dtype=np.float64))
         amp = np.array(self["amp"], dtype=np.float64)
-        Vfcvr = np.float64(amp*np.cos(phase))
-        Vfcvi = np.float64(amp*np.sin(phase))
-        Vfcvrt = np.concatenate([Vfcvr,Vfcvr])
-        Vfcvit = np.concatenate([Vfcvi,-Vfcvi])
-        # visibiliy of reconstructed image
+        Vcomp_data = amp*np.exp(1j*phase)
+        Vcomp_data = np.concatenate([Vcomp_data, np.conj(Vcomp_data)])
+        del amp, phase
+
+        # shift the tracking center to the center of the image
+        dix = Nxref - Nx/2 - 1
+        diy = Nyref - Ny/2 - 1
+        Vcomp_data = Vcomp_data * np.exp(1j * (ut*dix + vt*diy) * -1)
+        Vfcvrt = np.real(Vcomp_data)
+        Vfcvit = np.imag(Vcomp_data)
+
+        # compute visibiliy of reconstructed image
+        #   tracking center: the image center
         Vreal,Vimag=fortlib.fftlib.nufft_fwd_real(ut,vt,Imodel,Nx,Ny,Nuv)
         # weight
-        weight  = self["sigma"].values**errorweight
-        weightc = np.concatenate([weight,weight])
-        sum_w   = weight.sum()
-        # weighted residual visibility
+        if errorweight==0:
+            weightc = 1.
+            sum_w   = Nuv
+        else:
+            weight  = np.power(self["sigma"].values, errorweight)
+            weightc = np.concatenate([weight,weight])
+            sum_w   = weightc.sum()
+
+        # take weighted residual between data and model visibilities
         Vinreal = (Vfcvrt-Vreal)*weightc/sum_w
         Vinimag = (Vfcvit-Vimag)*weightc/sum_w
-        # residual image
-        residual=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)/(Nx*Ny*(2*np.pi)**2)
+
+        # compute residual image
+        residual=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
         residual = residual.reshape([Ny,Nx])
+        '''
+        #----------------------------------
+        # synthesized beam
+        Vsynsc = np.exp(1j * (ut*dix + vt*diy))
+        Vsynsr = np.real(Vsynsc)
+        Vsynsi = np.imag(Vsynsc)
+
+        # weight
+        Vinreal = Vsynsr*weightc/sum_w
+        Vinimag = Vsynsi*weightc/sum_w
+
+        # synthesized beam
+        Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
+        Isyns=Isyns.reshape([Ny,Nx])
+        Isyns/=Isyns.max()
+
+        #-----------------------------------
+        '''
         imageout = copy.deepcopy(image)
-        imageout.data[istokes,ifreq]=residual
+        imageout.data[istokes,ifreq]=residual #/Isyns.sum()
 
         return imageout
 
