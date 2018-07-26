@@ -35,7 +35,7 @@ import itertools
 
 # internal
 from .. import fortlib, util
-from . import imregion
+from . import imregion as imr
 
 #-------------------------------------------------------------------------
 # IMAGEFITS (Manupulating FITS FILES)
@@ -1450,7 +1450,12 @@ class IMFITS(object):
         '''
         # create output fits
         outfits = copy.deepcopy(self)
-        imagewin = imregion.imagewin(outfits)
+        if isinstance(imregion,imr.IMRegion):
+            imagewin = imregion.imagewin(outfits)
+        elif isinstance(imregion,IMFITS):
+            imagewin = imregion.data[0,0] > 0.5
+        else:
+            imagewin = imregion
 
         for idxs in np.arange(self.header["ns"]):
             for idxf in np.arange(self.header["nf"]):
