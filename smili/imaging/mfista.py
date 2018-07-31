@@ -33,9 +33,9 @@ from .. import uvdata, util, imdata
 # Default Parameters
 #-------------------------------------------------------------------------
 mfistaprm = {}
-mfistaprm["eps"]=1e-10
-mfistaprm["fftw_measure"]=1
-mfistaprm["cinit"]=10000.0
+mfistaprm["eps"]=1.0e-2
+##mfistaprm["fftw_measure"]=1
+mfistaprm["cinit"]=1.0e+8
 
 #-------------------------------------------------------------------------
 # CLASS
@@ -126,11 +126,13 @@ def imaging(
     Nx = np.int32(initimage.header["nx"])
     Ny = np.int32(initimage.header["ny"])
     Nyx = Nx * Ny
+    dx = np.float64(initimage.header["dx"]*np.pi/180.)
+    dy = np.float64(initimage.header["dy"]*np.pi/180.)
 
     # image region
     if imregion is not None:
         box_flag = 1
-        mask = imregion.maskimage(initimage).reshape(Nyx)
+        mask = imregion.maskimage(initimage).data[0,0].reshape(Nyx)
     else:
         box_flag = 0
         mask = np.zeros(Nyx)
@@ -156,17 +158,26 @@ def imaging(
     Iout = Iout.reshape(Nyx)
 
     # do gridding
-    print("Gridding Visibility")
-    gvistable = vistable.gridding(initimage)
-    gvistable = gvistable.trans_for_fftw()
+##    print("Gridding Visibility")
+##    gvistable = vistable.gridding(initimage)
+##    gvistable = gvistable.trans_for_fftw()
 
     # Pick up data sets
-    uidx = np.asarray(gvistable.ugidx.values, dtype=np.int32)
-    vidx = np.asarray(gvistable.vgidx.values, dtype=np.int32)
-    Vcomp = gvistable.amp.values*np.exp(-1j*np.deg2rad(gvistable.phase.values))
+##    uidx = np.asarray(gvistable.ugidx.values, dtype=np.int32)
+##    vidx = np.asarray(gvistable.vgidx.values, dtype=np.int32)
+##    Vcomp = gvistable.amp.values*np.exp(-1j*np.deg2rad(gvistable.phase.values))
+    u = np.asarray(vistable.u.values, dtype=np.float64)
+    v = np.asarray(vistable.v.values, dtype=np.float64)
+    u *= 2 * np.pi * dx
+    v *= 2 * np.pi * dy
+    print(u[0])
+    Vcomp = vistable.amp.values*np.exp(-1j*np.deg2rad(vistable.phase.values))
+
     Vreal = np.asarray(np.real(Vcomp), dtype=np.float64)
     Vimag = np.asarray(np.imag(Vcomp), dtype=np.float64)
-    Verr = np.abs(np.asarray(gvistable.sigma.values, dtype=np.float64))
+##    Verr = np.abs(np.asarray(gvistable.sigma.values, dtype=np.float64))
+    Verr = np.abs(np.asarray(vistable.sigma.values, dtype=np.float64))
+
     M = len(Verr)
     Verr *= np.sqrt(M)
     #Vreal /= Verr
@@ -191,8 +202,8 @@ def imaging(
     # get pointor to variables
     c_double_p = ctypes.POINTER(ctypes.c_double)
     c_int_p = ctypes.POINTER(ctypes.c_int)
-    uidx_p = uidx.ctypes.data_as(c_int_p)
-    vidx_p = vidx.ctypes.data_as(c_int_p)
+    u_p = u.ctypes.data_as(c_int_p)
+    v_p = v.ctypes.data_as(c_int_p)
     Vreal_p = Vreal.ctypes.data_as(c_double_p)
     Vimag_p = Vimag.ctypes.data_as(c_double_p)
     Verr_p = Verr.ctypes.data_as(c_double_p)
@@ -203,11 +214,11 @@ def imaging(
 
     # Load libmfista.so
     libmfistapath = os.path.dirname(os.path.abspath(__file__))
-    libmfistapath = os.path.join(libmfistapath,"libmfista_fft.so")
+    libmfistapath = os.path.join(libmfistapath,"libmfista_nufft.so")
     libmfista = ctypes.cdll.LoadLibrary(libmfistapath)
-    libmfista.mfista_imaging_core_fft(
+    libmfista.mfista_imaging_core_nufft(
         # uv coordinates (u_idx, v_idx), MFISTA handles u is column, v is row. so no need to flip
-        uidx_p, vidx_p,
+        u_p, v_p,
         # full complex Visibilities (y_r, y_i, noise_stdev)
         Vreal_p, Vimag_p, Verr_p,
         # Array Size (M, Nx, Ny, maxiter, eps), Since the input image is column order, Nx, Ny are flipped
@@ -222,7 +233,7 @@ def imaging(
         Iin_p, Iout_p,
         # Flags (nonneg_flag, fftw_measure)
         ctypes.c_int(nonneg_flag),
-        ctypes.c_int(mfistaprm["fftw_measure"]),
+##        ctypes.c_int(mfistaprm["fftw_measure"]),
         # clean box (box_flag, cl_box, mfista_result)
         ctypes.c_int(box_flag),
         mask_p,
