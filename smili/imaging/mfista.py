@@ -126,16 +126,16 @@ def imaging(
     Nx = np.int32(initimage.header["nx"])
     Ny = np.int32(initimage.header["ny"])
     Nyx = Nx * Ny
-    dx = np.float64(initimage.header["dx"]*np.pi/180.)
-    dy = np.float64(initimage.header["dy"]*np.pi/180.)
+    dx_rad = np.deg2rad(initimage.header["dx"])
+    dy_rad = np.deg2rad(initimage.header["dy"])
 
     # image region
     if imregion is not None:
         box_flag = 1
-        mask = imregion.maskimage(initimage).data[0,0].reshape(Nyx)
+        mask = np.float64(imregion.maskimage(initimage).data[0,0].reshape(Nyx))
     else:
         box_flag = 0
-        mask = np.zeros(Nyx)
+        mask = np.zeros(Nyx, dtype=np.float64)
 
     if totalflux is None:
         totalflux = vistable["amp"].max()
@@ -157,31 +157,20 @@ def imaging(
     Iin = Iin.reshape(Nyx)
     Iout = Iout.reshape(Nyx)
 
-    # do gridding
-##    print("Gridding Visibility")
-##    gvistable = vistable.gridding(initimage)
-##    gvistable = gvistable.trans_for_fftw()
-
-    # Pick up data sets
-##    uidx = np.asarray(gvistable.ugidx.values, dtype=np.int32)
-##    vidx = np.asarray(gvistable.vgidx.values, dtype=np.int32)
-##    Vcomp = gvistable.amp.values*np.exp(-1j*np.deg2rad(gvistable.phase.values))
     u = np.asarray(vistable.u.values, dtype=np.float64)
     v = np.asarray(vistable.v.values, dtype=np.float64)
-    u *= 2 * np.pi * dx
-    v *= 2 * np.pi * dy
-    print(u[0])
-    Vcomp = vistable.amp.values*np.exp(-1j*np.deg2rad(vistable.phase.values))
+    u *= 2*np.pi*dx_rad
+    v *= 2*np.pi*dy_rad
+    Vcomp = vistable.amp.values*np.exp(1j*np.deg2rad(vistable.phase.values))
 
-    Vreal = np.asarray(np.real(Vcomp), dtype=np.float64)
-    Vimag = np.asarray(np.imag(Vcomp), dtype=np.float64)
-##    Verr = np.abs(np.asarray(gvistable.sigma.values, dtype=np.float64))
+    phase = np.deg2rad(np.array(vistable["phase"], dtype=np.float64))
+    amp = np.array(vistable["amp"], dtype=np.float64)
+    Vreal = np.float64(amp*np.cos(phase))
+    Vimag = np.float64(amp*np.sin(phase))
     Verr = np.abs(np.asarray(vistable.sigma.values, dtype=np.float64))
 
     M = len(Verr)
     Verr *= np.sqrt(M)
-    #Vreal /= Verr
-    #Vimag /= Verr
     del Vcomp
 
     # Lambda
@@ -202,8 +191,8 @@ def imaging(
     # get pointor to variables
     c_double_p = ctypes.POINTER(ctypes.c_double)
     c_int_p = ctypes.POINTER(ctypes.c_int)
-    u_p = u.ctypes.data_as(c_int_p)
-    v_p = v.ctypes.data_as(c_int_p)
+    u_p = u.ctypes.data_as(c_double_p)
+    v_p = v.ctypes.data_as(c_double_p)
     Vreal_p = Vreal.ctypes.data_as(c_double_p)
     Vimag_p = Vimag.ctypes.data_as(c_double_p)
     Verr_p = Verr.ctypes.data_as(c_double_p)
@@ -233,7 +222,6 @@ def imaging(
         Iin_p, Iout_p,
         # Flags (nonneg_flag, fftw_measure)
         ctypes.c_int(nonneg_flag),
-##        ctypes.c_int(mfistaprm["fftw_measure"]),
         # clean box (box_flag, cl_box, mfista_result)
         ctypes.c_int(box_flag),
         mask_p,

@@ -16,7 +16,7 @@ else
 endif
 
 # use the following two lines to enable PTHREAD choose the thread_num properly.
-CFLAGS=$(CCFLAGS_OPT) -DPTHREAD -DTHREAD_NUM=4
+CFLAGS=$(CCFLAGS_OPT)
 CXXFLAGS = -fPIC $(CCFLAGS_OPT) -DNEED_EXTERN_C
 # -funroll-loops
 CLIBS_FFTW = @FFTW3_LIBS@ @FFTW3TH_LIBS@
@@ -28,7 +28,7 @@ CLIBS=@OPENBLAS_LIBS@
 # static library works for Mac OS.
 NUFFTLIB_STATIC = ../finufft/lib-static/libfinufft.a
 
-targets = libraries
+targets = libmfista_nufft
 object_io = mfista_io.o
 object_tools = mfista_tools.o
 object_nufft = mfista_TV_lib.o mfista_nufft_lib.o finufft2d4smili.o
@@ -38,13 +38,8 @@ object_nufft2 = mfista_TV_lib.o2 mfista_nufft_lib.o2 finufft2d4smili.o2
 
 all: $(targets)
 
-#mfista_imaging_nufft: mfista_imaging_nufft.o $(object_io) $(object_nufft) $(object_tools)
-#	$(CC) $(CFLAGS) $(object_io) $(object_nufft) $(object_tools) $@.o $(CLIBS) $(NUFFTLIB_STATIC) $(CLIBS_NUFFTW)  -o $@
-
-libraries: libmfista_nufft
-
 libmfista_nufft: $(object_tools2) $(object_nufft2)
-	$(CC) $(CFLAGS) -shared $(object_nufft2) $(object_tools2) -o $@.so $(CLIBS) $(NUFFTLIB_STATIC) $(CLIBS_NUFFTW) -Xlinker -rpath -Xlinker /usr/lib
+	$(CC) $(CFLAGS) -shared $(object_nufft2) $(object_tools2) -o $@.so $(CLIBS) $(NUFFTLIB_STATIC) $(CLIBS_NUFFTW)
 
 .c.o:
 	$(CC) -c -O2 -Wall $(CFLAGS) -o $@ $<
