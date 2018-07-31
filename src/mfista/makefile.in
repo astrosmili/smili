@@ -1,0 +1,73 @@
+# suffixes
+.SUFFIXES: .o2
+
+# INSTALLDIR
+PYTHONLIBDIR=../../smili/imaging
+
+# compile options
+CC=@CC@
+CXX=@CXX@
+
+# Optimization Flag
+ifeq ($(OSTYPE),"LINUX")
+  CCFLAGS_OPT=-Ofast -funroll-loops -march=native
+else
+  CCFLAGS_OPT=-Ofast -funroll-loops -march=core2
+endif
+
+# use the following two lines to comple without PTHREAD
+# CFLAGS=-O2
+# CLIBS_FFTW = -lfftw3
+
+# use the following two lines to enable PTHREAD choose the thread_num properly.
+CFLAGS=$(CCFLAGS_OPT) -DPTHREAD -DTHREAD_NUM=4
+CXXFLAGS = -fPIC $(CCFLAGS_OPT) -DNEED_EXTERN_C
+# -funroll-loops
+CLIBS_FFTW = @FFTW3_LIBS@ @FFTW3TH_LIBS@
+CLIBS_NUFFTW = -fPIC $(CCFLAGS_OPT) -fopenmp @FFTW3_LIBS@ @FFTW3TH_LIBS@ -lstdc++ -lm
+
+CLIBS=@OPENBLAS_LIBS@
+#CLIBS_LAPACK = -llapack
+# set the path to the static library of finufft. they wrote
+# static library works for Mac OS.
+NUFFTLIB_STATIC = ../finufft/lib-static/libfinufft.a
+
+targets = libraries
+object_io = mfista_io.o
+object_tools = mfista_tools.o
+object_nufft = mfista_TV_lib.o mfista_nufft_lib.o finufft2d4smili.o
+
+object_tools2 = mfista_tools.o2
+object_nufft2 = mfista_TV_lib.o2 mfista_nufft_lib.o2 finufft2d4smili.o2
+
+all: $(targets)
+
+#mfista_imaging_nufft: mfista_imaging_nufft.o $(object_io) $(object_nufft) $(object_tools)
+#	$(CC) $(CFLAGS) $(object_io) $(object_nufft) $(object_tools) $@.o $(CLIBS) $(NUFFTLIB_STATIC) $(CLIBS_NUFFTW)  -o $@
+
+libraries: libmfista_nufft
+
+libmfista_nufft: $(object_tools2) $(object_nufft2)
+	$(CC) $(CFLAGS) -shared $(object_nufft2) $(object_tools2) -o $@.so $(CLIBS) $(NUFFTLIB_STATIC) $(CLIBS_NUFFTW) -Xlinker -rpath -Xlinker /usr/lib
+
+.c.o:
+	$(CC) -c -O2 -Wall $(CFLAGS) -o $@ $<
+
+.c.o2:
+	$(CC) -c -O2 -Wall -fPIC $(CFLAGS) -o $@ $<
+
+.cpp.o:
+	$(CXX) -c -O2 -Wall $(CXXFLAGS) -o $@ $<
+
+.cpp.o2:
+	$(CXX) -c -O2 -Wall -fPIC $(CXXFLAGS) -o $@ $<
+
+clean:
+	rm -f *.o *.o2 *.so
+
+uninstall: clean
+	rm -f makefile
+	rm -rf $(PYTHONLIBDIR)/libmfista_nufft.so
+
+install: all
+	mv libmfista_nufft.so $(PYTHONLIBDIR)

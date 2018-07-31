@@ -1,12 +1,12 @@
-/* 
+/*
    Copyright (C) 2015   Shiro Ikeda <shiro@ism.ac.jp>
 
    This is file 'mfista.h'. An optimization algorithm for imaging of
    interferometry. The idea of the algorithm was from the following
    two papers,
 
-   Beck and Teboulle (2009) SIAM J. Imaging Sciences, 
-   Beck and Teboulle (2009) IEEE trans. on Image Processing 
+   Beck and Teboulle (2009) SIAM J. Imaging Sciences,
+   Beck and Teboulle (2009) IEEE trans. on Image Processing
 
 
    This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/ 
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,14 +30,14 @@
 #include <time.h>
 #include <limits.h>
 #include "blas.h"
-#include "lapack.h"
-#include <complex.h> 
+/* #include "lapack.h" */
+#include <complex.h>
 #include <fftw3.h>
 
 #define MAXITER   50000
 #define MINITER   100
 #define FGPITER   100
-#define TD        50 
+#define TD        50
 #define ETA       1.1
 #define EPS       1.0e-5
 
@@ -110,10 +110,10 @@ extern void soft_threshold(double *vec, int length, double eta, double *nvec);
 extern void soft_threshold_box(double *vec, int length, double eta,
 			       double *nvec, int box_flag, float *cl_box);
 
-extern void soft_threshold_nonneg(double *vec, int length, double eta, 
+extern void soft_threshold_nonneg(double *vec, int length, double eta,
 				  double *nvec);
 
-extern void soft_threshold_nonneg_box(double *vec, int length, double eta, 
+extern void soft_threshold_nonneg_box(double *vec, int length, double eta,
 				      double *nvec, int box_flag, float *cl_box);
 
 /* Some routines for TV */
@@ -130,23 +130,23 @@ extern void d_TSV(int NX, int NY, double *xvec, double *dvec);
 
 extern void FGP_L1(int *N, int NX, int NY,
 		   double *bvec, double lambda_l1, double lambda_tv, int ITER,
-		   double *pmat, double *qmat, double *rmat, double *smat, 
+		   double *pmat, double *qmat, double *rmat, double *smat,
 		   double *npmat, double *nqmat, double *xvec);
 
 extern void FGP_L1_box(int *N, int NX, int NY,
 		       double *bvec, double lambda_l1, double lambda_tv, int ITER,
-		       double *pmat, double *qmat, double *rmat, double *smat, 
+		       double *pmat, double *qmat, double *rmat, double *smat,
 		       double *npmat, double *nqmat, double *xvec,
 		       int box_flag, float *cl_box);
 
 extern void FGP_nonneg(int *N, int NX, int NY,
 		       double *bvec, double lambda_tv, int ITER,
-		       double *pmat, double *qmat, double *rmat, double *smat, 
+		       double *pmat, double *qmat, double *rmat, double *smat,
 		       double *npmat, double *nqmat, double *xvec);
 
 extern void FGP_nonneg_box(int *N, int NX, int NY,
 			   double *bvec, double lambda_tv, int ITER,
-			   double *pmat, double *qmat, double *rmat, double *smat, 
+			   double *pmat, double *qmat, double *rmat, double *smat,
 			   double *npmat, double *nqmat, double *xvec,
 			   int box_flag, float *cl_box);
 
@@ -163,7 +163,7 @@ extern void mfista_imaging_core(double *y, double *A,
 				double lambda_l1, double lambda_tv, double lambda_tsv,
 				double cinit, double *xinit, double *xout,
 				int nonneg_flag, int looe_flag,
-				int box_flag, float *cl_box,				
+				int box_flag, float *cl_box,
 				struct RESULT *mfista_result);
 
 /* for mfista_imaging_fft */
