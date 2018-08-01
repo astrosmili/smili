@@ -33,8 +33,7 @@ from .. import uvdata, util, imdata
 # Default Parameters
 #-------------------------------------------------------------------------
 mfistaprm = {}
-mfistaprm["eps"]=1.0e-2
-##mfistaprm["fftw_measure"]=1
+mfistaprm["eps"]=1.0e-3
 mfistaprm["cinit"]=1.0e+8
 
 #-------------------------------------------------------------------------
@@ -159,24 +158,17 @@ def imaging(
     Iin = Iin.reshape(Nyx)
     Iout = Iout.reshape(Nyx)
 
-    u = np.asarray(vistable.u.values, dtype=np.float64)
-    v = np.asarray(vistable.v.values, dtype=np.float64)
-    u *= 2*np.pi*dx_rad
-    v *= 2*np.pi*dy_rad
-    Vcomp = vistable.amp.values*np.exp(1j*np.deg2rad(vistable.phase.values))
+    u = vistable.u.values * 2 * np.pi * dx_rad
+    v = vistable.v.values * 2 * np.pi * dy_rad
     dix = Nxref - Nx/2. - 1
     diy = Nyref - Ny/2. - 1
-    Vcomp *= np.exp(1j * (u*dix + v*diy) * -1)
 
-    phase = np.deg2rad(np.array(vistable["phase"], dtype=np.float64))
-    amp = np.array(vistable["amp"], dtype=np.float64)
+    phase = np.deg2rad(vistable.phase.values) + (u*dix + v*diy)
+    amp = np.array(vistable.amp.values, dtype=np.float64)
+    M = len(amp)
     Vreal = np.float64(amp*np.cos(phase))
     Vimag = np.float64(amp*np.sin(phase))
-    Verr = np.abs(np.asarray(vistable.sigma.values, dtype=np.float64))
-
-    M = len(Verr)
-    Verr *= np.sqrt(M)
-    del Vcomp
+    Verr = np.abs(vistable.sigma.values) * np.sqrt(M)
 
     # Lambda
     if lambl1_sim < 0: lambl1_sim = 0.
@@ -216,7 +208,7 @@ def imaging(
         # full complex Visibilities (y_r, y_i, noise_stdev)
         Vreal_p, Vimag_p, Verr_p,
         # Array Size (M, Nx, Ny, maxiter, eps), Since the input image is column order, Nx, Ny are flipped
-        ctypes.c_int(M), ctypes.c_int(Ny), ctypes.c_int(Nx),
+        ctypes.c_int(M), ctypes.c_int(Nx), ctypes.c_int(Ny),
         ctypes.c_int(niter), ctypes.c_double(mfistaprm["eps"]),
         # Imaging Parameters (lambdas, cinit)
         ctypes.c_double(lambl1_sim),
@@ -231,7 +223,6 @@ def imaging(
         ctypes.c_int(box_flag),
         mask_p,
         mfista_result_p)
-
 
     # Get Results
     outimage = copy.deepcopy(initimage)
