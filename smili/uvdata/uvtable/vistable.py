@@ -22,6 +22,9 @@ import scipy.special as ss
 from scipy import optimize
 from scipy import linalg
 import theano.tensor as T
+import matplotlib
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import NullFormatter
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -35,7 +38,7 @@ from .gvistable import GVisTable, GVisSeries
 from .catable   import CATable, CASeries
 from .bstable   import BSTable, BSSeries
 from .tools import get_uvlist, get_uvlist_loop
-from ... import imdata, fortlib
+from ... import imdata, fortlib,util
 
 # ------------------------------------------------------------------------------
 # Classes
@@ -2000,6 +2003,243 @@ class VisTable(UVTable):
         imageout.data[istokes,ifreq]=residual.data[istokes,ifreq]+Imodel
 
         return imageout
+
+
+    def summary(self,outimage, filename=None, plotargs={'ms': 1., }):
+        '''
+        Make summary pdf figures for checking model, residual and chisq for each baseline
+        '''
+
+        if filename is not None:
+            pdf = PdfPages(filename)
+        plt.figure()
+        # model,residual,chisq
+        table = self
+        nullfmt = NullFormatter()
+        model = table.eval_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+        resid = table.residual_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+        chisq,rchisq = table.chisq_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+        util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
+        fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
+        plt.subplots_adjust(hspace=0.4)
+
+        # 1. Radplot of closure amplitudes
+        ax = axs[0,0]
+        plt.sca(ax)
+        plt.title("Radplot of closure amplitude")
+        table.radplot(datatype="amp", color="black",errorbar=False, **plotargs)
+        model.radplot(datatype="amp", color="red",errorbar=False, **plotargs)
+
+        # 2. Radplot of normalized residuals
+        plt.autoscale()
+        ax = axs[1,0]
+        plt.sca(ax)
+        plt.title("Radplot of normalized residuals")
+        resid.radplot(datatype="amp",normerror=True,errorbar=False,color="black",**plotargs)
+        plt.ylabel("Normalized Residuals")
+        plt.autoscale()
+
+        # 3. Histogram of residuals
+        ax = axs[0,1]
+        plt.sca(ax)
+        plt.title("Histogram of residuals, chisq=%04f"%(chisq))
+        N = len(resid["amp"])
+        plt.hist(resid["amp"], bins=np.int(np.sqrt(N)),
+                 normed=True, orientation='vertical')
+        plt.xlabel("Residual ")
+        # set xrange
+        xmax1=abs(resid["amp"].min())
+        xmax2=abs(resid["amp"].max())
+        xmax = max(xmax1,xmax2)
+        plt.xlim(-xmax,xmax)
+
+        # 4. Histogram of normalized residuals
+        ax = axs[1,1]
+        plt.sca(ax)
+        plt.title("Histogram of normalized residuals, rchisq=%04f"%(rchisq))
+        normresid = resid["amp"] / resid["sigma"]
+        N = len(normresid)
+        plt.hist(normresid, bins=np.int(np.sqrt(N)),
+                 normed=True, orientation='vertical')
+        plt.xlabel("Normalized Residuals")
+
+        # model line
+        xmin, xmax = ax.get_xlim()
+        x = np.linspace(xmin, xmax, 1000)
+        y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
+        plt.plot(x, y, color="red")
+
+        # set xrange
+        xmax1=abs(normresid.min())
+        xmax2=abs(normresid.max())
+        xmax = max(xmax1,xmax2)
+        plt.xlim(-xmax,xmax)
+
+        # save file
+        if filename is not None:
+            pdf.savefig()
+            plt.close()
+
+
+        # tplot==========================
+        baselines= table.baseline_list()
+        Ntri = len(baselines)
+        for itri in xrange(Ntri):
+            st1 = baselines[itri][0]
+            st2 = baselines[itri][1]
+
+            frmid =  table["st1name"] == st1
+            frmid &= table["st2name"] == st2
+            idx = np.where(frmid == True)
+            single = table.loc[idx[0], :]
+
+            nullfmt = NullFormatter()
+            model        = single.eval_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+            resid        = single.residual_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+            util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
+            fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
+            plt.suptitle(st1+"-"+st2,fontsize=18)
+            plt.subplots_adjust(hspace=0.4)
+
+            # 1. Time plot of closure phases
+            ax = axs[0,0]
+            plt.sca(ax)
+            plt.title("Time plot of closure amplitudes")
+            single.vplot("utc", "amp",errorbar=False)
+            model.vplot("utc", "amp",errorbar=False)
+            plt.autoscale(axis="x")
+
+            # 2. Time plot of normalized residuals
+            ax = axs[1,0]
+            plt.sca(ax)
+            plt.title("Time plot of normalized residuals")
+            resid.vplot("utc", "amp",errorbar=False)
+            plt.ylabel("Normalized Residuals")
+            plt.autoscale()
+
+            # 3. Histogram of residuals
+            ax = axs[0,1]
+            plt.sca(ax)
+            plt.title("Histogram of residuals,chisq=%04f"%(chisq))
+            N = len(resid["amp"])
+            plt.hist(resid["amp"], bins=np.int(np.sqrt(N)),
+                     normed=True, orientation='vertical')
+            plt.xlabel("Residual Closure amplitudes ")
+            # set xrange
+            xmax1=abs(resid["amp"].min())
+            xmax2=abs(resid["amp"].max())
+            xmax = max(xmax1,xmax2)
+            plt.xlim(-xmax,xmax)
+            plt.locator_params(axis='x',nbins=6)
+            # 4. Histogram of normalized residuals
+            ax = axs[1,1]
+            plt.sca(ax)
+            plt.title("Histogram of normalized residuals,rchisq=%04f"%(rchisq))
+            normresid = resid["amp"] / resid["sigma"]
+            N = len(normresid)
+            plt.hist(normresid, bins=np.int(np.sqrt(N)),
+                     normed=True, orientation='vertical')
+            plt.xlabel("Normalized Residuals")
+            # model line
+            xmin, xmax = ax.get_xlim()
+            x = np.linspace(xmin, xmax, 1000)
+            y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
+
+            plt.plot(x, y, color="red")
+            # set xrange
+            xmax1=abs(normresid.min())
+            xmax2=abs(normresid.max())
+            xmax = max(xmax1,xmax2)
+            plt.xlim(-xmax,xmax)
+
+            matplotlib.rcdefaults()
+            if filename is not None:
+                pdf.savefig()
+                plt.close()
+
+        matplotlib.rcdefaults()
+
+        # residual of baselines==========
+        stconcat    = pd.DataFrame()
+        chiconcat   = pd.DataFrame()
+        rchiconcat  = pd.DataFrame()
+        tchiconcat   = pd.DataFrame()
+        Ndataconcat = pd.DataFrame()
+        baselines= table.baseline_list()
+        Nqua = len(baselines)
+        tNdata = len(self["amp"])
+        for iqua in xrange(Nqua):
+            st1 = baselines[iqua][0]
+            st2 = baselines[iqua][1]
+
+            frmid =  self["st1name"] == st1
+            frmid &= self["st2name"] == st2
+            idx = np.where(frmid == True)
+            single = self.loc[idx[0], :]
+            chisq,rchisq = single.chisq_image(imfits=outimage,amptable=True,
+                                                mask=None,
+                                                istokes=0,
+                                                ifreq=0)
+            Ndata       = len(single)
+            Ndataconcat = Ndataconcat.append([Ndata])
+            stconcat   = stconcat.append([st1+"-"+st2])
+            chiconcat  = chiconcat.append([chisq])
+            rchiconcat = rchiconcat.append([rchisq])
+            tchiconcat = tchiconcat.append([chisq/tNdata])
+
+        # plot residual of triangles
+        util.matplotlibrc(ncols=1, nrows=2, width=700, height=400)
+        fig, axs = plt.subplots(nrows=2, ncols=1, sharex=False)
+        plt.subplots_adjust(hspace=0.55)
+        plt.figure()
+        ax = axs[0]
+        plt.sca(ax)
+        plt.plot(stconcat,chiconcat,"o")
+        plt.xticks(rotation=90)
+        plt.grid(True)
+        plt.ylabel("Chi square")
+        ax = axs[1]
+        plt.sca(ax)
+        plt.plot(stconcat,rchiconcat,"o")
+        plt.ylabel("Reduced chi square")
+        plt.xticks(rotation=90)
+        plt.grid(True)
+        if filename is not None:
+            pdf.savefig()
+            plt.close()
+
+        # make csv table
+        table = pd.DataFrame()
+        table["station"] = np.zeros(Ntri+1)
+        table["Ndata"] = np.zeros(Ntri+1)
+        table["chisq"] = np.zeros(Ntri+1)
+        table["rchisq"] = np.zeros(Ntri+1)
+        table["totalchisq"] = np.zeros(Ntri+1)
+
+        table.loc[1:,"station"] = np.array(stconcat)
+        table.loc[1:,"Ndata"]    = np.array(Ndataconcat)
+        table.loc[1:,"chisq"]   = np.array(chiconcat)
+        table.loc[1:,"rchisq"]  = np.array(rchiconcat)
+        table.loc[1:,"totalchisq"]   = np.array(tchiconcat)
+
+        table.loc[0,"station"] = "total"
+        table.loc[0,"Ndata"]   = Ndataconcat.values.sum()
+        table.loc[0,"chisq"]   = chiconcat.values.sum()
+        table.loc[0,"rchisq"]  = rchiconcat.values.sum()
+        table.loc[0,"totalchisq"]  = tchiconcat.values.sum()
+
+        table.to_csv(filename+".csv")
+
+        # close pdf file
+        if filename is not None:
+            pdf.close()
+
+        matplotlib.rcdefaults()
+
+
+
+
 
 class VisSeries(UVSeries):
 
