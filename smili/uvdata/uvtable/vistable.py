@@ -155,7 +155,6 @@ class VisTable(UVTable):
 
         return outtable
 
-
     def fit_beam(self, angunit="mas", errweight=0., ftsign=+1):
         '''
         This method estimates the synthesized beam size at natural weighting.
@@ -208,7 +207,6 @@ class VisTable(UVTable):
                      factor, 'angunit': angunit, 'pa': PA})
         return cb_parms
 
-
     def snrcutoff(self, threshold=5):
         '''
         Thesholding data with SNR (amp/sigma)
@@ -222,10 +220,9 @@ class VisTable(UVTable):
         outtable = outtable.loc[outtable["amp"]/outtable["sigma"]>threshold, :].reset_index(drop=True)
         return outtable
 
-
     def add_error(self, error, quadrature=True):
         '''
-        Increase errors by specified Value
+        Increase errors by a specified value
 
         Args:
             error (float or array like):
@@ -287,13 +284,13 @@ class VisTable(UVTable):
         '''
         Return the real part of full complex visibilities
         '''
-        return np.real(self.comp())
+        return self["amp"]*np.cos(np.deg2rad(self["phase"]))
 
     def imag(self):
         '''
         Return the imag part of full complex visibilities
         '''
-        return np.imag(self.comp())
+        return self["amp"]*np.sin(np.deg2rad(self["phase"]))
 
     def sigma_phase(self, deg=True):
         '''
@@ -361,7 +358,6 @@ class VisTable(UVTable):
             amptable["phase"] = np.zeros(Ndata)
             return amptable
 
-
     def residual_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
         #uvdata VisTable object (storing residual full complex visibility)
         model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
@@ -389,7 +385,7 @@ class VisTable(UVTable):
     def residual_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
         #uvdata VisTable object (storing residual full complex visibility)
         model = self._call_fftlib3d(movie=movie,mask=mask,amptable=amptable,
-                                  istokes=istokes, ifreq=ifreq)
+                                    istokes=istokes, ifreq=ifreq)
 
         if not amptable:
             residr = model[0][4]
@@ -409,7 +405,6 @@ class VisTable(UVTable):
             residtable["phase"] = np.zeros(Ndata)
 
         return residtable
-
 
     def chisq_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
         # calcurate chisqared and reduced chisqred.
@@ -546,9 +541,6 @@ class VisTable(UVTable):
                     varamp=np.float64(varamp)
                     )
             return model,Ndata
-
-
-
 
     def chisq_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
         # calcurate chisqared and reduced chisqred.
@@ -700,7 +692,6 @@ class VisTable(UVTable):
                     )
 
             return model,Ndata
-
 
     def eval_geomodel(self, geomodel, evalargs={}):
         '''

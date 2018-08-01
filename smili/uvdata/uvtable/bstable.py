@@ -132,13 +132,13 @@ class BSTable(UVTable):
         '''
         Return the real part of full complex visibilities
         '''
-        return np.real(self.comp())
+        return self["amp"]*np.cos(np.deg2rad(self["phase"]))
 
     def imag(self):
         '''
         Return the imag part of full complex visibilities
         '''
-        return np.imag(self.comp())
+        return self["amp"]*np.sin(np.deg2rad(self["phase"]))
 
     def sigma_phase(self, deg=True):
         '''
