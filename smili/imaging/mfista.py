@@ -174,10 +174,6 @@ def imaging(
     if lambl1_sim < 0: lambl1_sim = 0.
     if lambtv_sim < 0: lambtv_sim = 0.
     if lambtsv_sim < 0: lambtsv_sim = 0.
-    print("lambl1_sim:",lambl1_sim)
-    print("lambtsv_sim:",lambtsv_sim)
-    print("lambtv_sim:",lambtv_sim)
-
 
     # make an MFISTA_result object
     mfista_result = _MFISTA_RESULT(M,Nyx)
