@@ -125,6 +125,8 @@ def imaging(
     # size of images
     Nx = np.int32(initimage.header["nx"])
     Ny = np.int32(initimage.header["ny"])
+    Nxref = np.int32(initimage.header["nxref"])
+    Nyref = np.int32(initimage.header["nyref"])
     Nyx = Nx * Ny
     dx_rad = np.deg2rad(initimage.header["dx"])
     dy_rad = np.deg2rad(initimage.header["dy"])
@@ -162,6 +164,9 @@ def imaging(
     u *= 2*np.pi*dx_rad
     v *= 2*np.pi*dy_rad
     Vcomp = vistable.amp.values*np.exp(1j*np.deg2rad(vistable.phase.values))
+    dix = Nxref - Nx/2. - 1
+    diy = Nyref - Ny/2. - 1
+    Vcomp *= np.exp(1j * (u*dix + v*diy) * -1)
 
     phase = np.deg2rad(np.array(vistable["phase"], dtype=np.float64))
     amp = np.array(vistable["amp"], dtype=np.float64)
