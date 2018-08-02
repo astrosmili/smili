@@ -21,6 +21,7 @@ Manuals
 
   _static/install
   _autodoc/smili
+  _examples/maps/maps
 
 Link
 ====
