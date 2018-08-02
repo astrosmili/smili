@@ -889,6 +889,20 @@ class IMFITS(object):
             image = image[np.where(maskimage > 0.5)]
         return np.median(np.abs(image - np.median(image))) * self.get_bconv(fluxunit=fluxunit, saunit=saunit)
 
+    def rms(self, imregion=None, fluxunit="Jy", saunit="pixel", istokes=0, ifreq=0):
+        '''
+        calculate the median absolute deviation of the image
+
+        Args:
+          istokes (integer): index for Stokes Parameter at which l1-norm will be calculated
+          ifreq (integer): index for Frequency at which l1-norm will be calculated
+        '''
+        image = self.data[istokes,ifreq]
+        if imregion is not None:
+            maskimage = imregion.maskimage(self)
+            image = image[np.where(maskimage > 0.5)]
+        return np.sqrt(np.mean(image**2)) * self.get_bconv(fluxunit=fluxunit, saunit=saunit)
+
     def compos(self,alpha=1.,angunit=None,ifreq=0, istokes=0):
         '''
         Returns the position of the center of mass in a specified angular unit.
