@@ -1,12 +1,12 @@
-#include "../src/cnufftspread.h"
+#include "../src/spreadinterp.h"
 #include <vector>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-int usage()
+void usage()
 {
-  printf("usage: spreadtestnd [dims [M [N [tol [sort [flags]]]]]]\n\twhere dims=1,2 or 3\n\tM=# nonuniform pts\n\tN=# uniform pts\n\ttol=requested accuracy\n\tsort=0 (don't sort data) or 1 (do, default)\n\tflags : expert timing flags (see cnufftspread.h)\n\nexample: ./spreadtestnd 1 1e6 1e6 1e-6 1\n");
+  printf("usage: spreadtestnd [dims [M [N [tol [sort [flags [debug [kerpad [kerevalmeth]]]]]]]]]\n\twhere dims=1,2 or 3\n\tM=# nonuniform pts\n\tN=# uniform pts\n\ttol=requested accuracy\n\tsort=0 (don't sort NU pts), 1 (do), or 2 (maybe sort; default)\n\tflags : expert timing flags (see cnufftspread.h)\n\tdebug=0 (less text out), 1 (more), 2 (lots)\n\tkerpad=0 (no pad to mult of 4), 1 (do)\n\tkerevalmeth=0 (direct), 1 (Horner ppval)\n\nexample: ./spreadtestnd 1 1e6 1e6 1e-6 2 0 1\n");
 }
 
 int main(int argc, char* argv[])
@@ -14,22 +14,25 @@ int main(int argc, char* argv[])
  * It checks speed, and basic correctness via the grid sum of the result.
  * See usage() for usage.
  *
- * Example: spreadtestnd 3 8e6 8e6 1e-6 1 0
+ * Example: spreadtestnd 3 8e6 8e6 1e-6 2 0 1
  *
  * Compilation (also check ../makefile):
- *    g++ spreadtestnd.cpp ../src/cnufftspread.o ../src/utils.o -o spreadtestnd -fPIC -Ofast -funroll-loops -fopenmp
+ *    g++ spreadtestnd.cpp ../src/spreadinterp.o ../src/utils.o -o spreadtestnd -fPIC -Ofast -funroll-loops -fopenmp
  *
  * Magland; expanded by Barnett 1/14/17. Better cmd line args 3/13/17
  * indep setting N 3/27/17. parallel rand() & sort flag 3/28/17
- * timing_flags 6/14/17
+ * timing_flags 6/14/17. debug control 2/8/18. sort=2 opt 3/5/18, pad 4/24/18
  */
 {
   int d = 3;            // Cmd line args & their defaults:  default #dims
   double tol = 1e-6;    // default (eg 1e-6 has nspread=7)
   BIGINT M = 1e6;       // default # NU pts
   BIGINT roughNg = 1e6; // default # U pts
-  int sort = 1;         // whether to sort
+  int sort = 2;         // spread_sort
   int flags = 0;        // default
+  int debug = 0;        // default
+  int kerpad = 0;       // default
+  int kerevalmeth = 1;  // default: Horner
   if (argc<=1) { usage(); return 0; }
   sscanf(argv[1],"%d",&d);
   if (d<1 || d>3) {
@@ -55,13 +58,31 @@ int main(int argc, char* argv[])
   }
   if (argc>5) {
     sscanf(argv[5],"%d",&sort);
-    if ((sort!=0) && (sort!=1)) {
-      printf("sort must be 0 or 1!\n"); usage(); return 1;
+    if ((sort!=0) && (sort!=1) && (sort!=2)) {
+      printf("sort must be 0, 1 or 2!\n"); usage(); return 1;
     }
   }
   if (argc>6)
     sscanf(argv[6],"%d",&flags);
   if (argc>7) {
+    sscanf(argv[7],"%d",&debug);
+    if ((debug<0) || (debug>2)) {
+      printf("debug must be 0, 1 or 2!\n"); usage(); return 1;
+    }
+  }
+  if (argc>8) {
+    sscanf(argv[8],"%d",&kerpad);
+    if ((kerpad<0) || (kerpad>1)) {
+      printf("kerpad must be 0 or 1!\n"); usage(); return 1;
+    }
+  }
+  if (argc>9) {
+    sscanf(argv[9],"%d",&kerevalmeth);
+    if ((kerevalmeth<0) || (kerevalmeth>1)) {
+      printf("kerevalmeth must be 0 or 1!\n"); usage(); return 1;
+    }
+  }
+  if (argc>10) {
     usage(); return 1;
   }
 
@@ -75,20 +96,22 @@ int main(int argc, char* argv[])
   std::vector<FLT> d_uniform(2*Ng);                        // Re and Im
 
   spread_opts opts;
-  setup_spreader(opts,(FLT)tol,(FLT)2.0);
+  FLT upsampfac = 2.0; // big to test spreader error alone, or 2 or 1.25 for kerevalmeth=1
+  setup_spreader(opts,(FLT)tol,upsampfac,kerevalmeth);
   opts.pirange = 0;  // crucial, since the below has NU pts on [0,Nd] in each dim
-  //opts.chkbnds = 1;  // only for debug, since below code has correct bounds
-  opts.debug = 0;   // print more diagnostics
-  opts.sort = sort;  // for 3D: 1-6x faster on i7; but 0.5-0.9x (ie slower) on xeon!
+  opts.chkbnds = 0;  // only for debug, since below code has correct bounds
+  opts.debug = debug;   // print more diagnostics?
+  opts.sort = sort;
   opts.flags = flags;
-  //opts.max_subproblem_size = 1e4; // default 1e5
+  opts.kerpad = kerpad;
+  //opts.max_subproblem_size = 1e4; // default is 1e5; minimal difference
   FLT maxerr, ansmod;
   
   // spread a single source, only for reference accuracy check...
   opts.spread_direction=1;
   d_nonuniform[0] = 1.0; d_nonuniform[1] = 0.0;   // unit strength
   kx[0] = ky[0] = kz[0] = N/2.0;                  // at center
-  int ier = cnufftspread(N,N2,N3,d_uniform.data(),1,kx.data(),ky.data(),kz.data(),d_nonuniform.data(),opts);          // vector::data officially C++11 but works
+  int ier = spreadinterp(N,N2,N3,d_uniform.data(),1,kx.data(),ky.data(),kz.data(),d_nonuniform.data(),opts);          // vector::data officially C++11 but works
   if (ier!=0) {
     printf("error when spreading M=1 pt for ref acc check (ier=%d)!\n",ier);
     return ier;
@@ -120,15 +143,15 @@ int main(int argc, char* argv[])
   CNTime timer;
   double t;
   if (dodir1) {   // test direction 1 (NU -> U spreading) ......................
-    printf("cnufftspread %dD, %.3g U pts, dir=%d, tol=%.3g: nspread=%d\n",d,(double)Ng,opts.spread_direction,tol,opts.nspread);
+    printf("spreadinterp %dD, %.3g U pts, dir=%d, tol=%.3g: nspread=%d\n",d,(double)Ng,opts.spread_direction,tol,opts.nspread);
     timer.start();
-    ier = cnufftspread(N,N2,N3,d_uniform.data(),M,kx.data(),ky.data(),kz.data(),d_nonuniform.data(),opts);
+    ier = spreadinterp(N,N2,N3,d_uniform.data(),M,kx.data(),ky.data(),kz.data(),d_nonuniform.data(),opts);
     t=timer.elapsedsec();
     if (ier!=0) {
       printf("error (ier=%d)!\n",ier);
       return ier;
     } else
-      printf("\t%.3g NU pts in %.3g s \t%.3g pts/s \t%.3g spread pts/s\n",(double)M,t,M/t,pow(opts.nspread,d)*M/t);
+      printf("    %.3g NU pts in %.3g s \t%.3g pts/s \t%.3g spread pts/s\n",(double)M,t,M/t,pow(opts.nspread,d)*M/t);
   
     FLT sumre = 0.0, sumim = 0.0;   // check spreading accuracy, wrapping
 #pragma omp parallel for reduction(+:sumre,sumim)
@@ -140,7 +163,7 @@ int main(int argc, char* argv[])
     FLT pim = kersumim*strre + kersumre*strim;
     FLT maxerr = std::max(fabs(sumre-pre), fabs(sumim-pim));
     FLT ansmod = sqrt(sumre*sumre+sumim*sumim);
-    printf("\trel err in total over grid:      %.3g\n",maxerr/ansmod);
+    printf("    rel err in total over grid:      %.3g\n",maxerr/ansmod);
     // note this is weaker than below dir=2 test, but is good indicator that
     // periodic wrapping is correct
   }
@@ -164,15 +187,15 @@ int main(int argc, char* argv[])
   }
 
   opts.spread_direction=2;
-  printf("cnufftspread %dD, %.3g U pts, dir=%d, tol=%.3g: nspread=%d\n",d,(double)Ng,opts.spread_direction,tol,opts.nspread);
+  printf("spreadinterp %dD, %.3g U pts, dir=%d, tol=%.3g: nspread=%d\n",d,(double)Ng,opts.spread_direction,tol,opts.nspread);
   timer.restart();
-  ier = cnufftspread(N,N2,N3,d_uniform.data(),M,kx.data(),ky.data(),kz.data(),d_nonuniform.data(),opts);
+  ier = spreadinterp(N,N2,N3,d_uniform.data(),M,kx.data(),ky.data(),kz.data(),d_nonuniform.data(),opts);
   t=timer.elapsedsec();
   if (ier!=0) {
     printf("error (ier=%d)!\n",ier);
     return 1;
   } else
-    printf("\t%.3g NU pts in %.3g s \t%.3g pts/s \t%.3g spread pts/s\n",(double)M,t,M/t,pow(opts.nspread,d)*M/t);
+    printf("    %.3g NU pts in %.3g s \t%.3g pts/s \t%.3g spread pts/s\n",(double)M,t,M/t,pow(opts.nspread,d)*M/t);
 
   // math test is worst-case error from pred value (kersum) on interp pts:
   maxerr = 0.0;
@@ -182,7 +205,7 @@ int main(int argc, char* argv[])
     if (err>maxerr) maxerr=err;
   }
   ansmod = sqrt(kersumre*kersumre+kersumim*kersumim);
-  printf("\tmax rel err in values at NU pts: %.3g\n",maxerr/ansmod);
+  printf("    max rel err in values at NU pts: %.3g\n",maxerr/ansmod);
   // this is stronger test than for dir=1, since it tests sum of kernel for
   // each NU pt. However, it cannot detect reading
   // from wrong grid pts (they are all unity)

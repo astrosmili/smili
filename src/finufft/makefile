@@ -93,41 +93,46 @@ endif
 # ======================================================================
 
 # objects to compile: spreader...
-SOBJS = src/cnufftspread.o src/utils.o
+SOBJS = src/spreadinterp.o src/utils.o
 # for NUFFT library and its testers...
 OBJS = $(SOBJS) src/finufft1d.o src/finufft2d.o src/finufft3d.o src/dirft1d.o src/dirft2d.o src/dirft3d.o src/common.o contrib/legendre_rule_fast.o src/finufft_c.o fortran/finufft_f.o
+# just the dimensions (1,2,3) separately...
 OBJS1 = $(SOBJS) src/finufft1d.o src/dirft1d.o src/common.o contrib/legendre_rule_fast.o
 OBJS2 = $(SOBJS) src/finufft2d.o src/dirft2d.o src/common.o contrib/legendre_rule_fast.o
 OBJS3 = $(SOBJS) src/finufft3d.o src/dirft3d.o src/common.o contrib/legendre_rule_fast.o
 # for Fortran interface demos...
 FOBJS = fortran/dirft1d.o fortran/dirft2d.o fortran/dirft3d.o fortran/dirft1df.o fortran/dirft2df.o fortran/dirft3df.o fortran/prini.o
 
-HEADERS = src/cnufftspread.h src/finufft.h src/dirft.h src/common.h src/utils.h src/finufft_c.h fortran/finufft_f.h
+HEADERS = src/spreadinterp.h src/finufft.h src/dirft.h src/common.h src/utils.h src/finufft_c.h fortran/finufft_f.h
 
-.PHONY: usage lib examples test perftest fortran matlab octave all mex
+.PHONY: usage lib examples test perftest fortran matlab octave all mex python python3 clean objclean pyclean mexclean
 
 default: usage
 
-all: test perftest lib examples fortran matlab octave
+all: test perftest lib examples fortran matlab octave python3
 
 usage:
 	@echo "Makefile for FINUFFT library. Specify what to make:"
-	@echo " make lib - compile the main libraries (in lib/ and lib-static/)"
+	@echo " make lib - compile the main library (in lib/ and lib-static/)"
 	@echo " make examples - compile and run codes in examples/"
-	@echo " make test - compile and run math validation tests"
+	@echo " make test - compile and run quick math validation tests"
 	@echo " make perftest - compile and run performance tests"
 	@echo " make fortran - compile and test Fortran interfaces"
-	@echo " make matlab - compile Matlab interfaces"
+	@echo " make matlab - compile MATLAB interfaces"
 	@echo " make octave - compile and test octave interfaces"
-	@echo " make all - do all of the above"
+	@echo " make python3 - compile and test python3 interfaces"
+	@echo " make all - do all the above (around 1 minute; assumes you have MATLAB, etc)"
+	@echo " make python - compile and test python (v2) interfaces"
 	@echo " make spreadtest - compile and run spreader tests only"
-	@echo " make clean - remove all object and executable files apart from MEX"
+	@echo " make objclean - remove all object files, preserving lib & MEX"
+	@echo " make clean - also remove lib, MEX, py, and demo executables"
 	@echo "For faster (multicore) making, append the flag -j"
 	@echo ""
-	@echo "Compile options: make [task] PREC=SINGLE for single-precision"
-	@echo " make [task] OMP=OFF for single-threaded (otherwise openmp)"
+	@echo "Compile options: 'make [task] PREC=SINGLE' for single-precision"
+	@echo " 'make [task] OMP=OFF' for single-threaded (otherwise OpenMP)"
+	@echo " You must 'make objclean' before changing such options!"
 	@echo ""
-	@echo "To make python/python3 interfaces, see docs/install.rst"
+	@echo "Also see docs/install.rst"
 
 # implicit rules for objects (note -o ensures writes to correct dir)
 %.o: %.cpp %.h
@@ -172,8 +177,10 @@ test/finufft2d_test: test/finufft2d_test.cpp $(OBJS2) $(HEADERS)
 	$(CXX) $(CXXFLAGS) test/finufft2d_test.cpp $(OBJS2) $(LIBSFFT) -o test/finufft2d_test
 test/finufft3d_test: test/finufft3d_test.cpp $(OBJS3) $(HEADERS)
 	$(CXX) $(CXXFLAGS) test/finufft3d_test.cpp $(OBJS3) $(LIBSFFT) -o test/finufft3d_test
-test/dumbinputs: test/dumbinputs.cpp lib-static/libfinufft.a $(HEADERS)
-	$(CXX) $(CXXFLAGS) test/dumbinputs.cpp lib-static/libfinufft.a $(LIBSFFT) -o test/dumbinputs
+test/dumbinputs: test/dumbinputs.cpp $(STATICLIB) $(HEADERS)
+	$(CXX) $(CXXFLAGS) test/dumbinputs.cpp $(STATICLIB) $(LIBSFFT) -o test/dumbinputs
+test/finufft2dmany_test: test/finufft2dmany_test.cpp $(OBJS2) $(HEADERS)
+	$(CXX) $(CXXFLAGS) test/finufft2dmany_test.cpp $(OBJS2) $(LIBSFFT) -o test/finufft2dmany_test
 
 # performance tests...
 perftest: test/spreadtestnd test/finufft1d_test test/finufft2d_test test/finufft3d_test
@@ -190,26 +197,37 @@ spreadtest: test/spreadtestnd
 	test/spreadtestnd 3 8e6 8e6 1e-6 1 0
 
 # fortran interface...
-F1=fortran/nufft1d_demo$(SUFFIX)
-F2=fortran/nufft2d_demo$(SUFFIX)
-F3=fortran/nufft3d_demo$(SUFFIX)
+F1=fortran/nufft1d_demo$(PRECSUFFIX)
+F2=fortran/nufft2d_demo$(PRECSUFFIX)
+F3=fortran/nufft3d_demo$(PRECSUFFIX)
+F4=fortran/nufft2dmany_demo$(PRECSUFFIX)
 fortran: $(FOBJS) $(OBJS) $(HEADERS)
 	$(FC) $(FFLAGS) $(F1).f $(FOBJS) $(OBJS) $(LIBSFFT) $(FLINK) -o $(F1)
 	$(FC) $(FFLAGS) $(F2).f $(FOBJS) $(OBJS) $(LIBSFFT) $(FLINK) -o $(F2)
 	$(FC) $(FFLAGS) $(F3).f $(FOBJS) $(OBJS) $(LIBSFFT) $(FLINK) -o $(F3)
+	$(FC) $(FFLAGS) $(F4).f $(FOBJS) $(OBJS) $(LIBSFFT) $(FLINK) -o $(F4)
 	time -p $(F1)
 	time -p $(F2)
 	time -p $(F3)
+	time -p $(F4)
 
 # matlab .mex* executable...
-matlab: lib-static/libfinufft.a $(HEADERS) matlab/finufft_m.o
-	$(MEX) matlab/finufft.cpp lib-static/libfinufft.a matlab/finufft_m.o $(MFLAGS) $(LIBSFFT) -output matlab/finufft
+matlab: $(STATICLIB) $(HEADERS) matlab/finufft_m.cpp
+ifeq ($(PREC),SINGLE)
+	@echo "MATLAB interface only supports double precision; doing nothing"
+else
+	$(MEX) matlab/finufft.cpp $(STATICLIB) matlab/finufft_m.cpp $(MFLAGS) $(LIBSFFT) -output matlab/finufft
+endif
 
-# octave .mex executable... (notice also creates matlab/finufft.o, but why?)
-octave: lib-static/libfinufft.a $(HEADERS) matlab/finufft_m.o
-	(cd matlab; mkoctfile --mex finufft.cpp ../lib-static/libfinufft.a finufft_m.o $(OFLAGS) $(LIBSFFT) -output finufft)
+# octave .mex executable... (also creates matlab/finufft.o for some reason)
+octave: $(STATICLIB) $(HEADERS) matlab/finufft_m.cpp
+ifeq ($(PREC),SINGLE)
+	@echo "Octave interface only supports double precision; doing nothing"
+else
+	(cd matlab; mkoctfile --mex finufft.cpp ../$(STATICLIB) finufft_m.cpp $(OFLAGS) $(LIBSFFT) -output finufft)
 	@echo "Running octave interface test; please wait a few seconds..."
 	(cd matlab; octave check_finufft.m)
+endif
 
 # for experts; force rebuilds fresh MEX (matlab/octave) gateway via mwrap...
 # (needs mwrap)
@@ -217,6 +235,24 @@ mex: matlab/finufft.mw
 	(cd matlab;\
 	$(MWRAP) -list -mex finufft -cppcomplex -mb finufft.mw ;\
 	$(MWRAP) -mex finufft -c finufft.cpp -cppcomplex finufft.mw )
+
+# python(3) interfaces...
+python: $(STATICLIB)
+ifeq ($(PREC),SINGLE)
+	@echo "python interface only supports double precision; doing nothing"
+else
+	pip install .
+	python python_tests/demo1d1.py
+	python python_tests/run_accuracy_tests.py
+endif
+python3: $(STATICLIB)
+ifeq ($(PREC),SINGLE)
+	@echo "python3 interface only supports double precision; doing nothing"
+else
+	pip3 install .
+	python3 python_tests/demo1d1.py
+	python3 python_tests/run_accuracy_tests.py
+endif
 
 # various obscure tests...
 # This was for a CCQ application; zgemm was faster!

@@ -2,7 +2,7 @@
 
 ### Alex H. Barnett and Jeremy F. Magland
 
-<img src="docs/logo.png" width="400"/>
+<img src="docs/logo.png" width="350"/>
 <img src="docs/spreadpic.png" width="400"/>
 
 This is a lightweight library to compute the three standard types of nonuniform FFT to a specified precision, in one, two, or three dimensions. It is written in C++ with interfaces to C, Fortran, MATLAB/octave, and python. A julia interface
@@ -14,10 +14,10 @@ You will also want to see example codes in the directories
 
 If you prefer to read text files, the source to generate the above documentation is in human-readable (mostly .rst) files as follows:
 
-- `docs/install.rst` : installation instructions
+- `docs/install.rst` : installation and compilation instructions
 - `docs/math.rst` : mathematical definitions
 - `docs/dirs.rst` : explanation of directories and files in the package
-- `docs/usage.rst` : C++ routine interfaces, compilation options, and notes
+- `docs/usage.rst` : C++ routine interfaces, and notes on parameters
 - `docs/matlabhelp.raw` : MATLAB/octave interfaces
 - `finufftpy/_interfaces.py` : python interface docstrings
 - `docs/issues.rst` : known issues and bug reports

@@ -6,36 +6,40 @@ TRACTABLE USER PROJECTS - PLEASE HELP:
 
 * Add a real-valued spreader option which will be faster and use half the RAM: but how avoid code duplication? - C++ template the spreader and all inside it?
 
+* extend the 2d1many and 2d2many interfaces to the seven other ?d? cases.
+
+* GPU spreader (in progress)
+
 * Professionalize the single-precision version:
- - decide if should compile single-prec library with new names ("f" suffix), rather than current overall compile option which keeps names the same?
  - fix matlab, octave, and python interfaces for single-prec.
 
 * Get huge arrays >2^31 working in 2d,3d in C++, and for any d in MATLAB/octave.
 
+* R interface?
+
+* support for OSX and Windows.
+
 * Package as RPM and .deb for linux
 
 
-HIGH PRIORITY TODO:
+HIGH PRIORITY TODO: (also see above)
 
-* understand rare segfaults one user reported calling from matlab.
-* understand why two modeords not give bit-wise same answers in check_modeords.m (really why it's stochastic either exactly zero or around 1e-13)
-* docs add Flatiron logo; host at FI github.
-* Decide if non vs omp get different lib names?
-* add the other C interfaces to finufft_c, after understand if use of _Complex is good.
-* figure out why bottom out ~ 1e-10 err for big arrays in 1d. unavoidable roundoff? small arrays get to 1e-14.
-* Work on Mac OSX: 1) fix: `make lib` fails to make the shared object library (.so), 2) ship .mexmaci64, 3) better install notes.
-* Licensing of G-L quad code: swap out Nick Hale's Gauss-Legendre nodes code, is GPL, replace w/ any small-n G-L code, eg legendre GLR with hellskitchen BSD version.
-* Writing:
- - speed and parallel scaling for uniform and surface-like NU pts dists, figures
- - finish nufft_comparison for paper; type 2,3. Compare vs NFFT (Chemnitz), maybe gpuNUFFT (Knoll)
+* check the slow speed for fancy t1 spreader when doing nothing, eg
+test/spreadtestnd 1 1e8 1e7 1e-6 0 9 1
+Ie, decide to switch out fancy t1 spreader sometimes? Yes, make basic spreader.
+* host at FI github.
+* Work on Mac OSX: 1) fix: `make lib` fails to make the shared object library (.so), 2) ship .mexmaci64, 3) understand why clang needs _Complex removed.
 * release, outreach, users, NA-Digest
 
 
 LOWER PRIORITY TODO:
 
+* for each of nine routines: a (plan, execute, destroy) advanced interface which saves the FFTW widsom. This would create a mess of interfaces, but would avoid cost of FFTW looking up saved wisdom which dominates for small problems.
+* Return FFTW's internal state to single-threaded upon exit from finufft (deals with Marina & Andras' problem where fftw was then kicked from single to multi-threaded by an intervening finufft call).
+* understand why two modeords not give bit-wise same answers in check_modeords.m (really why it's stochastic either exactly zero or around 1e-13)
+* Decide if non vs omp get different lib names? not yet
 * check possible transpose convention for 2d,3d, found by David S.
 * Intel MKL FFT interface option instead of FFTW?
-* docs: format equation numbers on same line in sphinx+mathjax
 * swap out mallocs for std:vector in finufft?
 * recoup DFM's PyPI publishing of finufftpy, maybe awkward
 * figure why matlab/MEX gives zero answers for >=2e31 array sizes (big1dtest.m), and then change .mw to use inout with allocation by matlab, to bypass the mwrap reliance on int 32 type.
@@ -46,4 +50,3 @@ LOWER PRIORITY TODO:
 * figure out how to set up path to link to shared library - rpath?
 * MS Windows test
 * rewrite fftw3 plans via 64bit guru interface to allow eg 1024^3 type 1 or 2 in 3D. Not sure needed (only for huge 1d transforms). see http://www.fftw.org/fftw3_doc/Guru-Interface.html#Guru-Interface
-* R interface

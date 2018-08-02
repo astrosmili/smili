@@ -455,37 +455,24 @@ class VisTable(UVTable):
         dy_rad = np.deg2rad(imfits.header["dy"])
 
         # apply the imaging area
-        if mask is None:
-            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
-            Iin = Iin.reshape(Nyx)
-            x = x.reshape(Nyx)
-            y = y.reshape(Nyx)
-            xidx = xidx.reshape(Nyx)
-            yidx = yidx.reshape(Nyx)
-        else:
-            print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
-            idx = np.where(mask)
-            Iin = Iin[idx]
-            x = x[idx]
-            y = y[idx]
-            xidx = xidx[idx]
-            yidx = yidx[idx]
+        Iin = Iin.reshape(Nyx)
+        x = x.reshape(Nyx)
+        y = y.reshape(Nyx)
+        xidx = xidx.reshape(Nyx)
+        yidx = yidx.reshape(Nyx)
 
         # Full Complex Visibility
         if not amptable:
             Ndata = 0
             fcvtable = self.copy()
-            phase = np.deg2rad(np.array(fcvtable["phase"], dtype=np.float64))
-            amp = np.array(fcvtable["amp"], dtype=np.float64)
-            vfcvr = np.float64(amp*np.cos(phase))
-            vfcvi = np.float64(amp*np.sin(phase))
-            varfcv = np.square(np.array(fcvtable["sigma"], dtype=np.float64))
+            vfcvr = fcvtable.real()
+            vfcvi = fcvtable.imag()
+            varfcv = np.square(fcvtable.sigma.values)
             Ndata += len(varfcv)
-            del phase, amp
 
             # get uv coordinates and uv indice
             u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
-                    fcvtable=fcvtable, amptable=None, bstable=None, catable=None
+                fcvtable=fcvtable, amptable=None, bstable=None, catable=None
             )
 
             # normalize u, v coordinates
@@ -494,23 +481,23 @@ class VisTable(UVTable):
 
             # run model_fcv
             model = fortlib.fftlib.model_fcv(
-                    # Images
-                    iin=np.float64(Iin),
-                    xidx=np.int32(xidx),
-                    yidx=np.int32(yidx),
-                    nxref=np.float64(Nxref),
-                    nyref=np.float64(Nyref),
-                    nx=np.int32(Nx),
-                    ny=np.int32(Ny),
-                    # UV coordinates,
-                    u=u,
-                    v=v,
-                    # Full Complex Visibilities
-                    uvidxfcv=np.int32(uvidxfcv),
-                    vfcvr=np.float64(vfcvr),
-                    vfcvi=np.float64(vfcvi),
-                    varfcv=np.float64(varfcv)
-                    )
+                # Images
+                iin=np.float64(Iin),
+                xidx=np.int32(xidx),
+                yidx=np.int32(yidx),
+                nxref=np.float64(Nxref),
+                nyref=np.float64(Nyref),
+                nx=np.int32(Nx),
+                ny=np.int32(Ny),
+                # UV coordinates,
+                u=np.float64(u),
+                v=np.float64(v),
+                # Full Complex Visibilities
+                uvidxfcv=np.int32(uvidxfcv),
+                vfcvr=np.float64(vfcvr),
+                vfcvi=np.float64(vfcvi),
+                varfcv=np.float64(varfcv)
+            )
 
             return model,Ndata
 
@@ -1867,29 +1854,29 @@ class VisTable(UVTable):
         # u-v coverage
         u = np.copy(self["u"].values)
         v = np.copy(self["v"].values)
-        u *= 2*np.pi*dx_rad
-        v *= 2*np.pi*dy_rad
+        u *= 2*np.pi*dx_rad * -1
+        v *= 2*np.pi*dy_rad * -1
         ut = np.concatenate([u,-u])
         vt = np.concatenate([v,-v])
         Nuv = len(ut)
 
         # u-v coverage
-        dix = Nxref - Nx/2 - 1
-        diy = Nyref - Ny/2 - 1
-        Vsynsc = np.exp(1j * (ut*dix + vt*diy) * -1)
+        dix = Nx/2. + 1 - Nxref
+        diy = Ny/2. + 1 - Nyref
+        Vsynsc = np.exp(1j * (ut*dix + vt*diy))
         Vsynsr = np.real(Vsynsc)
         Vsynsi = np.imag(Vsynsc)
 
         # weight
         if errorweight==0:
             weightc = 1.
-            #sum_w = Nuv
+            sum_w = Nuv
         else:
             weight  = np.power(self["sigma"].values, errorweight)
             weightc = np.concatenate([weight,weight])
-            #sum_w   = weightc.sum()
-        Vinreal = Vsynsr*weightc#/sum_w
-        Vinimag = Vsynsi*weightc#/sum_w
+            sum_w   = weightc.sum()
+        Vinreal = Vsynsr*weightc/sum_w
+        Vinimag = Vsynsi*weightc/sum_w
 
         # synthesized beam
         Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
@@ -1937,24 +1924,24 @@ class VisTable(UVTable):
         Vcomp_data = np.concatenate([Vcomp_data, np.conj(Vcomp_data)])
 
         # shift the tracking center to the center of the image
-        dix = Nxref - Nx/2 - 1
-        diy = Nyref - Ny/2 - 1
-        Vcomp_data = Vcomp_data * np.exp(1j * (ut*dix + vt*diy))
+        dix = Nx/2. + 1 - Nxref
+        diy = Ny/2. + 1 - Nyref
+        Vcomp_data *= np.exp(1j * (ut*dix + vt*diy))
         Vfcvrt = np.real(Vcomp_data)
         Vfcvit = np.imag(Vcomp_data)
 
         # weight
         if errorweight==0:
             weightc = 1.
-            #sum_w   = Nuv
+            sum_w   = Nuv
         else:
             weight  = np.power(self["sigma"].values, errorweight)
             weightc = np.concatenate([weight,weight])
-            #sum_w   = weightc.sum()
+            sum_w   = weightc.sum()
 
         # take weighted residual between data and model visibilities
-        Vfcvrt*= weightc#/sum_w
-        Vfcvit*= weightc#/sum_w
+        Vfcvrt*= weightc/sum_w
+        Vfcvit*= weightc/sum_w
 
         # compute residual image
         residual=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vfcvrt,Vfcvit,Nx,Ny,Nuv)

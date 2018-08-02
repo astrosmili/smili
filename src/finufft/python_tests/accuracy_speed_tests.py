@@ -1,7 +1,8 @@
 # Jeremy Magland, Sept 2017.
 # Alex Barnett fixed integer division issue in python v2 vs v3
 #              (affected 1/2, 1/3), 10/13/17.
-# Removed ms etc from ?d2 interfaces, 10/31/17.
+# Removed ms etc from ?d2 interfaces, 10/31/17. Less reruns 2/14/18.
+# 2d1many and 2d2many added, painfully, Barnett 7/29/18
 
 import numpy as np
 import finufftpy
@@ -20,13 +21,13 @@ def print_report(label,elapsed,Xest,Xtrue,npts):
 	print(label+':')
 	print('    Est rel l2 err  %.3g' % (compute_error(Xest,Xtrue)))
 	print('    CPU time (sec)  %.3g' % (elapsed))
-	print('    NU pts/sec      %.3g' % (npts/elapsed))
+	print('    tot NU pts/sec  %.3g' % (npts/elapsed))
 	print('')
 
 def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	nj,nk = int(num_nonuniform_points),int(num_nonuniform_points)
 	iflag=1
-	num_samples=int(np.minimum(20,num_uniform_points*0.5+1)) #for estimating accuracy
+	num_samples=int(np.minimum(5,num_uniform_points*0.5+1)) # number of outputs used for estimating accuracy; is small for speed
 
 	print('Accuracy and speed tests for %d nonuniform points and eps=%g (error estimates use %d samples per run)' % (num_nonuniform_points,eps,num_samples))
 
@@ -34,14 +35,14 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	Xest=np.zeros(num_samples,dtype=np.complex128)
 	Xtrue=np.zeros(num_samples,dtype=np.complex128)
 
-	###### 1-d
+	###### 1-d cases ........................................................
 	ms=int(num_uniform_points)
 
 	xj=np.random.rand(nj)*2*math.pi-math.pi
 	cj=np.random.rand(nj)+1j*np.random.rand(nj);
 	fk=np.zeros([ms],dtype=np.complex128)
 	timer=time.time()
-	ret=finufftpy.finufft1d1(xj,cj,iflag,eps,ms,fk)
+	ret=finufftpy.nufft1d1(xj,cj,iflag,eps,ms,fk)
 	elapsed=time.time()-timer
 
 	k=np.arange(-np.floor(ms/2),np.floor((ms-1)/2+1))
@@ -54,7 +55,7 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	cj=np.zeros([nj],dtype=np.complex128);
 	fk=np.random.rand(ms)+1j*np.random.rand(ms);
 	timer=time.time()
-	ret=finufftpy.finufft1d2(xj,cj,iflag,eps,fk)
+	ret=finufftpy.nufft1d2(xj,cj,iflag,eps,fk)
 	elapsed=time.time()-timer
 
 	k=np.arange(-np.floor(ms/2),np.floor((ms-1)/2+1))
@@ -68,7 +69,7 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	s=np.random.rand(nk)*2*math.pi-math.pi
 	f=np.zeros([nk],dtype=np.complex128)
 	timer=time.time()
-	ret=finufftpy.finufft1d3(x,c,iflag,eps,s,f)
+	ret=finufftpy.nufft1d3(x,c,iflag,eps,s,f)
 	elapsed=time.time()-timer
 
 	for ii in np.arange(0,num_samples):
@@ -76,16 +77,16 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 		Xtrue[ii]=f[ii]
 	print_report('finufft1d3',elapsed,Xest,Xtrue,nj+nk)
 
-	###### 2-d
+	###### 2-d cases ....................................................
 	ms=int(np.ceil(np.sqrt(num_uniform_points)))
 	mt=ms
 
 	xj=np.random.rand(nj)*2*math.pi-math.pi
 	yj=np.random.rand(nj)*2*math.pi-math.pi
-	cj=np.random.rand(nj)+1j*np.random.rand(nj);
+	cj=np.random.rand(nj)+1j*np.random.rand(nj)
 	fk=np.zeros([ms,mt],dtype=np.complex128,order='F')
 	timer=time.time()
-	ret=finufftpy.finufft2d1(xj,yj,cj,iflag,eps,ms,mt,fk)
+	ret=finufftpy.nufft2d1(xj,yj,cj,iflag,eps,ms,mt,fk)
 	elapsed=time.time()-timer
 
 	Ks,Kt=np.mgrid[-np.floor(ms/2):np.floor((ms-1)/2+1),-np.floor(mt/2):np.floor((mt-1)/2+1)]
@@ -95,12 +96,27 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 		Xtrue[ii]=fk.ravel()[ii]
 	print_report('finufft2d1',elapsed,Xest,Xtrue,nj)
 
+	## 2d1many:
+	ndata = 5       # how many vectors to do
+	cj=np.array(np.random.rand(nj,ndata)+1j*np.random.rand(nj,ndata),order='F')
+	fk=np.zeros([ms,mt,ndata],dtype=np.complex128,order='F')
+	timer=time.time()
+	ret=finufftpy.nufft2d1many(xj,yj,cj,iflag,eps,ms,mt,fk)
+	elapsed=time.time()-timer
+
+	dtest = ndata-1    # which of the ndata to test (in 0,..,ndata-1)
+	for ii in np.arange(0,num_samples):
+		Xest[ii]=np.sum(cj[:,dtest] * np.exp(1j*(Ks.ravel(order='F')[ii]*xj+Kt.ravel(order='F')[ii]*yj)))   # note fortran-ravel-order needed throughout - mess.
+		Xtrue[ii]=fk.ravel(order='F')[ii + dtest*ms*mt]       # hack the offset in fk array - has to be better way
+	print_report('finufft2d1many',elapsed,Xest,Xtrue,ndata*nj)
+
+	# 2d2
 	xj=np.random.rand(nj)*2*math.pi-math.pi
 	yj=np.random.rand(nj)*2*math.pi-math.pi
 	cj=np.zeros([nj],dtype=np.complex128);
 	fk=np.random.rand(ms,mt)+1j*np.random.rand(ms,mt);
 	timer=time.time()
-	ret=finufftpy.finufft2d2(xj,yj,cj,iflag,eps,fk)
+	ret=finufftpy.nufft2d2(xj,yj,cj,iflag,eps,fk)
 	elapsed=time.time()-timer
 
 	Ks,Kt=np.mgrid[-np.floor(ms/2):np.floor((ms-1)/2+1),-np.floor(mt/2):np.floor((mt-1)/2+1)]
@@ -109,6 +125,19 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 		Xtrue[ii]=cj[ii]
 	print_report('finufft2d2',elapsed,Xest,Xtrue,nj)
 
+	# 2d2many (using same ndata and dtest as 2d1many; see above)
+	cj=np.zeros([nj,ndata],order='F',dtype=np.complex128);
+	fk=np.array(np.random.rand(ms,mt,ndata)+1j*np.random.rand(ms,mt,ndata),order='F')
+	timer=time.time()
+	ret=finufftpy.nufft2d2many(xj,yj,cj,iflag,eps,fk)
+	elapsed=time.time()-timer
+
+	for ii in np.arange(0,num_samples):
+		Xest[ii]=np.sum(fk[:,:,dtest] * np.exp(1j*(Ks*xj[ii]+Kt*yj[ii])))
+		Xtrue[ii]=cj[ii,dtest]
+	print_report('finufft2d2many',elapsed,Xest,Xtrue,ndata*nj)
+	
+	# 2d3
 	x=np.random.rand(nj)*2*math.pi-math.pi
 	y=np.random.rand(nj)*2*math.pi-math.pi
 	c=np.random.rand(nj)+1j*np.random.rand(nj);
@@ -116,7 +145,7 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	t=np.random.rand(nk)*2*math.pi-math.pi
 	f=np.zeros([nk],dtype=np.complex128)
 	timer=time.time()
-	ret=finufftpy.finufft2d3(x,y,c,iflag,eps,s,t,f)
+	ret=finufftpy.nufft2d3(x,y,c,iflag,eps,s,t,f)
 	elapsed=time.time()-timer
 
 	for ii in np.arange(0,num_samples):
@@ -124,7 +153,7 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 		Xtrue[ii]=f[ii]
 	print_report('finufft2d3',elapsed,Xest,Xtrue,nj+nk)
 
-	###### 3-d
+	###### 3-d cases ............................................................
 	ms=int(np.ceil(num_uniform_points**(1.0/3)))
 	mt=ms
 	mu=ms
@@ -135,7 +164,7 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	cj=np.random.rand(nj)+1j*np.random.rand(nj);
 	fk=np.zeros([ms,mt,mu],dtype=np.complex128,order='F')
 	timer=time.time()
-	ret=finufftpy.finufft3d1(xj,yj,zj,cj,iflag,eps,ms,mt,mu,fk)
+	ret=finufftpy.nufft3d1(xj,yj,zj,cj,iflag,eps,ms,mt,mu,fk)
 	elapsed=time.time()-timer
 
 	Ks,Kt,Ku=np.mgrid[-np.floor(ms/2):np.floor((ms-1)/2+1),-np.floor(mt/2):np.floor((mt-1)/2+1),-np.floor(mu/2):np.floor((mu-1)/2+1)]
@@ -150,7 +179,7 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	cj=np.zeros([nj],dtype=np.complex128);
 	fk=np.random.rand(ms,mt,mu)+1j*np.random.rand(ms,mt,mu);
 	timer=time.time()
-	ret=finufftpy.finufft3d2(xj,yj,zj,cj,iflag,eps,fk)
+	ret=finufftpy.nufft3d2(xj,yj,zj,cj,iflag,eps,fk)
 	elapsed=time.time()-timer
 
 	Ks,Kt,Ku=np.mgrid[-np.floor(ms/2):np.floor((ms-1)/2+1),-np.floor(mt/2):np.floor((mt-1)/2+1),-np.floor(mu/2):np.floor((mu-1)/2+1)]
@@ -168,7 +197,7 @@ def accuracy_speed_tests(num_nonuniform_points,num_uniform_points,eps):
 	u=np.random.rand(nk)*2*math.pi-math.pi
 	f=np.zeros([nk],dtype=np.complex128)
 	timer=time.time()
-	ret=finufftpy.finufft3d3(x,y,z,c,iflag,eps,s,t,u,f)
+	ret=finufftpy.nufft3d3(x,y,z,c,iflag,eps,s,t,u,f)
 	elapsed=time.time()-timer
 
 	for ii in np.arange(0,num_samples):

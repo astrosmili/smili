@@ -11,13 +11,13 @@ follow instructions (eg see the green button).
 Dependencies
 ************
 
-This library is currently only supported for unix/linux,
-and partially for Mac OSX. We have heard that it can be compiled
+This library is currently supported for unix/linux
+and also tested on Mac OSX. We have heard that it can be compiled
 on Windows too.
 
 For the basic libraries
 
-* C++ compiler such as ``g++`` packaged with GCC
+* C++ compiler, such as ``g++`` packaged with GCC
 * FFTW3
 * GNU make
 
@@ -27,7 +27,7 @@ Optional:
 * for Fortran wrappers: compiler such as ``gfortran``
 * for matlab/octave wrappers: MATLAB, or octave and its development libraries
 * for building new matlab/octave wrappers (experts only): ``mwrap``
-* for the python wrappers you will need ``python`` and ``pip`` (if you prefer python v2), or ``python3`` and ``pip3`` (for python v3)
+* for the python wrappers you will need ``python`` and ``pip`` (if you prefer python v2), or ``python3`` and ``pip3`` (for python v3). You will also need ``pybind11``
 
 
 Tips for installing dependencies on various operating systems
@@ -77,6 +77,7 @@ Download the latest ``numdiff`` from the above URL, un-tar the package, cd into 
 Installing MWrap
 ----------------
 
+This is not needed for most users.
 `MWrap <http://www.cs.cornell.edu/~bindel/sw/mwrap>`_
 is a very useful MEX interface generator by Dave Bindel.
 Make sure you have ``flex`` and ``bison`` installed.
@@ -88,23 +89,44 @@ Download version 0.33 or later from http://www.cs.cornell.edu/~bindel/sw/mwrap, 
 Compilation
 ***********
 
-Compile and test FINUFFT via::
+We first describe compilation for default options (double precision, openmp) via GCC.
+If you have a nonstandard unix environment (eg a Mac) or want to change the compiler,
+then place your compiler and linking options in a new file ``make.inc``.
+For example such files see ``make.inc.*``. See ``makefile`` for what can be overridden.
+
+Compile and do a rapid (less than 1-second) test of FINUFFT via::
 
   make test
 
-or, to compile using all available cores::
-
-  make test -j
-
 This should compile the main libraries then run tests which should report zero crashes and zero fails. (If numdiff was not installed, it instead produces output that you will have to check by eye matches the requested accuracy.)
-If you have an error then ``cp makefile makefile.local``,
-edit ``makefile.local`` to adjust compiler and other library options,
-and use ``make -f makefile.local test``.
+
+Use ``make perftest`` for larger spreader and NUFFT tests taking 15-30 seconds.
+
 Run ``make`` without arguments for full list of possible make tasks.
 
+Note that the library includes the C and fortran interfaces
+defined in ``src/finufft_c.h`` and ``fortran/finufft_f.h`` respectively.
 If there is an error in testing on a standard set-up,
-please file a bug report as a New
-Issue at https://github.com/ahbarnett/finufft/issues
+please file a bug report as a New Issue at https://github.com/ahbarnett/finufft/issues
+
+Custom library compilation options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You may want to make the library for other data types. Currently
+library names are distinct for single precision (libfinufftf) vs
+double (libfinufft). However, single-threaded vs multithreaded are
+built with the same name, so you will have to move them to other
+locations, or build a 2nd copy of the repo, if you want to keep both
+versions.
+
+You *must* do at least ``make objclean`` before changing precision or openmp options.
+
+**Single precision**: append ``PREC=SINGLE`` to the make task.
+Single-precision saves half the RAM, and increases
+speed slightly (<20%). The  C++, C, and fortran demos are all tested in
+single precision. However, it will break matlab, octave, python interfaces.
+
+**Single-threaded**: append ``OMP=OFF`` to the make task.
 
 
 Building examples and wrappers
@@ -120,27 +142,35 @@ The ``examples`` and ``test`` directories are good places to see usage examples.
 
 ``make octave`` to build the MEX-like interface to octave.
 
+On Mac OSX, we have found that the MATLAB MEX settings need to be
+overridden: edit the file ``mex_C++_maci64.xml`` in the MATLAB distro,
+to read, for instance::
+
+  CC="gcc-8"
+  CXX="g++-8"
+  CFLAGS="-ansi -D_GNU_SOURCE -fexceptions -fPIC -fno-omit-frame-pointer -pthread"
+  CXXFLAGS="-ansi -D_GNU_SOURCE -fPIC -fno-omit-frame-pointer -pthread"
+
+These settings are copied from the ``glnxa64`` case. Here you will want to replace the compilers by whatever version of GCC you have installed.
+For pre-2016 MATLAB Mac OSX versions you'll instead want to edit the ``maci64``
+section of ``mexopts.sh``.
+
 
 Building the python wrappers
 ****************************
 
-First make sure you have python3 and pip3 (or python and pip) installed and that you have already compiled the C++ library (eg via ``make lib``). Next make
-sure you have NumPy installed::
+First make sure you have python3 and pip3 (or python and pip) installed and that you have already compiled the C++ library (eg via ``make lib``).
+Python links to this compiled library.
+Next make sure you have NumPy and pybind11 installed::
   
-  pip3 install numpy
+  pip3 install numpy pybind11
 
-Then do the following from the main ``finufft`` install directory::
+You may then do ``make python3`` which calls
+pip3 for the install then runs some tests. An additional test you could do is::
 
-  pip3 install .
-
-You can then run the tests as follows::
-
-  cd python_tests
-  python3 demo1d1.py
-  python3 run_accuracy_tests.py
   python3 run_speed_tests.py
 
-In all of the above the "3" can be omitted if you want to work with python v2.
+In all the above the "3" can be omitted if you want to work with python v2.
 
 See also Dan Foreman-Mackey's earlier repo that also wraps finufft, and from which we have drawn code: `python-finufft <https://github.com/dfm/python-finufft>`_
 

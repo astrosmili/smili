@@ -713,7 +713,6 @@ class IMFITS(object):
         outdic["majsize"] = self.header["bmaj"] * conv
         outdic["minsize"] = self.header["bmin"] * conv
         outdic["pa"] = self.header["bpa"]
-        outdic["scale"] = 1.
         outdic["angunit"] = angunit
         return outdic
 
@@ -1214,11 +1213,16 @@ class IMFITS(object):
         plot contours of the image
 
         Args:
-          istokes (integer): index for Stokes Parameter at which the image will be plotted
-          ifreq (integer): index for Frequency at which the image will be plotted
-          angunit (string): Angular Unit for the axis labels (pixel, uas, mas, asec or arcsec, amin or arcmin, degree)
-          colors (string, array-like): colors of contour levels
-          cmul: The lowest contour level. Default value is 1% of the peak intensity.
+          istokes (integer):
+            index for Stokes Parameter at which the image will be plotted
+          ifreq (integer):
+            index for Frequency at which the image will be plotted
+          colors (string, array-like):
+            colors of contour levels
+          cmul (float; default=None):
+            The lowest contour level. Default value is 1% of the peak intensity.
+          relative (boolean, default=True):
+            If true, cmul will be the relative value to the peak intensity.
           levels: contour level. This will be multiplied with cmul.
           **contour_args: Args will be input in matplotlib.pyplot.contour
         '''

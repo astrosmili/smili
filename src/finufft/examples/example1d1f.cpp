@@ -3,19 +3,20 @@
 #include <complex>
 // also needed for this example...
 #include <stdio.h>
+#include <stdlib.h>
 using namespace std;
 
 int main(int argc, char* argv[])
 /* Simple example of calling the FINUFFT library from C++, using plain
    arrays of C++ complex numbers, with a math test.
-   Single-precision version (must be linked with single-precision libfinufft.a)
+   Single-precision version (must be linked with single-precision libfinufftf.a)
    See example1d1 for double-precision.
    Barnett 4/3/17
 
    Compile with:
-   g++ -fopenmp example1d1f.cpp ../lib-static/libfinufft.a -o example1d1f -lfftw3f -lfftw3f_threads -lm -DSINGLE
+   g++ -fopenmp example1d1f.cpp ../lib-static/libfinufftf.a -o example1d1f -lfftw3f -lfftw3f_threads -lm -DSINGLE
    or if you have built a single-core version:
-   g++ example1d1f.cpp ../lib-static/libfinufft.a -o example1d1f -lfftw3f -lm -DSINGLE
+   g++ example1d1f.cpp ../lib-static/libfinufftf.a -o example1d1f -lfftw3f -lm -DSINGLE
 
    Usage: ./example1d1f
 */
@@ -36,11 +37,11 @@ int main(int argc, char* argv[])
   // allocate output array for the Fourier modes:
   complex<float>* F = (complex<float>*)malloc(sizeof(complex<float>)*N);
 
-  // call the NUFFT (with iflag=+1):
+  // call the NUFFT (with iflag=+1): N,M will be typecast to BIGINT
   int ier = finufft1d1(M,x,c,+1,acc,N,F,opts);
 
   int n = 142519;   // check the answer just for this mode...
-  complex<float> Ftest = (0,0);
+  complex<float> Ftest = complelx<float>(0,0);
   for (int j=0; j<M; ++j)
     Ftest += c[j] * exp(I*(float)n*x[j]) / (float)M;
   int nout = n+N/2;       // index in output array for freq mode n

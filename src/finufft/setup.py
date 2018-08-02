@@ -1,9 +1,20 @@
+# This defines the python module installation.
+# Only for double-prec, multi-threaded for now.
+# Barnett 3/1/18, updates by Yu-Hsuan Shih, June 2018.
+
+# Max OSX users: please edit as per below comments.
+
+__version__ = '0.99'
+
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 import sys
 import setuptools
+import os
 
-__version__ = '0.97'
+# Mac OSX: choose your compilers here: (eg gcc-8, g++-8)
+os.environ["CC"] = "gcc"
+os.environ["CXX"] = "g++"
 
 class get_pybind_include(object):
     """Helper class to determine the pybind11 include path
@@ -19,9 +30,12 @@ class get_pybind_include(object):
         import pybind11
         return pybind11.get_include(self.user)
 
-libraries = ["lib-static/finufft","fftw3","fftw3_threads"]
-extra_compile_args=['-fopenmp'],
-extra_link_args=['-lgomp']
+libraries = ["lib-static/finufft","fftw3","fftw3_threads","gomp"]
+extra_compile_args=['-fopenmp']
+extra_link_args=[]
+# Mac OSX you may need the following:
+#extra_link_args=['-static']
+#extra_link_args=['-static -fPIC']
 
 ext_modules = [Extension(
         'finufftpy_cpp',
@@ -75,6 +89,7 @@ class BuildExt(build_ext):
         'unix': [],
     }
 
+    # Mac OSX you may need to comment out the next two lines:
     if sys.platform == 'darwin':
         c_opts['unix'] += ['-stdlib=libc++', '-mmacosx-version-min=10.7']
 
@@ -97,7 +112,7 @@ class BuildExt(build_ext):
 setup(
     name='finufftpy',
     version=__version__,
-    author='python interfaces by: Jeremy Magland, Daniel Foreman-Mackey, and Alex Barnett',
+    author='python interfaces by: Jeremy Magland, Daniel Foreman-Mackey, Alex Barnett',
     author_email='abarnett@flatironinstitute.org',
     url='http://github.com/ahbarnett/finufft',
     description='python interface to FINUFFT',

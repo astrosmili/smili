@@ -1090,14 +1090,14 @@ class UVFITS(object):
         # phase shift (the image center to the reference pixel)
         #    pixel deviation of the center of
         #    the image from the reference pixel
-        ix = Nx/2 + 1 - Nxref
-        iy = Ny/2 + 1 - Nyref
+        ix = Nx/2. + 1 - Nxref
+        iy = Ny/2. + 1 - Nyref
 
         # complex visbility
         Vcmp = Vreal+1j*Vimag
 
         # new visibility due to the deviation (ix,iy)
-        Vcmp = Vcmp*np.exp(1j*(u*ix+v*iy))
+        Vcmp *= np.exp(1j*(u*ix+v*iy))
         Vreal = np.real(Vcmp)
         Vimag = np.imag(Vcmp)
 
@@ -1219,7 +1219,6 @@ class UVFITS(object):
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,0]= g[i]
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,1]= g[i+Nant_itime]
         return cltable
-
 
     def apply_cltable(self,cltable):
 

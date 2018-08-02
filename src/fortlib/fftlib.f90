@@ -1,7 +1,7 @@
 module fftlib
   !$use omp_lib
   use param, only : dp, dpc, pi, i_dpc
-  use image, only: I1d_I2d_fwd, I1d_I2d_inv, zeroeps
+  use image, only: I1d_I2d_fwd, I1d_I2d_inv
   implicit none
 
   ! Parameters related to NuFFT
@@ -256,8 +256,8 @@ subroutine phashift_c2r(u,v,Nxref,Nyref,Nx,Ny,Vcmp_in,Vcmp_out)
   real(dp) :: dix, diy
 
   ! pixels to be shifted
-  dix = Nx/2 + 1 - Nxref
-  diy = Ny/2 + 1 - Nyref
+  dix = Nx/2d0 + 1 - Nxref
+  diy = Ny/2d0 + 1 - Nyref
 
   Vcmp_out = Vcmp_in * exp(i_dpc * (u*dix + v*diy))
 end subroutine
@@ -280,8 +280,8 @@ subroutine phashift_r2c(u,v,Nxref,Nyref,Nx,Ny,Vcmp_in,Vcmp_out)
   real(dp) :: dix, diy
 
   ! pixels to be shifted
-  dix = Nxref - Nx/2 - 1
-  diy = Nyref - Ny/2 - 1
+  dix = Nxref - Nx/2d0 - 1
+  diy = Nyref - Ny/2d0 - 1
 
   Vcmp_out = Vcmp_in * exp(i_dpc * (u*dix + v*diy))
 end subroutine
@@ -621,7 +621,7 @@ subroutine model_fcv(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   Vfcv = dcmplx(Vfcvr,Vfcvi)
   !   shift tracking center of full complex visibilities from the reference
   !   pixel to the center of the image
-  write(*,*) 'Shift Tracking Center of Full complex visibilities.'
+  !write(*,*) 'Shift Tracking Center of Full complex visibilities.'
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(u,v,Nxref,Nyref,Nx,Ny,Nfcv) &
   !$OMP   PRIVATE(i)
@@ -639,8 +639,6 @@ subroutine model_fcv(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   I2d(:,:)=0d0
   !   copy image
   call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
-  !   hard thresholding with zero eps
-  where (abs(I2d) < zeroeps) I2d=0d0
 
   ! Forward Non-unifrom Fast Fourier Transform
   !   allocate array
@@ -699,7 +697,7 @@ subroutine model_fcv(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
 
   !   shift tracking center of full complex visibilities from the reference
   !   pixel to the center of the image
-  write(*,*) 'Shift Tracking Center of Model and Residual visibilities.'
+  !write(*,*) 'Shift Tracking Center of Model and Residual visibilities.'
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(u,v,Nxref,Nyref,Nx,Ny,Nfcv) &
   !$OMP   PRIVATE(i)
@@ -775,8 +773,6 @@ subroutine model_amp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   I2d(:,:)=0d0
   !   copy image
   call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
-  !   hard thresholding with zero eps
-  where (abs(I2d) < zeroeps) I2d=0d0
 
   ! Forward Non-unifrom Fast Fourier Transform
   !   allocate array
@@ -880,8 +876,6 @@ subroutine model_ca(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   I2d(:,:)=0d0
   !   copy image
   call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
-  !   hard thresholding with zero eps
-  where (abs(I2d) < zeroeps) I2d=0d0
 
   ! Forward Non-unifrom Fast Fourier Transform
   !   allocate array
@@ -1010,8 +1004,6 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   I2d(:,:)=0d0
   !   copy image
   call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
-  !   hard thresholding with zero eps
-  where (abs(I2d) < zeroeps) I2d=0d0
 
   ! Forward Non-unifrom Fast Fourier Transform
   !   allocate array
