@@ -1974,7 +1974,7 @@ class VisTable(UVTable):
         imageout.update_fits()
         return imageout
 
-    def map_clean(self,image,errorweight=-2,istokes=0,ifreq=0):
+    def map_clean(self,image,restore=False,errorweight=-2,istokes=0,ifreq=0):
         '''
         This method calculates the residual map by using visibility and model image
 
@@ -1984,12 +1984,18 @@ class VisTable(UVTable):
         Returns:
             imdata.IMFITS object of residual+model image
         '''
+        if restore:
+            beamprm = image.get_beam()
+            if beamprm["majsize"]==0 or beamprm["minsize"]==0:
+                raise ValueError("please set beam parameter with image.set_beam()")
+            restored = image.convolve_gauss(**beamprm)
+        else:
+            restored = copy.deepcopy(image)
         residual = self.map_residual(image,errorweight=errorweight)
         imageout = copy.deepcopy(image)
-        imageout.data[istokes,ifreq]=residual.data[istokes,ifreq]+image.data[istokes,ifreq]
+        imageout.data[istokes,ifreq]=residual.data[istokes,ifreq]+restored.data[istokes,ifreq]
         imageout.update_fits()
         return imageout
-
 
     def plot_model_amp(self, outimage, filename=None, plotargs={'ms': 1., }):
         '''
