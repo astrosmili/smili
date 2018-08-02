@@ -130,30 +130,6 @@ def imaging(
     transform = None
     transtype = np.int32(0)
     transprm = np.float64(0)
-    # if transform is None:
-    #     print("No transform will be applied to regularization functions.")
-    #     transtype = np.int32(0)
-    #     transprm = np.float64(0)
-    # elif transform == "log":
-    #     print("log transform will be applied to regularization functions.")
-    #     transtype = np.int32(1)
-    #     if transprm is None:
-    #         transprm = 1e-10
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  threshold of log transform: %g"%(transprm))
-    # elif transform == "gamma":
-    #     print("Gamma transform will be applied to regularization functions.")
-    #     transtype = np.int32(2)
-    #     if transprm is None:
-    #         transprm = 1/2.2
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  Power of Gamma correction: %g"%(transprm))
 
     # get initial images
     Iin = np.float64(initimage.data[istokes, ifreq])
@@ -386,7 +362,6 @@ def statistics(
         totalflux=None, fluxconst=False,
         istokes=0, ifreq=0):
     '''
-
     '''
     # Check Arguments
     if ((vistable is None) and (amptable is None) and

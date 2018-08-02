@@ -59,6 +59,15 @@ class VisTable(UVTable):
         return VisSeries
 
     def set_uvunit(self, uvunit=None):
+        '''
+        Set or guess uvunit.
+
+        Args:
+            uvunit (str, default=None)
+                The unit for spacial frequencies.
+                Availables are lambda, klambda, mlambda and glambda.
+                If not specified, uvunit will be guessed.
+        '''
         # Check uvunits
         if uvunit is None:
             uvmax = np.max(self.uvdist.values)
@@ -101,6 +110,16 @@ class VisTable(UVTable):
 
     def rotate(self, dPA, deg=True):
         '''
+        Rotate uv-coordinates.
+
+        Args:
+            dPA (float):
+                Rotation angle.
+            deg (boolean, default=True):
+                The unit of dPA. If True, it will be degree. Otherwise,
+                it will be radian
+        Returns:
+            uvdata.VisTable object
         '''
         outdata = self.copy()
         if deg:
@@ -1833,7 +1852,7 @@ class VisTable(UVTable):
         else:
             plt.xlabel("Universal Time")
 
-    def map_beam(self,image,errorweight=0,istokes=0,ifreq=0):
+    def map_beam(self,image,errorweight=-2,normalize=True,istokes=0,ifreq=0):
         '''
         This method calculates the synthesized beam
 
@@ -1870,23 +1889,26 @@ class VisTable(UVTable):
         # weight
         if errorweight==0:
             weightc = 1.
-            sum_w = Nuv
+            #sum_w = Nuv
         else:
             weight  = np.power(self["sigma"].values, errorweight)
             weightc = np.concatenate([weight,weight])
-            sum_w   = weightc.sum()
-        Vinreal = Vsynsr*weightc/sum_w
-        Vinimag = Vsynsi*weightc/sum_w
+            #sum_w   = weightc.sum()
+        Vinreal = Vsynsr*weightc#/sum_w
+        Vinimag = Vsynsi*weightc#/sum_w
 
         # synthesized beam
         Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
-        Isyns = Isyns.reshape([Ny,Nx])
+        Isyns=Isyns.reshape([Ny,Nx])
+        if normalize:
+            Isyns /= Isyns.max()
 
         imageout = copy.deepcopy(image)
         imageout.data[istokes,ifreq]=Isyns
+        imageout.update_fits()
         return imageout
 
-    def map_residual(self,image,errorweight=0,istokes=0,ifreq=0):
+    def map_residual(self,image,errorweight=-2,istokes=0,ifreq=0):
         '''
         This method calculates the residual map by using visibility and model image
 
@@ -1897,8 +1919,8 @@ class VisTable(UVTable):
         Returns:
             imdata.IMFITS object of residual map
         '''
-        #model image
-        Imodel=image.data[istokes,ifreq,:,:]
+        residvis = self.residual_image(image)
+
         Nx = image.header["nx"]
         Ny = image.header["ny"]
         Nxref = image.header["nxref"]
@@ -1907,8 +1929,8 @@ class VisTable(UVTable):
         dy_rad = np.deg2rad(image.header["dy"])
 
         # u-v coverage
-        u = np.copy(self["u"].values)
-        v = np.copy(self["v"].values)
+        u = np.copy(residvis["u"].values)
+        v = np.copy(residvis["v"].values)
         u *= 2*np.pi*dx_rad * -1
         v *= 2*np.pi*dy_rad * -1
         ut = np.concatenate([u,-u])
@@ -1916,66 +1938,43 @@ class VisTable(UVTable):
         Nuv = len(ut)
         del u,v
 
-
-        #----------------------------------
-        # Residual Map
         # visibility data
-        phase = np.deg2rad(np.array(self["phase"], dtype=np.float64))
-        amp = np.array(self["amp"], dtype=np.float64)
-        Vcomp_data = amp*np.exp(1j*phase)
+        Vcomp_data = residvis.comp()
         Vcomp_data = np.concatenate([Vcomp_data, np.conj(Vcomp_data)])
-        del amp, phase
 
         # shift the tracking center to the center of the image
         dix = Nxref - Nx/2 - 1
         diy = Nyref - Ny/2 - 1
-        Vcomp_data = Vcomp_data * np.exp(1j * (ut*dix + vt*diy) * -1)
+        Vcomp_data = Vcomp_data * np.exp(1j * (ut*dix + vt*diy))
         Vfcvrt = np.real(Vcomp_data)
         Vfcvit = np.imag(Vcomp_data)
 
-        # compute visibiliy of reconstructed image
-        #   tracking center: the image center
-        Vreal,Vimag=fortlib.fftlib.nufft_fwd_real(ut,vt,Imodel,Nx,Ny,Nuv)
         # weight
         if errorweight==0:
             weightc = 1.
-            sum_w   = Nuv
+            #sum_w   = Nuv
         else:
             weight  = np.power(self["sigma"].values, errorweight)
             weightc = np.concatenate([weight,weight])
-            sum_w   = weightc.sum()
+            #sum_w   = weightc.sum()
 
         # take weighted residual between data and model visibilities
-        Vinreal = (Vfcvrt-Vreal)*weightc/sum_w
-        Vinimag = (Vfcvit-Vimag)*weightc/sum_w
+        Vfcvrt*= weightc#/sum_w
+        Vfcvit*= weightc#/sum_w
 
         # compute residual image
-        residual=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
+        residual=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vfcvrt,Vfcvit,Nx,Ny,Nuv)
         residual = residual.reshape([Ny,Nx])
-        '''
-        #----------------------------------
-        # synthesized beam
-        Vsynsc = np.exp(1j * (ut*dix + vt*diy))
-        Vsynsr = np.real(Vsynsc)
-        Vsynsi = np.imag(Vsynsc)
 
-        # weight
-        Vinreal = Vsynsr*weightc/sum_w
-        Vinimag = Vsynsi*weightc/sum_w
+        # normalize with beam
+        beam = self.map_beam(image,errorweight=errorweight, normalize=False)
 
-        # synthesized beam
-        Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
-        Isyns=Isyns.reshape([Ny,Nx])
-        Isyns/=Isyns.max()
-
-        #-----------------------------------
-        '''
         imageout = copy.deepcopy(image)
-        imageout.data[istokes,ifreq]=residual #/Isyns.sum()
-
+        imageout.data[istokes,ifreq]=residual/beam.totalflux()
+        imageout.update_fits()
         return imageout
 
-    def map_clean(self,image,errorweight=0,istokes=0,ifreq=0):
+    def map_clean(self,image,errorweight=-2,istokes=0,ifreq=0):
         '''
         This method calculates the residual map by using visibility and model image
 
@@ -1985,14 +1984,10 @@ class VisTable(UVTable):
         Returns:
             imdata.IMFITS object of residual+model image
         '''
-        #model image
-        Imodel = image.data[istokes,ifreq,:,:]
-        Nx     = image.header["nx"]
-        Ny     = image.header["ny"]
-        residual = self.map_residual(image,errorweight=0)
+        residual = self.map_residual(image,errorweight=errorweight)
         imageout = copy.deepcopy(image)
-        imageout.data[istokes,ifreq]=residual.data[istokes,ifreq]+Imodel
-
+        imageout.data[istokes,ifreq]=residual.data[istokes,ifreq]+image.data[istokes,ifreq]
+        imageout.update_fits()
         return imageout
 
 
