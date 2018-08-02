@@ -18,10 +18,9 @@ Manuals
 .. toctree::
   :maxdepth: 1
   :numbered:
-  
+
   _static/install
   _examples/index
-  _autodoc/smili
 
 Link
 ====
