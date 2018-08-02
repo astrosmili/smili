@@ -1312,8 +1312,8 @@ class IMFITS(object):
             raise
         else:
             ds9reg = d.get("regions -system image")
-            region = imregion.ds9reg_to_reg(ds9reg=ds9reg,image=self,angunit=angunit)
-            return region
+            imregion = imr.ds9reg_to_reg(ds9reg=ds9reg,image=self,angunit=angunit)
+            return imregion
 
     #-------------------------------------------------------------------------
     # Output some information to files

@@ -3,6 +3,11 @@ Tutorial and Example Scripts
 
 Handling Images
 ------------------
+.. toctree::
+  :maxdepth: 1
+  :numbered:
+  
+  imregion/imregion
 
 Handlint UV data sets
 --------------------
