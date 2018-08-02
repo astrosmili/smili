@@ -62,14 +62,14 @@ AC_LANG_POP(C)
 #-------------------------------------------------------------------------------
 # Check Lapack
 #-------------------------------------------------------------------------------
-AC_LANG_PUSH(Fortran)
-PKG_CHECK_MODULES(LAPACK, lapack,
-  [],
-  [AC_CHECK_LIB(lapack, dgesv,
-               [LAPACK_LIBS="-llapack"],
-               [AC_MSG_ERROR([lapack was not found.])])])
-AC_SUBST([LAPACK_LIBS])
-AC_LANG_POP(Fortran)
+#AC_LANG_PUSH(Fortran)
+#PKG_CHECK_MODULES(LAPACK, lapack,
+#  [],
+#  [AC_CHECK_LIB(lapack, dgesv,
+#               [LAPACK_LIBS="-llapack"],
+#               [AC_MSG_ERROR([lapack was not found.])])])
+#AC_SUBST([LAPACK_LIBS])
+#AC_LANG_POP(Fortran)
 
 
 #-------------------------------------------------------------------------------

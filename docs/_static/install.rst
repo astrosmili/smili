@@ -8,7 +8,8 @@ Requirements
 Smili consists of python modules and Fortran/C internal libraries called from python modules.
 Here, we summarize required python packages and external packages for Smili.
 
-You will also need `ds9`_ for compiling the library.
+You will also need `ds9`_ for some functions such as setting imaging regions
+(CLEAN box) interatively.
 
 .. _ds9: http://ds9.si.edu/site/Home.html
 
@@ -134,38 +135,6 @@ Fortran/C internal libraries of Smili use following external libraries.
     the option for Openmp (--enable-openmp). So, you don't need to install it
     by yourself.
 
-3) LAPACK
-  LAPACK does not have a big impact on computational costs of imaging.
-  The default LAPACK package in your Linux/OS X package system would be acceptable for Spareselab.
-  Of course, you may build up `LAPACK`_ by yourself. If you build up LAPACK by yourself,
-  please do not forget adding **``-fPIC''** flag to the configuration variables
-  **CFLAGS**, **OPTS**, **NOOPT**, **LOADEROPTS** in make.inc. I (Kazu Akiyama)
-  usually add ``-fPIC -O3 -march=native'' for Linux and ``-fPIC -O3 -march=core2'' for macOS.
-
-  .. _LAPACK: https://github.com/Reference-LAPACK/lapack-release
-
-  Unfortunately, Lapack does not have a pkg-config file, which
-  may cause some problems if you put lapack in an unusual place.
-  It would be useful to make and put lapack.pc in a directory specified by
-  **PKG_CONFIG_PATH** to avoid potential problems for compiling Smili.
-  Smili tries to find lapack.pc in your PKG_CONFIG_PATH. If it does not find,
-  it will check if a lapack function can run with -llapack correctly.
-
-  Following is a sample for lapack.pc
-
-  .. code-block:: Plain
-
-    libdir=<YOUR LAPACK DIRECTORY>
-
-    Name: LAPACK
-    Description: FORTRAN reference implementation of LAPACK Linear Algebra PACKage
-    Version: @LAPACK_VERSION@
-    URL: http://www.netlib.org/lapack/
-    Libs: -L${libdir} -llapack
-    Requires.private: openblas
-    Cflags:
-
-
 Download, Install and Update
 ============================
 
@@ -188,8 +157,8 @@ For compiling the whole library, you need to work in your Smili directory.
   cd (Your Smili Directory)
 
 Generate Makefiles with `./configure`.
-If you have correct paths to package-config files for OpenBLAS, FFTW3 and
-path to library or package-config file for LAPACK, you would not need any options.
+If you have correct paths to package-config files for OpenBLAS and FFTW3,
+you would not need any options.
 
 .. code-block:: Bash
 
@@ -207,9 +176,6 @@ prior to type ./configure
   # Example for FFTW3
   export FFTW3_LIBS="-LYOURPREFIX/lib -lfftw3"
   export FFTW3_CFLAGS="-IYOURPREFIX/include"
-
-  # Example for LPACK
-  export LAPACK_LIBS="-LYOURPREFIX/lib -llapack"
 
 Make and compile the library.
 The internal C/Fortran Library will be compiled into python modules,
