@@ -19,8 +19,9 @@ import tqdm
 import numpy as np
 import pandas as pd
 from scipy import optimize
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import astropy.time as at
+import matplotlib.dates as mdates
 
 # internal
 #from ..uvtable   import UVTable, UVSeries
@@ -117,7 +118,7 @@ class CLTable(object):
 
         return out
 
-    def get_gaintable(self):
+    def get_gaintable(self,uvfits):
         '''
         This method make a gain table with pandas.DataFrame.
         '''
@@ -174,3 +175,132 @@ class CLTable(object):
             out.gaintabs[subarrid]["gain"][:,:,:,:,:,1] = gimag/meanamp
 
         return out
+    
+    def gainplot(self,
+            uvfits,
+            station=None,
+            axis1="utc",
+            gst_continuous=True,
+            gst_wraphour=0.,
+            time_maj_loc=mdates.HourLocator(),
+            time_min_loc=mdates.MinuteLocator(byminute=np.arange(0,60,10)),
+            time_maj_fmt='%H:%M',
+            ls="none",
+            marker=".",
+            label=None,
+            **plotargs):
+        '''
+        Plot gains. Available types for the xaxis is
+        ["utc","gst"]
+
+        Args:
+          station:
+            station name or number to plot.
+          **plotargs:
+            You can set parameters of matplotlib.pyplot.plot() or
+            matplotlib.pyplot.errorbars().
+            Defaults are {'ls': "none", 'marker': "."}.
+        '''        
+        plttable = self.get_gaintable(uvfits)
+
+        # Get GST
+        if "gst" in axis1.lower():
+            plttable = plttable.sort_values(by="utc").reset_index(drop=True)
+            plttable["gst"] = self.get_gst_datetime(uvfits,continuous=gst_continuous, wraphour=gst_wraphour)
+        
+        gaintable = pd.DataFrame()
+        stnameall = np.asarray([])
+        
+        # Antenna Name for Each Subarray
+        subarrids = self.gaintabs.keys()
+        for subarrid in subarrids:
+            table = plttable[plttable["subarray"]==subarrid]
+            namedic = uvfits.get_ant()
+            subid = np.where(uvfits.visdata.coord.subarray.values == subarrid)
+            st1 = set(np.int32(uvfits.visdata.coord.ant1.values[subid[0]]))
+            st2 = set(np.int32(uvfits.visdata.coord.ant2.values[subid[0]]))
+            st = np.asarray(sorted(st1 | st2))
+            del st1, st2
+            
+            stname = np.asarray([namedic[(subarrid,i)] for i in st]) 
+            stnameall = np.r_[stnameall,stname]
+            stnameall = np.asarray(sorted(set(stnameall)))
+                                
+            table = table.rename(columns=dict(zip(st, stname)))
+            gaintable = pd.concat([gaintable,table],ignore_index=True)
+            gaintable = gaintable.fillna(0)
+
+        # Check if station are specified
+        if station is None:
+            print("hello1")
+            stnum = st[0]
+            stname = stnameall[0]
+            print(type(stnum),type(stname))
+        else:
+            if isinstance(station, str):
+                print("hello2")
+                stname = np.string_(station)
+                stnum = np.int32(st[stnameall==stname])
+            else:
+                print("hello3")
+                stnum = np.int32(station)
+                stname = np.string_(stnameall[st==stnum][0])
+                    
+        # Plotting
+        ax = plt.gca()
+
+        # y value
+        gain = gaintable[stname].values
+
+        # x value
+        if "gst" in axis1.lower():
+            axis1data = gaintable.gst.values
+        else:
+            axis1data = gaintable.utc.values
+        
+        plt.subplots_adjust(hspace=0.)
+        
+        ax1 = plt.subplot(2,1,1)
+        plt.title("%s"%(stname))
+        print(stname,stnum)
+        plt.plot(axis1data, abs(gain), ls=ls, marker=marker, label=label, **plotargs)
+        plt.ylabel("gain amplitude [Jy]")
+        ax1.set_xticklabels([])
+ 
+        plt.subplot(2,1,2)
+        plt.plot(axis1data, np.rad2deg(np.angle(gain)), ls=ls, marker=marker, label=label, **plotargs)
+        plt.ylabel("gain phase [deg]")
+        plt.ylim(-180,180)
+
+        # x-tickes
+        ax.xaxis.set_major_locator(time_maj_loc)
+        ax.xaxis.set_minor_locator(time_min_loc)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter(time_maj_fmt))
+        if "gst" in axis1.lower():
+            plt.xlabel("Greenwich Sidereal Time")
+        else:
+            plt.xlabel("Universal Time")
+
+    def get_gst_datetime(self, uvfits, continuous=True, wraphour=0):
+        '''
+        get GST in datetime
+        '''
+        
+        plttable = self.get_gaintable(uvfits)
+
+        utc = at.Time(np.datetime_as_string(pd.to_datetime(plttable.utc.values)))
+        gsthour = np.float64(utc.sidereal_time('apparent', 'greenwich').hour)
+
+        if continuous:
+            dgsthour = -np.diff(gsthour)
+            dgsthour[np.where(dgsthour<1e-6)]=0
+            dgsthour[np.where(dgsthour>=1e-6)]=24
+            dgsthour = np.add.accumulate(dgsthour)
+            gsthour[1:] += dgsthour[:]
+            origin = utc.min().datetime.strftime("%Y-%m-%d")
+        else:
+            gsthour = self.gsthour.values
+            gsthour[np.where(gsthour<wraphour)]+=24
+            origin = dt.datetime(2000,1,1,0,0,0)
+
+        return pd.to_datetime(gsthour, unit="h", origin=origin)
