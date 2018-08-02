@@ -31,7 +31,7 @@ import astropy.time as at
 # internal
 from .uvtable import UVTable, UVSeries
 from .tools import get_uvlist,get_uvlist_loop
-from ... import fortlib,util
+from ... import fortlib,util,imdata
 
 
 # ------------------------------------------------------------------------------
@@ -134,19 +134,13 @@ class CATable(UVTable):
 
     def eval_image(self, imfits, mask=None, istokes=0, ifreq=0):
         #uvdata.CATable object (storing model closure phase)
-        model = self._call_fftlib(imfits=imfits,mask=mask,
-                                  istokes=istokes, ifreq=ifreq)
-        Ndata = model[1]
-        camodel = model[0][2]
-        catable = self.copy()
-        catable["phase"] = np.zeros(Ndata)
-        catable["logamp"] = camodel
-        return catable
+        if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
+            model = self._call_fftlib(imfits=imfits,mask=mask,
+                                    istokes=istokes, ifreq=ifreq)
+        else:
+            print("[Error] imfits is not IMFITS nor MOVIE object")
+            return -1
 
-    def eval_image3d(self, movie, mask=None, istokes=0, ifreq=0):
-        #uvdata.CATable object (storing model closure phase)
-        model = self._call_fftlib3d(movie=movie,mask=mask,
-                                  istokes=istokes, ifreq=ifreq)
         Ndata = model[1]
         camodel = model[0][2]
         catable = self.copy()
@@ -156,47 +150,34 @@ class CATable(UVTable):
 
     def residual_image(self, imfits, mask=None, istokes=0, ifreq=0):
         #uvdata CATable object (storing residual closure phase)
-        model = self._call_fftlib(imfits=imfits,mask=mask,
-                                  istokes=istokes, ifreq=ifreq)
+        if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
+            model = self._call_fftlib(imfits=imfits,mask=mask,
+                                    istokes=istokes, ifreq=ifreq)
+        else:
+            print("[Error] imfits is not IMFITS nor MOVIE object")
+            return -1
+
         Ndata = model[1]
         resida = model[0][3]
         residtable = self.copy()
         residtable["logamp"] = resida
         residtable["phase"] = np.zeros(Ndata)
         return residtable
-
-    def residual_image3d(self, movie, mask=None, istokes=0, ifreq=0):
-        #uvdata CATable object (storing residual closure phase)
-        model = self._call_fftlib3d(movie=movie,mask=mask,
-                                  istokes=istokes, ifreq=ifreq)
-        Ndata = model[1]
-        resida = model[0][3]
-        residtable = self.copy()
-        residtable["logamp"] = resida
-        residtable["phase"] = np.zeros(Ndata)
-        return residtable
-
 
     def chisq_image(self, imfits, mask=None, istokes=0, ifreq=0):
         # calcurate chisqared and reduced chisqred.
-        model = self._call_fftlib(imfits=imfits,mask=mask,
-                                  istokes=istokes, ifreq=ifreq)
+        if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
+            model = self._call_fftlib(imfits=imfits,mask=mask,
+                                    istokes=istokes, ifreq=ifreq)
+        else:
+            print("[Error] imfits is not IMFITS nor MOVIE object")
+            return -1
+
         chisq = model[0][0]
         Ndata = model[1]
         rchisq = chisq/Ndata
 
         return chisq,rchisq
-
-    def chisq_image3d(self, movie, mask=None, istokes=0, ifreq=0):
-        # calcurate chisqared and reduced chisqred.
-        model = self._call_fftlib3d(movie=movie,mask=mask,
-                                  istokes=istokes, ifreq=ifreq)
-        chisq = model[0][0]
-        Ndata = model[1]
-        rchisq = chisq/Ndata
-
-        return chisq,rchisq
-
 
     def _call_fftlib(self, imfits, mask, istokes=0, ifreq=0):
         # get initial images
@@ -204,25 +185,45 @@ class CATable(UVTable):
         ifreq = ifreq
 
         # size of images
-        Iin = np.float64(imfits.data[istokes, ifreq])
-        Nx = imfits.header["nx"]
-        Ny = imfits.header["ny"]
+        if(isinstance(imfits,imdata.IMFITS)):
+            Iin = np.float64(imfits.data[istokes, ifreq])
+            image = imfits
+        elif(isinstance(imfits,imdata.MOVIE)):
+            movie=imfits
+            Nt    = movie.Nt
+            # size of images
+            Iin = []
+            for im in movie.images:
+                Iin.append(np.float64(im.data[istokes, ifreq]))
+                image = movie.images[0]
+        else:
+            print("[Error] imfits=%s is not IMFITS nor MOVIE object" % (imfits))
+            return -1
+
+        Nx = image.header["nx"]
+        Ny = image.header["ny"]
         Nyx = Nx * Ny
 
         # pixel coordinates
-        x, y = imfits.get_xygrid(twodim=True, angunit="rad")
+        x, y = image.get_xygrid(twodim=True, angunit="rad")
         xidx = np.arange(Nx) + 1
         yidx = np.arange(Ny) + 1
         xidx, yidx = np.meshgrid(xidx, yidx)
-        Nxref = imfits.header["nxref"]
-        Nyref = imfits.header["nyref"]
-        dx_rad = np.deg2rad(imfits.header["dx"])
-        dy_rad = np.deg2rad(imfits.header["dy"])
+        Nxref = image.header["nxref"]
+        Nyref = image.header["nyref"]
+        dx_rad = np.deg2rad(image.header["dx"])
+        dy_rad = np.deg2rad(image.header["dy"])
 
         # apply the imaging area
         if mask is None:
             print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
-            Iin = Iin.reshape(Nyx)
+
+            if(isinstance(imfits,imdata.IMFITS)):
+                Iin = Iin.reshape(Nyx)
+            else:
+                for i in xrange(len(Iin)):
+                    Iin[i] = Iin[i].reshape(Nyx)
+
             x = x.reshape(Nyx)
             y = y.reshape(Nyx)
             xidx = xidx.reshape(Nyx)
@@ -230,7 +231,11 @@ class CATable(UVTable):
         else:
             print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
             idx = np.where(mask)
-            Iin = Iin[idx]
+            if(isinstance(imfits,imdata.IMFITS)):
+                Iin = Iin[idx]
+            else:
+                for i in xrange(len(Iin)):
+                    Iin[i] = Iin[i][idx]
             x = x[idx]
             y = y[idx]
             xidx = xidx[idx]
@@ -244,119 +249,57 @@ class CATable(UVTable):
         Ndata += len(ca)
 
         # get uv coordinates and uv indice
-        u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
-                fcvtable=None, amptable=None, bstable=None, catable=catable
-                )
-
-        # normalize u, v coordinates
-        u *= 2*np.pi*dx_rad
-        v *= 2*np.pi*dy_rad
-
-        # run model_cp
-        model = fortlib.fftlib.model_ca(
-                # Images
-                iin=np.float64(Iin),
-                xidx=np.int32(xidx),
-                yidx=np.int32(yidx),
-                nxref=np.float64(Nxref),
-                nyref=np.float64(Nyref),
-                nx=np.int32(Nx),
-                ny=np.int32(Ny),
-                # UV coordinates,
-                u=u,
-                v=v,
-                # Closure Phase
-                uvidxca=np.int32(uvidxca),
-                ca=np.float64(ca),
-                varca=np.float64(varca)
-                )
-
-        return model,Ndata
-
-    def _call_fftlib3d(self, movie, mask, istokes=0, ifreq=0):
-        # get initial images
-        istokes = istokes
-        ifreq = ifreq
-        Nt     = movie.Nt
-
-        # size of images
-        Iin = []
-        for im in movie.images:
-            Iin.append(np.float64(im.data[istokes, ifreq]))
-        imfits = movie.images[0]
-
-        Nx = imfits.header["nx"]
-        Ny = imfits.header["ny"]
-        Nyx = Nx * Ny
-
-        # pixel coordinates
-        x, y = imfits.get_xygrid(twodim=True, angunit="rad")
-        xidx = np.arange(Nx) + 1
-        yidx = np.arange(Ny) + 1
-        xidx, yidx = np.meshgrid(xidx, yidx)
-        Nxref = imfits.header["nxref"]
-        Nyref = imfits.header["nyref"]
-        dx_rad = np.deg2rad(imfits.header["dx"])
-        dy_rad = np.deg2rad(imfits.header["dy"])
-
-        # apply the imaging area
-        if mask is None:
-            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
-            for i in xrange(len(Iin)):
-                Iin[i] = Iin[i].reshape(Nyx)
-            x = x.reshape(Nyx)
-            y = y.reshape(Nyx)
-            xidx = xidx.reshape(Nyx)
-            yidx = yidx.reshape(Nyx)
+        if(isinstance(imfits,imdata.IMFITS)):
+            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
+                    fcvtable=None, amptable=None, bstable=None, catable=catable
+                    )
         else:
-            print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
-            idx = np.where(mask)
-            for i in xrange(len(Iin)):
-                Iin[i] = Iin[i][idx]
-            x = x[idx]
-            y = y[idx]
-            xidx = xidx[idx]
-            yidx = yidx[idx]
-
-        # Closure Phase
-        Ndata = 0
-        catable = self.copy()
-        ca = np.array(catable["logamp"], dtype=np.float64)
-        varca = np.square(np.array(catable["logsigma"], dtype=np.float64))
-        Ndata += len(ca)
-
-        # get uv coordinates and uv indice
-        u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = get_uvlist_loop(Nt=Nt,
-            fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=catable
-        )
-
+            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = get_uvlist_loop(Nt=Nt,
+                    fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=catable
+                    )
         # normalize u, v coordinates
         u *= 2*np.pi*dx_rad
         v *= 2*np.pi*dy_rad
-
-        # concatenate the initimages
-        Iin = np.concatenate(Iin)
-
-        # run model_cp
-        model = fortlib.fftlib3d.model_ca(
-                # Images
-                iin=np.float64(Iin),
-                xidx=np.int32(xidx),
-                yidx=np.int32(yidx),
-                nxref=np.float64(Nxref),
-                nyref=np.float64(Nyref),
-                nx=np.int32(Nx),
-                ny=np.int32(Ny),
-                # UV coordinates,
-                u=u,
-                v=v,
-                nuvs=np.int32(Nuvs),
-                # Closure Phase
-                uvidxca=np.int32(uvidxca),
-                ca=np.float64(ca),
-                varca=np.float64(varca)
-                )
-
+        if(isinstance(imfits,imdata.IMFITS)):
+            # run model_cp
+            model = fortlib.fftlib.model_ca(
+                    # Images
+                    iin=np.float64(Iin),
+                    xidx=np.int32(xidx),
+                    yidx=np.int32(yidx),
+                    nxref=np.float64(Nxref),
+                    nyref=np.float64(Nyref),
+                    nx=np.int32(Nx),
+                    ny=np.int32(Ny),
+                    # UV coordinates,
+                    u=u,
+                    v=v,
+                    # Closure Phase
+                    uvidxca=np.int32(uvidxca),
+                    ca=np.float64(ca),
+                    varca=np.float64(varca)
+                    )
+        else:
+            # concatenate the initimages
+            Iin = np.concatenate(Iin)
+            model = fortlib.fftlib3d.model_ca(
+                    # Images
+                    iin=np.float64(Iin),
+                    xidx=np.int32(xidx),
+                    yidx=np.int32(yidx),
+                    nxref=np.float64(Nxref),
+                    nyref=np.float64(Nyref),
+                    nx=np.int32(Nx),
+                    ny=np.int32(Ny),
+                    # UV coordinates,
+                    u=u,
+                    v=v,
+                    nuvs=np.int32(Nuvs),
+                    # Closure Phase
+                    uvidxca=np.int32(uvidxca),
+                    ca=np.float64(ca),
+                    varca=np.float64(varca)
+                    )
         return model,Ndata
 
     def eval_geomodel(self, geomodel, evalargs={}):
@@ -878,63 +821,107 @@ class CATable(UVTable):
                 plt.ylabel(axislabels[1])
                 plt.ylim(deflims[1])
 
-    def summary(self,outimage, filename=None, plotargs={'ms': 1., }):
+    def plot_model(self,outimage, filename=None, plotargs={'ms': 1., }):
         '''
-        Make summary pdf figures for checking model, residual and chisq for each quadrature
+        Make summary pdf figures and csv file of checking model, residual
+        and chisquare of closure amplitudes for each quadrature
+        Args:
+            outimage (imdata.IMFITS object):
+                model image to construct a model visibility
+            filename:
+              str, pathlib.Path, py._path.local.LocalPath or any object with a read()
+              method (such as a file handle or StringIO)
+            **plotargs:
+              You can set parameters of matplotlib.pyplot.plot.
+              Defaults are {'ms': 1., }
+        Returns:
+            summary pdf file (default = "model.pdf"):
+                Output pdf file that summerizes results.
+            cvsumtablefile (default = "model.csv"):
+                Output csv file that summerizes results.
         '''
 
         if filename is not None:
             pdf = PdfPages(filename)
-        plt.figure()
+        else:
+            filename = "model"
+            pdf = PdfPages(filename)
+
         # model,residual,chisq
-        table = self
         nullfmt = NullFormatter()
-        model = table.eval_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
-        resid = table.residual_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
-        chisq,rchisq = table.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
+        model = self.eval_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
+        resid = self.residual_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
+        chisq,rchisq = self.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
+
+        # set figure size
         util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
+
+        # first figure: All data
         fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
+        plt.suptitle(r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq),fontsize=18)
         plt.subplots_adjust(hspace=0.4)
 
         # 1. Radplot of closure amplitudes
         ax = axs[0,0]
         plt.sca(ax)
         plt.title("Radplot of closure amplitude")
-        table.radplot(uvdtype="ave", color="black",errorbar=False, **plotargs)
-        model.radplot(uvdtype="ave", color="red",errorbar=False, **plotargs)
+        plotargs1=copy.deepcopy(plotargs)
+        plotargs1["label"]="Observation"
+        self.radplot(uvdtype="ave", color="black",errorbar=False, **plotargs1)
+        plotargs1["label"]="Model"
+        model.radplot(uvdtype="ave", color="red",errorbar=False, **plotargs1)
+
+        # set xyrange
+        plt.autoscale()
+        plt.ylabel("Log closure amplitudes")
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+        plt.locator_params(axis='x',nbins=6)
+        plt.locator_params(axis='y',nbins=6)
+        plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
 
         # 2. Radplot of normalized residuals
-        plt.autoscale()
         ax = axs[1,0]
         plt.sca(ax)
         plt.title("Radplot of normalized residuals")
         resid.radplot(uvdtype="ave",normerror=True,errorbar=False,color="black",**plotargs)
-        plt.ylabel("Normalized Residuals")
         plt.autoscale()
+
+        # set xyrange
+        plt.autoscale()
+        plt.ylabel("Normalized residuals")
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin-(ymax-ymin)*0.1,ymax+(ymax-ymin)*0.1)
+        plt.locator_params(axis='x',nbins=6)
+        plt.locator_params(axis='y',nbins=6)
 
         # 3. Histogram of residuals
         ax = axs[0,1]
         plt.sca(ax)
-        plt.title("Histogram of residuals, chisq=%04f"%(chisq))
+        plt.title("Histogram of residuals")
         N = len(resid["logamp"])
         plt.hist(resid["logamp"], bins=np.int(np.sqrt(N)),
                  normed=True, orientation='vertical')
-        plt.xlabel("Residual Closure Phases ($^{\circ}$)")
-        # set xrange
-        xmax1=abs(resid["logamp"].min())
-        xmax2=abs(resid["logamp"].max())
-        xmax = max(xmax1,xmax2)
+
+        # set xyrange
+        plt.autoscale()
+        plt.xlabel("Residual log closure amplitudes")
+        xmin,xmax = plt.xlim()
+        xmax = max(xmax,abs(xmin))
         plt.xlim(-xmax,xmax)
+        plt.locator_params(axis='x',nbins=6)
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.2)
+        plt.locator_params(axis='y',nbins=6)
 
         # 4. Histogram of normalized residuals
         ax = axs[1,1]
         plt.sca(ax)
-        plt.title("Histogram of normalized residuals, rchisq=%04f"%(rchisq))
+        plt.title("Histogram of normalized residuals")
         normresid = resid["logamp"] / resid["logsigma"]
         N = len(normresid)
         plt.hist(normresid, bins=np.int(np.sqrt(N)),
                  normed=True, orientation='vertical')
-        plt.xlabel("Normalized Residuals")
 
         # model line
         xmin, xmax = ax.get_xlim()
@@ -942,11 +929,16 @@ class CATable(UVTable):
         y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
         plt.plot(x, y, color="red")
 
-        # set xrange
-        xmax1=abs(normresid.min())
-        xmax2=abs(normresid.max())
-        xmax = max(xmax1,xmax2)
+        # set xyrange
+        plt.autoscale()
+        plt.xlabel("Normalized residuals")
+        xmin,xmax = plt.xlim()
+        xmax = max(xmax,abs(xmin))
         plt.xlim(-xmax,xmax)
+        plt.locator_params(axis='x',nbins=6)
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.2)
+        plt.locator_params(axis='y',nbins=6)
 
         # save file
         if filename is not None:
@@ -955,20 +947,20 @@ class CATable(UVTable):
 
 
         # tplot==========================
-        quadratures= table.quadrature_list()
-        Ntri = len(quadratures)
-        for itri in xrange(Ntri):
-            st1 = quadratures[itri][0]
-            st2 = quadratures[itri][1]
-            st3 = quadratures[itri][2]
-            st4 = quadratures[itri][3]
+        quadratures= self.quadrature_list()
+        Nqad = len(quadratures)
+        for iqad in xrange(Nqad):
+            st1 = quadratures[iqad][0]
+            st2 = quadratures[iqad][1]
+            st3 = quadratures[iqad][2]
+            st4 = quadratures[iqad][3]
 
-            frmid =  table["st1name"] == st1
-            frmid &= table["st2name"] == st2
-            frmid &= table["st3name"] == st3
-            frmid &= table["st4name"] == st4
+            frmid =  self["st1name"] == st1
+            frmid &= self["st2name"] == st2
+            frmid &= self["st3name"] == st3
+            frmid &= self["st4name"] == st4
             idx = np.where(frmid == True)
-            single = table.loc[idx[0], :]
+            single = self.loc[idx[0], :]
 
             nullfmt = NullFormatter()
             model        = single.eval_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
@@ -976,59 +968,79 @@ class CATable(UVTable):
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-            plt.suptitle(st1+"-"+st2+"-"+st3+"-"+st4,fontsize=18)
+            plt.suptitle(st1+"-"+st2+"-"+st3+"-"+st4+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
             plt.subplots_adjust(hspace=0.4)
 
             # 1. Time plot of closure phases
             ax = axs[0,0]
             plt.sca(ax)
-            plt.title("Time plot of closure amplitudes")
-            single.vplot("utc", "logamp",errorbar=False)
-            model.vplot("utc", "logamp",errorbar=False)
-            plt.autoscale(axis="x")
+            plt.title("Time plot of log closure amplitudes")
+            single.vplot("utc", "logamp",errorbar=False,label="Observation")
+            model.vplot("utc", "logamp",errorbar=False,label="Model")
+
+            # set xyrange
+            plt.autoscale()
+            plt.ylabel("Log closure amplitudes")
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+            plt.locator_params(axis='x',nbins=6)
+            plt.locator_params(axis='y',nbins=6)
+            plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
 
             # 2. Time plot of normalized residuals
             ax = axs[1,0]
             plt.sca(ax)
             plt.title("Time plot of normalized residuals")
-            resid.vplot("utc", "logamp",errorbar=False)
-            plt.ylabel("Normalized Residuals")
+            resid.vplot("utc", "logamp",normerror1=True,errorbar=False)
             plt.autoscale()
+
+            # set xyrange
+            plt.autoscale()
+            plt.ylabel("Normalized residuals")
+            plt.locator_params(axis='x',nbins=6)
+            plt.locator_params(axis='y',nbins=6)
 
             # 3. Histogram of residuals
             ax = axs[0,1]
             plt.sca(ax)
-            plt.title("Histogram of residuals,chisq=%04f"%(chisq))
+            plt.title("Histogram of residuals")
             N = len(resid["logamp"])
             plt.hist(resid["logamp"], bins=np.int(np.sqrt(N)),
                      normed=True, orientation='vertical')
-            plt.xlabel("Residual Closure amplitudes ")
-            # set xrange
-            xmax1=abs(resid["logamp"].min())
-            xmax2=abs(resid["logamp"].max())
-            xmax = max(xmax1,xmax2)
+            # set xyrange
+            plt.autoscale()
+            plt.xlabel("Residual log closure amplitudes")
+            xmin,xmax = plt.xlim()
+            xmax = max(xmax,abs(xmin))
             plt.xlim(-xmax,xmax)
+            plt.locator_params(axis='x',nbins=6)
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.3)
+            plt.locator_params(axis='y',nbins=6)
 
             # 4. Histogram of normalized residuals
             ax = axs[1,1]
             plt.sca(ax)
-            plt.title("Histogram of normalized residuals,rchisq=%04f"%(rchisq))
+            plt.title("Histogram of normalized residuals")
             normresid = resid["logamp"] / resid["logsigma"]
             N = len(normresid)
             plt.hist(normresid, bins=np.int(np.sqrt(N)),
                      normed=True, orientation='vertical')
-            plt.xlabel("Normalized Residuals")
             # model line
             xmin, xmax = ax.get_xlim()
             x = np.linspace(xmin, xmax, 1000)
             y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
-
             plt.plot(x, y, color="red")
-            # set xrange
-            xmax1=abs(normresid.min())
-            xmax2=abs(normresid.max())
-            xmax = max(xmax1,xmax2)
+
+            # set xyrange
+            plt.xlabel("Normalized residuals")
+            xmin,xmax = plt.xlim()
+            xmax = max(xmax,abs(xmin))
             plt.xlim(-xmax,xmax)
+            plt.locator_params(axis='x',nbins=6)
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.3)
+            plt.locator_params(axis='y',nbins=6)
 
             matplotlib.rcdefaults()
             if filename is not None:
@@ -1038,19 +1050,19 @@ class CATable(UVTable):
         matplotlib.rcdefaults()
 
         # residual of quadratures==========
-        stconcat    = pd.DataFrame()
-        chiconcat   = pd.DataFrame()
-        rchiconcat  = pd.DataFrame()
-        tchiconcat   = pd.DataFrame()
-        Ndataconcat = pd.DataFrame()
-        quadratures= table.quadrature_list()
-        Nqua = len(quadratures)
+        stconcat    = []
+        chiconcat   = []
+        rchiconcat  = []
+        tchiconcat   = []
+        Ndataconcat = []
+        quadratures= self.quadrature_list()
+        Nqad = len(quadratures)
         tNdata = len(self["logamp"])
-        for iqua in xrange(Nqua):
-            st1 = quadratures[iqua][0]
-            st2 = quadratures[iqua][1]
-            st3 = quadratures[iqua][2]
-            st4 = quadratures[iqua][3]
+        for iqad in xrange(Nqad):
+            st1 = quadratures[iqad][0]
+            st2 = quadratures[iqad][1]
+            st3 = quadratures[iqad][2]
+            st4 = quadratures[iqad][3]
 
             frmid =  self["st1name"] == st1
             frmid &= self["st2name"] == st2
@@ -1058,66 +1070,67 @@ class CATable(UVTable):
             frmid &= self["st4name"] == st4
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
-            chisq,rchisq = single.chisq_image(imfits=outimage,
-                                                mask=None,
-                                                istokes=0,
-                                                ifreq=0)
+            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
             Ndata       = len(single)
-            Ndataconcat = Ndataconcat.append([Ndata])
-            stconcat   = stconcat.append([st1+"-"+st2+"-"+st3+"-"+st4])
-            chiconcat  = chiconcat.append([chisq])
-            rchiconcat = rchiconcat.append([rchisq])
-            tchiconcat = tchiconcat.append([chisq/tNdata])
+            Ndataconcat.append(Ndata)
+            stconcat.append(st1+"-"+st2+"-"+st3+"-"+st4)
+            chiconcat.append(chisq)
+            rchiconcat.append(rchisq)
+            tchiconcat.append(chisq/tNdata)
 
         # plot residual of triangles
-        util.matplotlibrc(ncols=1, nrows=2, width=700, height=400)
-        fig, axs = plt.subplots(nrows=2, ncols=1, sharex=False)
-        plt.subplots_adjust(hspace=0.5)
-        plt.figure()
+        util.matplotlibrc(ncols=1, nrows=3, width=900, height=500)
+        fig, axs = plt.subplots(nrows=3, ncols=1, sharex=False)
+        plt.subplots_adjust(hspace=0.4)
+
         ax = axs[0]
         plt.sca(ax)
+        plt.title(r"$\chi ^2$"+" for each quadrature")
         plt.plot(stconcat,chiconcat,"o")
         plt.xticks(rotation=90)
         plt.grid(True)
-        plt.ylabel("Chi square")
+        plt.ylabel(r"$\chi ^2$")
+        plt.locator_params(axis='y',nbins=6)
+
         ax = axs[1]
         plt.sca(ax)
+        plt.title(r"$\chi ^2 _{\nu}$"+" for each quadrature")
         plt.plot(stconcat,rchiconcat,"o")
-        plt.ylabel("Reduced chi square")
         plt.xticks(rotation=90)
         plt.grid(True)
-        if filename is not None:
-            pdf.savefig()
-            plt.close()
+        plt.ylabel(r"$\chi ^2 _{\nu}$")
+        plt.locator_params(axis='y',nbins=6)
 
-        # make csv table
-        table = pd.DataFrame()
-        table["station"] = np.zeros(Ntri+1)
-        table["Ndata"] = np.zeros(Ntri+1)
-        table["chisq"] = np.zeros(Ntri+1)
-        table["rchisq"] = np.zeros(Ntri+1)
-        table["totalchisq"] = np.zeros(Ntri+1)
-
-        table.loc[1:,"station"] = np.array(stconcat)
-        table.loc[1:,"Ndata"]    = np.array(Ndataconcat)
-        table.loc[1:,"chisq"]   = np.array(chiconcat)
-        table.loc[1:,"rchisq"]  = np.array(rchiconcat)
-        table.loc[1:,"totalchisq"]   = np.array(tchiconcat)
-
-        table.loc[0,"station"] = "total"
-        table.loc[0,"Ndata"]   = Ndataconcat.values.sum()
-        table.loc[0,"chisq"]   = chiconcat.values.sum()
-        table.loc[0,"rchisq"]  = rchiconcat.values.sum()
-        table.loc[0,"totalchisq"]  = tchiconcat.values.sum()
-
-        table.to_csv(filename+".csv")
+        ax = axs[2]
+        plt.sca(ax)
+        plt.title(r"$\chi ^2 _{\rm total}$"+" for each quadrature")
+        plt.plot(stconcat,tchiconcat,"o")
+        plt.xticks(rotation=90)
+        plt.grid(True)
+        plt.ylabel(r"$\chi ^2_{\rm total}$")
+        plt.locator_params(axis='y',nbins=6)
 
         # close pdf file
         if filename is not None:
+            pdf.savefig()
+            plt.close()
             pdf.close()
 
         matplotlib.rcdefaults()
 
+        # make csv table
+        stconcat.insert(0,"total")
+        Ndataconcat.insert(0,np.sum(Ndataconcat))
+        chiconcat.insert(0,np.sum(chiconcat))
+        rchiconcat.insert(0,np.sum(rchiconcat))
+        tchiconcat.insert(0,np.sum(tchiconcat))
+        table = pd.DataFrame()
+        table["baseline"] = stconcat
+        table["Ndata"] = Ndataconcat
+        table["chisq"] = chiconcat
+        table["rchisq_bl"] = rchiconcat
+        table["rchisq_total"] = tchiconcat
+        table.to_csv(filename+".csv")
 
 
 class CASeries(UVSeries):
