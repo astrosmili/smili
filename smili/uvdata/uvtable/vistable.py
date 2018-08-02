@@ -174,7 +174,7 @@ class VisTable(UVTable):
 
         return outtable
 
-    def fit_beam(self, angunit="mas", errweight=0., ftsign=+1):
+    def fit_beam(self, angunit="mas", errorweight=-2):
         '''
         This method estimates the synthesized beam size at natural weighting.
 
@@ -189,21 +189,17 @@ class VisTable(UVTable):
           beam parameters in a dictionary.
         '''
         # infer the parameters of clean beam
-        parm0 = calc_bparms(self)
+        parm0 = calc_bparms(self,angunit)
 
         # generate a small image 4 times larger than the expected major axis
         # size of the beam
-        fitsdata = imdata.IMFITS(fov=[parm0[0], -parm0[0], -parm0[0], parm0[0]],
-                                 nx=20, ny=20, angunit="deg")
+        fitsdata = imdata.IMFITS(dx=parm0[0]/10,nx=20,angunit=angunit)
 
         # create output fits
-        dbfitsdata, dbflux = calc_dbeam(
-            fitsdata, self, errweight=errweight, ftsign=ftsign)
+        dbeam = self.map_beam(fitsdata, errorweight=errorweight)
 
-        X, Y = fitsdata.get_xygrid(angunit="deg", twodim=True)
-        dbeam = dbfitsdata.data[0, 0]
-        dbeam /= np.max(dbeam)
-
+        X, Y = fitsdata.get_xygrid(angunit=angunit, twodim=True)
+        dbeam = dbeam.data[0, 0]
         parms = optimize.leastsq(fit_chisq, parm0, args=(X, Y, dbeam))
 
         (maja, mina, PA) = parms[0]
@@ -216,14 +212,12 @@ class VisTable(UVTable):
             PA += 90
         while np.abs(PA) > 90:
             if PA > 90:
-                PA -= 90
+                PA -= 180
             elif PA < -90:
-                PA += 90
+                PA += 180
 
         # return as parameters of gauss_convolve
-        factor = fitsdata.angconv("deg", angunit)
-        cb_parms = ({'majsize': maja * factor, 'minsize': mina *
-                     factor, 'angunit': angunit, 'pa': PA})
+        cb_parms = ({'majsize': maja, 'minsize': mina, 'angunit': angunit, 'pa': PA})
         return cb_parms
 
     def snrcutoff(self, threshold=5):
@@ -2344,69 +2338,7 @@ def calc_matrix_bs(matrix, blid1, blid2, blid3, Nbl, dependent):
         newrank = np.linalg.matrix_rank(newmatrix)
     return newrank, newmatrix
 
-
-def calc_dbeam(fitsdata, vistable, errweight=0, ftsign=+1):
-    '''
-    Calculate an array and total flux of dirty beam from the input visibility data
-
-    Args:
-      fitsdata:
-        input imdata.IMFITS object
-      vistable:
-        input visibility data
-      errweight (float):
-        index for errer weighting
-      ftsign (integer):
-        a sign for fourier matrix
-    '''
-    # create output fits
-    outfitsdata = copy.deepcopy(fitsdata)
-
-    # read uv information
-    M = len(vistable)
-    U = np.float64(vistable["u"])
-    V = np.float64(vistable["v"])
-
-    # create visibilies and error weighting
-    Vis_point = np.ones(len(vistable), dtype=np.complex128)
-    if errweight != 0:
-        sigma = np.float64(vistable["sigma"])
-        weight = np.power(sigma, errweight)
-        Vis_point *= weight / np.sum(weight)
-
-    # create matrix of X and Y
-    Npix = outfitsdata.header["nx"] * outfitsdata.header["ny"]
-    X, Y = outfitsdata.get_xygrid(angunit="deg", twodim=True)
-    X = np.radians(X)
-    Y = np.radians(Y)
-    X = X.reshape(Npix)
-    Y = Y.reshape(Npix)
-
-    # create matrix of A
-    if ftsign > 0:
-        factor = 2 * np.pi
-    elif ftsign < 0:
-        factor = -2 * np.pi
-    A = linalg.blas.dger(factor, X, U)
-    A += linalg.blas.dger(factor, Y, V)
-    A = np.exp(1j * A) / M
-
-    # calculate synthesized beam
-    dbeam = np.real(A.dot(Vis_point))
-    dbtotalflux = np.sum(dbeam)
-    dbeam /= dbtotalflux
-
-    # save as fitsdata
-    dbeam = dbeam.reshape((outfitsdata.header["ny"], outfitsdata.header["nx"]))
-    for idxs in xrange(outfitsdata.header["ns"]):
-        for idxf in xrange(outfitsdata.header["nf"]):
-            outfitsdata.data[idxs, idxf] = dbeam[:]
-
-    outfitsdata.update_fits()
-    return outfitsdata, dbtotalflux
-
-
-def calc_bparms(vistable):
+def calc_bparms(vistable, angunit="mas"):
     '''
     Infer beam parameters (major size, minor size, position angle)
 
@@ -2414,16 +2346,15 @@ def calc_bparms(vistable):
       vistable: input visibility data
     '''
     # read uv information
-    U = np.float64(vistable["u"])
-    V = np.float64(vistable["v"])
+    U = np.float64(vistable["u"].values)
+    V = np.float64(vistable["v"].values)
 
     # calculate minor size of the beam
-    uvdist = np.sqrt(U * U + V * V)
-    maxuvdist = np.max(uvdist)
-    mina = np.rad2deg(1 / maxuvdist) * 0.6
+    maxuvdist = np.max(vistable.uvdist.values)
+    mina = 1 / maxuvdist * 0.6 * util.angconv("rad",angunit)
 
     # calculate PA
-    index = np.argmax(uvdist)
+    index = np.argmax(vistable.uvdist.values)
     angle = np.rad2deg(np.arctan2(U[index], V[index]))
 
     # rotate uv coverage for calculating major size
@@ -2435,7 +2366,7 @@ def calc_bparms(vistable):
 
     # calculate major size of the beam
     maxV = np.max(np.abs(newV))
-    maja = np.rad2deg(1 / maxV) * 0.6
+    maja = 1./maxV * 0.6 * util.angconv("rad",angunit)
 
     return maja, mina, PA
 
