@@ -232,17 +232,14 @@ class CLTable(object):
 
         # Check if station are specified
         if station is None:
-            print("hello1")
             stnum = st[0]
             stname = stnameall[0]
             print(type(stnum),type(stname))
         else:
             if isinstance(station, str):
-                print("hello2")
                 stname = np.string_(station)
                 stnum = np.int32(st[stnameall==stname])
             else:
-                print("hello3")
                 stnum = np.int32(station)
                 stname = np.string_(stnameall[st==stnum][0])
                     
@@ -265,6 +262,7 @@ class CLTable(object):
         print(stname,stnum)
         plt.plot(axis1data, abs(gain), ls=ls, marker=marker, label=label, **plotargs)
         plt.ylabel("gain amplitude [Jy]")
+        plt.ylim(0,)
         ax1.set_xticklabels([])
  
         plt.subplot(2,1,2)
