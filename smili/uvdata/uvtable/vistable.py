@@ -327,31 +327,12 @@ class VisTable(UVTable):
 
     def eval_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
         #uvdata.VisTable object (storing model full complex visibility
-        model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
-                                  istokes=istokes, ifreq=ifreq)
-
-        if not amptable:
-            modelr = model[0][2]
-            modeli = model[0][3]
-            fcv = modelr + 1j*modeli
-            amp = np.abs(fcv)
-            phase = np.angle(fcv,deg=True)
-            fcvmodel = self.copy()
-            fcvmodel["amp"] = amp
-            fcvmodel["phase"] = phase
-            return fcvmodel
+        if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
+            model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
+                                    istokes=istokes, ifreq=ifreq)
         else:
-            Ndata = model[1]
-            model = model[0][2]
-            amptable = self.copy()
-            amptable["amp"] = model
-            amptable["phase"] = np.zeros(Ndata)
-            return amptable
-
-    def eval_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
-        #uvdata.VisTable object (storing model full complex visibility
-        model = self._call_fftlib3d(movie=movie,mask=mask,amptable=amptable,
-                                  istokes=istokes, ifreq=ifreq)
+            print("[Error] imfits is not IMFITS nor MOVIE object")
+            return -1
 
         if not amptable:
             modelr = model[0][2]
@@ -373,32 +354,12 @@ class VisTable(UVTable):
 
     def residual_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
         #uvdata VisTable object (storing residual full complex visibility)
-        model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
-                                  istokes=istokes, ifreq=ifreq)
-
-        if not amptable:
-            residr = model[0][4]
-            residi = model[0][5]
-            resid = residr + 1j*residi
-            resida = np.abs(resid)
-            residp = np.angle(resid,deg=True)
-            residtable = self.copy()
-            residtable["amp"] = resida
-            residtable["phase"] = residp
-
-        else:
-            Ndata = model[1]
-            resida = model[0][3]
-            residtable = self.copy()
-            residtable["amp"] = resida
-            residtable["phase"] = np.zeros(Ndata)
-
-        return residtable
-
-    def residual_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
-        #uvdata VisTable object (storing residual full complex visibility)
-        model = self._call_fftlib3d(movie=movie,mask=mask,amptable=amptable,
+        if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
+            model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
                                     istokes=istokes, ifreq=ifreq)
+        else:
+            print("[Error] imfits is not IMFITS nor MOVIE object")
+            return -1
 
         if not amptable:
             residr = model[0][4]
@@ -421,8 +382,13 @@ class VisTable(UVTable):
 
     def chisq_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
         # calcurate chisqared and reduced chisqred.
-        model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
-                                  istokes=istokes, ifreq=ifreq)
+        if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
+            model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
+                                    istokes=istokes, ifreq=ifreq)
+        else:
+            print("[Error] imfits is not IMFITS nor MOVIE object")
+            return -1
+
         chisq = model[0][0]
         Ndata = model[1]
 
@@ -439,152 +405,44 @@ class VisTable(UVTable):
         ifreq = ifreq
 
         # size of images
-        Iin = np.float64(imfits.data[istokes, ifreq])
-        Nx = imfits.header["nx"]
-        Ny = imfits.header["ny"]
+        if(isinstance(imfits,imdata.IMFITS)):
+            Iin = np.float64(imfits.data[istokes, ifreq])
+            image = imfits
+        elif(isinstance(imfits,imdata.MOVIE)):
+            movie=imfits
+            Nt    = movie.Nt
+            # size of images
+            Iin = []
+            for im in movie.images:
+                Iin.append(np.float64(im.data[istokes, ifreq]))
+                image = movie.images[0]
+        else:
+            print("[Error] imfits=%s is not IMFITS nor MOVIE object" % (imfits))
+            return -1
+
+        Nx = image.header["nx"]
+        Ny = image.header["ny"]
         Nyx = Nx * Ny
 
         # pixel coordinates
-        x, y = imfits.get_xygrid(twodim=True, angunit="rad")
+        x, y = image.get_xygrid(twodim=True, angunit="rad")
         xidx = np.arange(Nx) + 1
         yidx = np.arange(Ny) + 1
         xidx, yidx = np.meshgrid(xidx, yidx)
-        Nxref = imfits.header["nxref"]
-        Nyref = imfits.header["nyref"]
-        dx_rad = np.deg2rad(imfits.header["dx"])
-        dy_rad = np.deg2rad(imfits.header["dy"])
-
-        # apply the imaging area
-        Iin = Iin.reshape(Nyx)
-        x = x.reshape(Nyx)
-        y = y.reshape(Nyx)
-        xidx = xidx.reshape(Nyx)
-        yidx = yidx.reshape(Nyx)
-
-        # Full Complex Visibility
-        if not amptable:
-            Ndata = 0
-            fcvtable = self.copy()
-            vfcvr = fcvtable.real()
-            vfcvi = fcvtable.imag()
-            varfcv = np.square(fcvtable.sigma.values)
-            Ndata += len(varfcv)
-
-            # get uv coordinates and uv indice
-            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
-                fcvtable=fcvtable, amptable=None, bstable=None, catable=None
-            )
-
-            # normalize u, v coordinates
-            u *= 2*np.pi*dx_rad
-            v *= 2*np.pi*dy_rad
-
-            # run model_fcv
-            model = fortlib.fftlib.model_fcv(
-                # Images
-                iin=np.float64(Iin),
-                xidx=np.int32(xidx),
-                yidx=np.int32(yidx),
-                nxref=np.float64(Nxref),
-                nyref=np.float64(Nyref),
-                nx=np.int32(Nx),
-                ny=np.int32(Ny),
-                # UV coordinates,
-                u=np.float64(u),
-                v=np.float64(v),
-                # Full Complex Visibilities
-                uvidxfcv=np.int32(uvidxfcv),
-                vfcvr=np.float64(vfcvr),
-                vfcvi=np.float64(vfcvi),
-                varfcv=np.float64(varfcv)
-            )
-
-            return model,Ndata
-
-        else:
-            Ndata = 0
-            amptable = self.copy()
-            dammyreal = np.zeros(1, dtype=np.float64)
-            vfcvr = dammyreal
-            vfcvi = dammyreal
-            varfcv = dammyreal
-            vamp = np.array(amptable["amp"], dtype=np.float64)
-            varamp = np.square(np.array(amptable["sigma"], dtype=np.float64))
-            Ndata += len(vamp)
-
-            # get uv coordinates and uv indice
-            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
-                fcvtable=None, amptable=amptable, bstable=None, catable=None
-            )
-
-
-            # normalize u, v coordinates
-            u *= 2*np.pi*dx_rad
-            v *= 2*np.pi*dy_rad
-
-            # run model_fcv
-            model = fortlib.fftlib.model_amp(
-                    # Images
-                    iin=np.float64(Iin),
-                    xidx=np.int32(xidx),
-                    yidx=np.int32(yidx),
-                    nxref=np.float64(Nxref),
-                    nyref=np.float64(Nyref),
-                    nx=np.int32(Nx),
-                    ny=np.int32(Ny),
-                    # UV coordinates,
-                    u=u,
-                    v=v,
-                    #
-                    uvidxamp=np.int32(uvidxamp),
-                    vamp=np.float64(vamp),
-                    varamp=np.float64(varamp)
-                    )
-            return model,Ndata
-
-    def chisq_image3d(self, movie, mask=None, amptable=False, istokes=0, ifreq=0):
-        # calcurate chisqared and reduced chisqred.
-        model = self._call_fftlib3d(movie=movie,mask=mask,amptable=amptable,
-                                  istokes=istokes, ifreq=ifreq)
-        chisq = model[0][0]
-        Ndata = model[1]
-        if not amptable:
-            rchisq = chisq/(Ndata*2)
-        else:
-            rchisq = chisq/Ndata
-
-        return chisq,rchisq
-
-    def _call_fftlib3d(self, movie, mask, amptable, istokes=0, ifreq=0):
-        # get initial images
-        istokes = istokes
-        ifreq  = ifreq
-        Nt     = movie.Nt
-        # size of images
-        Iin = []
-        for im in movie.images:
-            Iin.append(np.float64(im.data[istokes, ifreq]))
-        imfits = movie.images[0]
-
-        Nx = imfits.header["nx"]
-        Ny = imfits.header["ny"]
-        Nyx = Nx * Ny
-
-        # pixel coordinates
-        x, y = imfits.get_xygrid(twodim=True, angunit="rad")
-        xidx = np.arange(Nx) + 1
-        yidx = np.arange(Ny) + 1
-        xidx, yidx = np.meshgrid(xidx, yidx)
-        Nxref = imfits.header["nxref"]
-        Nyref = imfits.header["nyref"]
-        dx_rad = np.deg2rad(imfits.header["dx"])
-        dy_rad = np.deg2rad(imfits.header["dy"])
+        Nxref = image.header["nxref"]
+        Nyref = image.header["nyref"]
+        dx_rad = np.deg2rad(image.header["dx"])
+        dy_rad = np.deg2rad(image.header["dy"])
 
         # apply the imaging area
         if mask is None:
             print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
-            for i in xrange(len(Iin)):
-                Iin[i] = Iin[i].reshape(Nyx)
+            if(isinstance(imfits,imdata.IMFITS)):
+                Iin = Iin.reshape(Nyx)
+            else:
+                for i in xrange(len(Iin)):
+                    Iin[i] = Iin[i].reshape(Nyx)
+
             x = x.reshape(Nyx)
             y = y.reshape(Nyx)
             xidx = xidx.reshape(Nyx)
@@ -592,8 +450,11 @@ class VisTable(UVTable):
         else:
             print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
             idx = np.where(mask)
-            for i in xrange(len(Iin)):
-                Iin[i] = Iin[i][idx]
+            if(isinstance(imfits,imdata.IMFITS)):
+                Iin = Iin[idx]
+            else:
+                for i in xrange(len(Iin)):
+                    Iin[i] = Iin[i][idx]
             x = x[idx]
             y = y[idx]
             xidx = xidx[idx]
@@ -612,38 +473,63 @@ class VisTable(UVTable):
             del phase, amp
 
             # get uv coordinates and uv indice
-            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = get_uvlist_loop(Nt=Nt,
-                fcvconcat=fcvtable, ampconcat=None, bsconcat=None, caconcat=None
-            )
+            if(isinstance(imfits,imdata.IMFITS)):
+                u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
+                        fcvtable=fcvtable, amptable=None, bstable=None, catable=None
+                )
+
+            else:
+                u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = get_uvlist_loop(Nt=Nt,
+                    fcvconcat=fcvtable, ampconcat=None, bsconcat=None, caconcat=None
+                )
 
             # normalize u, v coordinates
             u *= 2*np.pi*dx_rad
             v *= 2*np.pi*dy_rad
 
-            # concatenate the initimages
-            Iin = np.concatenate(Iin)
-
             # run model_fcv
-            model = fortlib.fftlib3d.model_fcv(
-                    # Images
-                    iin=np.float64(Iin),
-                    xidx=np.int32(xidx),
-                    yidx=np.int32(yidx),
-                    nxref=np.float64(Nxref),
-                    nyref=np.float64(Nyref),
-                    nx=np.int32(Nx),
-                    ny=np.int32(Ny),
-                    nz=np.int32(Nt),
-                    # UV coordinates,
-                    u=u,
-                    v=v,
-                    nuvs=np.int32(Nuvs),
-                    # Full Complex Visibilities
-                    uvidxfcv=np.int32(uvidxfcv),
-                    vfcvr=np.float64(vfcvr),
-                    vfcvi=np.float64(vfcvi),
-                    varfcv=np.float64(varfcv)
-                    )
+            if(isinstance(imfits,imdata.IMFITS)):
+                model = fortlib.fftlib.model_fcv(
+                        # Images
+                        iin=np.float64(Iin),
+                        xidx=np.int32(xidx),
+                        yidx=np.int32(yidx),
+                        nxref=np.float64(Nxref),
+                        nyref=np.float64(Nyref),
+                        nx=np.int32(Nx),
+                        ny=np.int32(Ny),
+                        # UV coordinates,
+                        u=u,
+                        v=v,
+                        # Full Complex Visibilities
+                        uvidxfcv=np.int32(uvidxfcv),
+                        vfcvr=np.float64(vfcvr),
+                        vfcvi=np.float64(vfcvi),
+                        varfcv=np.float64(varfcv)
+                        )
+            else:
+                # concatenate the initimages
+                Iin = np.concatenate(Iin)
+                model = fortlib.fftlib3d.model_fcv(
+                        # Images
+                        iin=np.float64(Iin),
+                        xidx=np.int32(xidx),
+                        yidx=np.int32(yidx),
+                        nxref=np.float64(Nxref),
+                        nyref=np.float64(Nyref),
+                        nx=np.int32(Nx),
+                        ny=np.int32(Ny),
+                        nz=np.int32(Nt),
+                        # UV coordinates,
+                        u=u,
+                        v=v,
+                        nuvs=np.int32(Nuvs),
+                        # Full Complex Visibilities
+                        uvidxfcv=np.int32(uvidxfcv),
+                        vfcvr=np.float64(vfcvr),
+                        vfcvi=np.float64(vfcvi),
+                        varfcv=np.float64(varfcv)
+                        )
 
             return model,Ndata
 
@@ -659,37 +545,62 @@ class VisTable(UVTable):
             Ndata += len(vamp)
 
             # get uv coordinates and uv indice
-            u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = get_uvlist_loop(Nt=Nt,
-                fcvconcat=None, ampconcat=amptable, bsconcat=None, caconcat=None
-            )
+            if(isinstance(imfits,imdata.IMFITS)):
+                u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = get_uvlist(
+                    fcvtable=None, amptable=amptable, bstable=None, catable=None
+                )
+            else:
+                u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = get_uvlist_loop(Nt=Nt,
+                    fcvconcat=None, ampconcat=amptable, bsconcat=None, caconcat=None
+                )
 
             # normalize u, v coordinates
             u *= 2*np.pi*dx_rad
             v *= 2*np.pi*dy_rad
 
-            # concatenate the initimages
-            Iin = np.concatenate(Iin)
-
             # run model_fcv
-            model = fortlib.fftlib3d.model_amp(
-                    # Images
-                    iin=np.float64(Iin),
-                    xidx=np.int32(xidx),
-                    yidx=np.int32(yidx),
-                    nxref=np.float64(Nxref),
-                    nyref=np.float64(Nyref),
-                    nx=np.int32(Nx),
-                    ny=np.int32(Ny),
-                    nz=np.int32(Nt),
-                    # UV coordinates,
-                    u=u,
-                    v=v,
-                    nuvs=np.int32(Nuvs),
-                    # Full Complex Visibilities
-                    uvidxamp=np.int32(uvidxamp),
-                    vamp=np.float64(vamp),
-                    varamp=np.float64(varamp)
-                    )
+            if(isinstance(imfits,imdata.IMFITS)):
+                model = fortlib.fftlib.model_amp(
+                        # Images
+                        iin=np.float64(Iin),
+                        xidx=np.int32(xidx),
+                        yidx=np.int32(yidx),
+                        nxref=np.float64(Nxref),
+                        nyref=np.float64(Nyref),
+                        nx=np.int32(Nx),
+                        ny=np.int32(Ny),
+                        # UV coordinates,
+                        u=u,
+                        v=v,
+                        #
+                        uvidxamp=np.int32(uvidxamp),
+                        vamp=np.float64(vamp),
+                        varamp=np.float64(varamp)
+                        )
+            else:
+                # concatenate the initimages
+                Iin = np.concatenate(Iin)
+
+                # run model_fcv
+                model = fortlib.fftlib3d.model_amp(
+                        # Images
+                        iin=np.float64(Iin),
+                        xidx=np.int32(xidx),
+                        yidx=np.int32(yidx),
+                        nxref=np.float64(Nxref),
+                        nyref=np.float64(Nyref),
+                        nx=np.int32(Nx),
+                        ny=np.int32(Ny),
+                        nz=np.int32(Nt),
+                        # UV coordinates,
+                        u=u,
+                        v=v,
+                        nuvs=np.int32(Nuvs),
+                        # Full Complex Visibilities
+                        uvidxamp=np.int32(uvidxamp),
+                        vamp=np.float64(vamp),
+                        varamp=np.float64(varamp)
+                        )
 
             return model,Ndata
 
@@ -787,9 +698,10 @@ class VisTable(UVTable):
             stdict2 = self.station_dic(id2name=False)
             for i in xrange(len(redundant)):
                 stationids = []
-                for stid in xrange(len(redundant[i])):
+                for stid in redundant[i]:
                     if isinstance(stid,basestring):
-                        stationids.append(stdict2[stid])
+                        if stid in stdict2.keys():
+                            stationids.append(stdict2[stid])
                     else:
                         stationids.append(stid)
                 redundant[i] = sorted(set(stationids))
@@ -989,7 +901,7 @@ class VisTable(UVTable):
         Args:
             redandant (list of sets of redundant station IDs or names; default=None):
                 If this is specified, non-trivial closure amplitudes will be formed.
-                This is useful for EHT-like array that have redandant stations in the same site.
+                This is useful for EHT-like array that have redundant stations in the same site.
                 For example, if stations 1,2,3 and 4,5 are on the same sites, respectively, then
                 you can specify redundant=[[1,2,3],[4,5]].
             dependent (boolean; default=False):
@@ -1648,25 +1560,25 @@ class VisTable(UVTable):
                 errors.append(None)
             elif "real" in axis:
                 if not normerror:
-                    pltarrays.append(pltdata.real().values)
+                    pltarrays.append(pltdata.real())
                     axislabels.append("Real Part of Visibility (Jy)")
                     errors.append(pltdata.sigma.values)
                     if errorbar and (not useerrorbar):
                         useerrorbar=True
                 else:
-                    pltarrays.append(pltdata.real().values/pltdata.sigma.values)
+                    pltarrays.append(pltdata.real()/pltdata.sigma.values)
                     axislabels.append("Error-normalized Real Part")
                     errors.append(None)
                 deflims.append((None,None))
             elif "imag" in axis:
                 if not normerror:
-                    pltarrays.append(pltdata.imag().values)
+                    pltarrays.append(pltdata.imag())
                     axislabels.append("Imag Part of Visibility (Jy)")
                     errors.append(pltdata.sigma.values)
                     if errorbar and (not useerrorbar):
                         useerrorbar=True
                 else:
-                    pltarrays.append(pltdata.imag().values/pltdata.sigma.values)
+                    pltarrays.append(pltdata.imag()/pltdata.sigma.values)
                     axislabels.append("Error-normalized Imag Part")
                     errors.append(None)
                 deflims.append((None,None))
@@ -1978,12 +1890,372 @@ class VisTable(UVTable):
         imageout.update_fits()
         return imageout
 
-    def plot_model_amp(self, outimage, filename=None, plotargs={'ms': 1., }):
+    def plot_model_fcv(self, outimage, filename=None, plotargs={'ms': 1., }):
         '''
-        Make summary pdf figures for checking model, residual and chisq for each baseline
+        Make summary pdf figures and csv file of checking model, residual
+        and chisquare of real and imaginary parts of visibility for each baseline
+        Args:
+            outimage (imdata.IMFITS object):
+                model image to construct a model visibility
+            filename:
+              str, pathlib.Path, py._path.local.LocalPath or any object with a read()
+              method (such as a file handle or StringIO)
+            **plotargs:
+              You can set parameters of matplotlib.pyplot.plot.
+              Defaults are {'ms': 1., }
+        Returns:
+            summary pdf file (default = "model.pdf"):
+                Output pdf file that summerizes results.
+            cvsumtablefile (default = "model.csv"):
+                Output csv file that summerizes results.
         '''
 
         if filename is not None:
+            pdf = PdfPages(filename)
+        else:
+            filename = "model"
+            pdf = PdfPages(filename)
+
+        # model,residual,chisq
+        nullfmt = NullFormatter()
+        model = self.eval_image(imfits=outimage,mask=None)
+        resid = self.residual_image(imfits=outimage,mask=None)
+        chisq,rchisq = self.chisq_image(imfits=outimage,mask=None)
+
+        # set figure size
+        util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
+
+        # First figure: All data
+        fig, axs = plt.subplots(nrows=2, ncols=2)
+        plt.suptitle(r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq),fontsize=18)
+        plt.subplots_adjust(hspace=0.4)
+
+        # 1. Radplot of visibilities
+        ax = axs[0,0]
+        plt.sca(ax)
+        plt.title("Radplot of Visibilities")
+        plotargs1=copy.deepcopy(plotargs)
+        plotargs1["label"]="Real"
+        self.radplot(datatype="real",errorbar=False, **plotargs1)
+        plotargs1["label"]="Imag"
+        self.radplot(datatype="imag",errorbar=False, **plotargs1)
+        plotargs1["label"]="Real model"
+        model.radplot(datatype="real",  errorbar=False, **plotargs1)
+        plotargs1["label"]="Imag model"
+        model.radplot(datatype="imag", errorbar=False, **plotargs1)
+
+        # set xyrange
+        plt.autoscale()
+        plt.ylabel("Visibilities (Jy)")
+        plt.autoscale()
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+        plt.locator_params(axis='x',nbins=6)
+        plt.locator_params(axis='y',nbins=6)
+        plt.legend(loc='best',markerscale=2.,ncol=4,handlelength=0.1,mode="expand")
+
+        # 2. Radplot of normalized residuals
+        ax = axs[1,0]
+        plt.sca(ax)
+        plt.title("Radplot of normalized residuals")
+        plotargs1["label"]="Real"
+        resid.radplot(datatype="real",normerror=True,errorbar=False,color="red",**plotargs1)
+        plotargs1["label"]="Imag"
+        resid.radplot(datatype="imag",normerror=True,errorbar=False,color="blue",**plotargs1)
+
+        # set xyrange
+        plt.autoscale()
+        plt.ylabel("Normalized Residuals")
+        plt.autoscale()
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+        plt.locator_params(axis='x',nbins=6)
+        plt.locator_params(axis='y',nbins=6)
+        plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
+
+
+        # 3. Histogram of residuals
+        ax = axs[0,1]
+        plt.sca(ax)
+        plt.title("Histogram of residuals")
+        N = len(2*resid["amp"])
+        plt.hist(resid["amp"]*np.cos(resid["phase"]), bins=np.int(np.sqrt(N)),
+                 normed=True, alpha=0.3, histtype='stepfilled', color='red',orientation='vertical',label="Real")
+        plt.hist(resid["amp"]*np.sin(resid["phase"]), bins=np.int(np.sqrt(N)),
+                 normed=True, alpha=0.3, histtype='stepfilled', color='blue',orientation='vertical',label="Imag")
+
+        # set xyrange
+        plt.autoscale()
+        plt.xlabel("Residual Visibilities")
+        xmin,xmax = plt.xlim()
+        xmax = max(xmax,abs(xmin))
+        plt.xlim(-xmax,xmax)
+        plt.locator_params(axis='x',nbins=6)
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.3)
+        plt.locator_params(axis='y',nbins=6)
+        plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.5)
+
+
+        # 4. Histogram of normalized residuals
+        ax = axs[1,1]
+        plt.sca(ax)
+        plt.title("Histogram of normalized residuals")
+        normresid_real = resid["amp"]*np.cos(resid["phase"]) / resid["sigma"]
+        normresid_imag = resid["amp"]*np.sin(resid["phase"]) / resid["sigma"]
+        N = len(normresid_real)
+        plt.hist(normresid_real, bins=np.int(np.sqrt(N)),
+                 normed=True, alpha=0.3, histtype='stepfilled', color="red",orientation='vertical',label="Real")
+        plt.hist(normresid_imag, bins=np.int(np.sqrt(N)),
+                 normed=True, alpha=0.3, histtype='stepfilled', color="blue",orientation='vertical',label="Imag")
+
+        # model line
+        xmin, xmax = ax.get_xlim()
+        x = np.linspace(xmin, xmax, 1000)
+        y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
+        plt.plot(x, y, color="black")
+
+        # set xyrange
+        plt.autoscale()
+        plt.xlabel("Normalized Residuals")
+        xmin,xmax = plt.xlim()
+        xmax = max(xmax,abs(xmin))
+        plt.xlim(-xmax,xmax)
+        plt.locator_params(axis='x',nbins=6)
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.3)
+        plt.locator_params(axis='y',nbins=6)
+        plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.5)
+
+
+        # save file
+        if filename is not None:
+            pdf.savefig()
+            plt.close()
+
+        matplotlib.rcdefaults()
+        # tplot==========================
+        baselines= self.baseline_list()
+        Nbsl = len(baselines)
+        for ibsl in xrange(Nbsl):
+            st1 = baselines[ibsl][0]
+            st2 = baselines[ibsl][1]
+
+            frmid =  self["st1name"] == st1
+            frmid &= self["st2name"] == st2
+            idx = np.where(frmid == True)
+            single = self.loc[idx[0], :]
+
+            nullfmt = NullFormatter()
+            model        = single.eval_image(imfits=outimage,mask=None)
+            resid        = single.residual_image(imfits=outimage,mask=None)
+            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
+            util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
+            fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
+            plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
+            plt.subplots_adjust(hspace=0.4)
+
+            # 1. Time plot of visibilities
+            ax = axs[0,0]
+            plt.sca(ax)
+            plt.title("Time plot of visibilities")
+            single.vplot("utc", "real",errorbar=False,label="Real")
+            single.vplot("utc", "imag",errorbar=False,label="Imag")
+            model.vplot("utc", "real",errorbar=False,label="Real model")
+            model.vplot("utc", "imag",errorbar=False,label="Imag model")
+
+            # set xyrange
+            plt.autoscale()
+            plt.ylabel("Visibilities (Jy)")
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+            plt.locator_params(axis='x',nbins=6)
+            plt.locator_params(axis='y',nbins=6)
+            plt.legend(loc='best',markerscale=2.,ncol=4,handlelength=0.1,mode="expand")
+
+            # 2. Time plot of normalized residuals
+            ax = axs[1,0]
+            plt.sca(ax)
+            plt.title("Time plot of normalized residuals")
+            resid.vplot("utc", "real",normerror1=True,errorbar=False,label="Real",color="blue")
+            resid.vplot("utc", "imag",normerror1=True,errorbar=False,label="Imag",color="red")
+            plt.ylabel("Normalized Residuals")
+
+            # set xyrange
+            plt.autoscale()
+            plt.ylabel("Normalized residuals")
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+            plt.locator_params(axis='x',nbins=6)
+            plt.locator_params(axis='y',nbins=6)
+            plt.legend(loc='upper left',markerscale=2.,ncol=2,handlelength=0.1)
+
+            # 3. Histogram of residuals
+            ax = axs[0,1]
+            plt.sca(ax)
+            plt.title("Histogram of residuals")
+            N = len(2*resid["amp"])
+            plt.hist(resid["amp"]*np.cos(resid["phase"]), bins=np.int(np.sqrt(N)),
+                     normed=True, alpha=0.3, histtype='stepfilled',color="blue", orientation='vertical',label="Real")
+            plt.hist(resid["amp"]*np.sin(resid["phase"]), bins=np.int(np.sqrt(N)),
+                     normed=True, alpha=0.3, histtype='stepfilled',color="red", orientation='vertical',label="Imag")
+
+            # set xyrange
+            plt.autoscale()
+            plt.xlabel("Residual Visibilities")
+            xmin,xmax = plt.xlim()
+            xmax = max(xmax,abs(xmin))
+            plt.xlim(-xmax,xmax)
+            plt.locator_params(axis='x',nbins=6)
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.3)
+            plt.locator_params(axis='y',nbins=6)
+            plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.5)
+
+
+            # 4. Histogram of normalized residuals
+            ax = axs[1,1]
+            plt.sca(ax)
+            plt.title("Histogram of normalized residuals")
+            normresid_real = resid["amp"]*np.cos(resid["phase"]) / resid["sigma"]
+            normresid_imag = resid["amp"]*np.sin(resid["phase"]) / resid["sigma"]
+            N = len(normresid_real+normresid_imag)
+            plt.hist(normresid_real, bins=np.int(np.sqrt(N)),
+                     normed=True, alpha=0.3, histtype='stepfilled',color="blue", orientation='vertical',label="Real")
+            plt.hist(normresid_imag, bins=np.int(np.sqrt(N)),
+                     normed=True, alpha=0.3, histtype='stepfilled',color="red", orientation='vertical',label="Imag")
+            plt.xlabel("Normalized Residuals")
+            # model line
+            xmin, xmax = ax.get_xlim()
+            x = np.linspace(xmin, xmax, 1000)
+            y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
+
+            plt.plot(x, y, color="black")
+
+            # set xyrange
+            plt.xlabel("Normalized Residuals")
+            xmin,xmax = plt.xlim()
+            xmax = max(xmax,abs(xmin))
+            plt.xlim(-xmax,xmax)
+            plt.locator_params(axis='x',nbins=6)
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.3)
+            plt.locator_params(axis='y',nbins=6)
+            plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.5)
+
+
+            matplotlib.rcdefaults()
+            if filename is not None:
+                pdf.savefig()
+                plt.close()
+
+        matplotlib.rcdefaults()
+
+        # residual of baselines==========
+        stconcat = []
+        chiconcat = []
+        rchiconcat = []
+        tchiconcat = []
+        Ndataconcat = []
+        baselines= self.baseline_list()
+        Nqua = len(baselines)
+        tNdata = len(self["amp"])
+        for iqua in xrange(Nqua):
+            st1 = baselines[iqua][0]
+            st2 = baselines[iqua][1]
+
+            frmid =  self["st1name"] == st1
+            frmid &= self["st2name"] == st2
+            idx = np.where(frmid == True)
+            single = self.loc[idx[0], :]
+            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
+            Ndata = len(single)
+            Ndataconcat.append(Ndata)
+            stconcat.append(st1+"-"+st2)
+            chiconcat.append(chisq)
+            rchiconcat.append(rchisq)
+            tchiconcat.append(chisq/tNdata)
+
+        # plot residual of baselines
+        util.matplotlibrc(ncols=1, nrows=3, width=700, height=400)
+        fig, axs = plt.subplots(nrows=3, ncols=1, sharex=False)
+        plt.subplots_adjust(hspace=0.55)
+
+        ax = axs[0]
+        plt.sca(ax)
+        plt.title(r"$\chi ^2$"+" for each baseline")
+        plt.plot(stconcat,chiconcat,"o")
+        plt.xticks(rotation=90)
+        plt.grid(True)
+        plt.ylabel(r"$\chi ^2$")
+        plt.locator_params(axis='y',nbins=6)
+
+        ax = axs[1]
+        plt.sca(ax)
+        plt.title(r"$\chi ^2 _{\nu}$"+" for each baseline")
+        plt.plot(stconcat,rchiconcat,"o")
+        plt.xticks(rotation=90)
+        plt.grid(True)
+        plt.ylabel(r"$\chi ^2 _{\nu}$")
+        plt.locator_params(axis='y',nbins=6)
+
+        ax = axs[2]
+        plt.sca(ax)
+        plt.title(r"$\chi ^2 _{\rm total}$"+" for each baseline")
+        plt.plot(stconcat,tchiconcat,"o")
+        plt.xticks(rotation=90)
+        plt.grid(True)
+        plt.ylabel(r"$\chi ^2_{\rm total}$")
+        plt.locator_params(axis='y',nbins=6)
+
+        # close pdf file
+        if filename is not None:
+            pdf.savefig()
+            plt.close()
+            pdf.close()
+
+        matplotlib.rcdefaults()
+
+        # make csv table
+        stconcat.insert(0,"total")
+        Ndataconcat.insert(0,np.sum(Ndataconcat))
+        chiconcat.insert(0,np.sum(chiconcat))
+        rchiconcat.insert(0,np.sum(rchiconcat))
+        tchiconcat.insert(0,np.sum(tchiconcat))
+        table = pd.DataFrame()
+        table["baseline"] = stconcat
+        table["Ndata"] = Ndataconcat
+        table["chisq"] = chiconcat
+        table["rchisq_bl"] = rchiconcat
+        table["rchisq_total"] = tchiconcat
+        table.to_csv(filename+".csv")
+
+
+
+    def plot_model_amp(self, outimage, filename=None, plotargs={'ms': 1., }):
+        '''
+        Make summary pdf figures and csv file of checking model, residual
+        and chisquare of visibility amplitudes for each baseline
+        Args:
+            outimage (imdata.IMFITS object):
+                model image to construct a model visibility
+            filename:
+              str, pathlib.Path, py._path.local.LocalPath or any object with a read()
+              method (such as a file handle or StringIO)
+            **plotargs:
+              You can set parameters of matplotlib.pyplot.plot.
+              Defaults are {'ms': 1., }
+        Returns:
+            summary pdf file (default = "model.pdf"):
+                Output pdf file that summerizes results.
+            cvsumtablefile (default = "model.csv"):
+                Output csv file that summerizes results.
+        '''
+
+        if filename is not None:
+            pdf = PdfPages(filename)
+        else:
+            filename = "model"
             pdf = PdfPages(filename)
 
         # model,residual,chisq
@@ -1997,47 +2269,71 @@ class VisTable(UVTable):
 
         # First figure: All data
         fig, axs = plt.subplots(nrows=2, ncols=2)
+        plt.suptitle(r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq),fontsize=18)
         plt.subplots_adjust(hspace=0.4)
 
-        # 1. Radplot of closure amplitudes
+        # 1. Radplot of visibility amplitudes
         ax = axs[0,0]
         plt.sca(ax)
-        plt.title("Radplot of Amplitudes")
-        self.radplot(datatype="amp", color="black",errorbar=False, **plotargs)
-        model.radplot(datatype="amp", color="red",  errorbar=False, **plotargs)
+        plt.title("Radplot of amplitudes")
+        plotargs1=copy.deepcopy(plotargs)
+        plotargs1["label"]="Observation"
+        self.radplot(datatype="amp", color="black",errorbar=False, **plotargs1)
+        plotargs1["label"]="Model"
+        model.radplot(datatype="amp", color="red",  errorbar=False, **plotargs1)
+
+        # set xyrange
+        plt.autoscale()
+        plt.ylabel("Visibility amplitudes (Jy)")
+        plt.autoscale()
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+        plt.locator_params(axis='x',nbins=6)
+        plt.locator_params(axis='y',nbins=6)
+        plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
 
         # 2. Radplot of normalized residuals
-        plt.autoscale()
         ax = axs[1,0]
         plt.sca(ax)
         plt.title("Radplot of normalized residuals")
         resid.radplot(datatype="amp",normerror=True,errorbar=False,color="black",**plotargs)
         plt.ylabel("Normalized Residuals")
+
+        # set xyrange
         plt.autoscale()
+        plt.ylabel("Normalized residuals")
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin-(ymax-ymin)*0.1,ymax+(ymax-ymin)*0.1)
+        plt.locator_params(axis='x',nbins=6)
+        plt.locator_params(axis='y',nbins=6)
 
         # 3. Histogram of residuals
         ax = axs[0,1]
         plt.sca(ax)
-        plt.title("Histogram of residuals, chisq=%04f"%(chisq))
+        plt.title("Histogram of residuals")
         N = len(resid["amp"])
         plt.hist(resid["amp"], bins=np.int(np.sqrt(N)),
                  normed=True, orientation='vertical')
-        plt.xlabel("Residual ")
-        # set xrange
-        xmax1=abs(resid["amp"].min())
-        xmax2=abs(resid["amp"].max())
-        xmax = max(xmax1,xmax2)
+
+        # set xyrange
+        plt.autoscale()
+        plt.xlabel("Residual Amplitudes")
+        xmin,xmax = plt.xlim()
+        xmax = max(xmax,abs(xmin))
         plt.xlim(-xmax,xmax)
+        plt.locator_params(axis='x',nbins=6)
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.2)
+        plt.locator_params(axis='y',nbins=6)
 
         # 4. Histogram of normalized residuals
         ax = axs[1,1]
         plt.sca(ax)
-        plt.title("Histogram of normalized residuals, rchisq=%04f"%(rchisq))
+        plt.title("Histogram of normalized residuals")
         normresid = resid["amp"] / resid["sigma"]
         N = len(normresid)
         plt.hist(normresid, bins=np.int(np.sqrt(N)),
                  normed=True, orientation='vertical')
-        plt.xlabel("Normalized Residuals")
 
         # model line
         xmin, xmax = ax.get_xlim()
@@ -2045,11 +2341,16 @@ class VisTable(UVTable):
         y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
         plt.plot(x, y, color="red")
 
-        # set xrange
-        xmax1=abs(normresid.min())
-        xmax2=abs(normresid.max())
-        xmax = max(xmax1,xmax2)
+        # set xyrange
+        plt.autoscale()
+        plt.xlabel("Normalized Residuals")
+        xmin,xmax = plt.xlim()
+        xmax = max(xmax,abs(xmin))
         plt.xlim(-xmax,xmax)
+        plt.locator_params(axis='x',nbins=6)
+        ymin,ymax = plt.ylim()
+        plt.ylim(ymin,ymax+(ymax-ymin)*0.2)
+        plt.locator_params(axis='y',nbins=6)
 
         # save file
         if filename is not None:
@@ -2058,13 +2359,13 @@ class VisTable(UVTable):
 
         # tplot==========================
         baselines= self.baseline_list()
-        Ntri = len(baselines)
-        for itri in xrange(Ntri):
-            st1 = baselines[itri][0]
-            st2 = baselines[itri][1]
+        Nbsl = len(baselines)
+        for ibsl in xrange(Nbsl):
+            st1 = baselines[ibsl][0]
+            st2 = baselines[ibsl][1]
 
-            frmid =  table["st1name"] == st1
-            frmid &= table["st2name"] == st2
+            frmid =  self["st1name"] == st1
+            frmid &= self["st2name"] == st2
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
 
@@ -2074,43 +2375,61 @@ class VisTable(UVTable):
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-            plt.suptitle(st1+"-"+st2,fontsize=18)
+            plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
             plt.subplots_adjust(hspace=0.4)
 
             # 1. Time plot of closure phases
             ax = axs[0,0]
             plt.sca(ax)
-            plt.title("Time plot of closure amplitudes")
-            single.vplot("utc", "amp",errorbar=False)
-            model.vplot("utc", "amp",errorbar=False)
-            plt.autoscale(axis="x")
+            plt.title("Time plot of visibility amplitudes")
+            single.vplot("utc", "amp",errorbar=False,label="Observation")
+            model.vplot("utc", "amp",errorbar=False,label="Model")
+
+            # set xyrange
+            plt.autoscale()
+            plt.ylabel("Visibility amplitudes (Jy)")
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.5)
+            plt.locator_params(axis='x',nbins=6)
+            plt.locator_params(axis='y',nbins=6)
+            plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
 
             # 2. Time plot of normalized residuals
             ax = axs[1,0]
             plt.sca(ax)
             plt.title("Time plot of normalized residuals")
-            resid.vplot("utc", "amp",errorbar=False)
+            resid.vplot("utc", "amp",normerror1=True,errorbar=False)
             plt.ylabel("Normalized Residuals")
             plt.autoscale()
+
+            # set xyrange
+            plt.autoscale()
+            plt.ylabel("Normalized residuals")
+            plt.locator_params(axis='x',nbins=6)
+            plt.locator_params(axis='y',nbins=6)
 
             # 3. Histogram of residuals
             ax = axs[0,1]
             plt.sca(ax)
-            plt.title("Histogram of residuals,chisq=%04f"%(chisq))
+            plt.title("Histogram of residuals")
             N = len(resid["amp"])
             plt.hist(resid["amp"], bins=np.int(np.sqrt(N)),
                      normed=True, orientation='vertical')
-            plt.xlabel("Residual Closure amplitudes ")
-            # set xrange
-            xmax1=abs(resid["amp"].min())
-            xmax2=abs(resid["amp"].max())
-            xmax = max(xmax1,xmax2)
+            # set xyrange
+            plt.autoscale()
+            plt.xlabel("Residual Amplitudes")
+            xmin,xmax = plt.xlim()
+            xmax = max(xmax,abs(xmin))
             plt.xlim(-xmax,xmax)
             plt.locator_params(axis='x',nbins=6)
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.2)
+            plt.locator_params(axis='y',nbins=6)
+
             # 4. Histogram of normalized residuals
             ax = axs[1,1]
             plt.sca(ax)
-            plt.title("Histogram of normalized residuals,rchisq=%04f"%(rchisq))
+            plt.title("Histogram of normalized residuals")
             normresid = resid["amp"] / resid["sigma"]
             N = len(normresid)
             plt.hist(normresid, bins=np.int(np.sqrt(N)),
@@ -2122,11 +2441,18 @@ class VisTable(UVTable):
             y = 1 / np.sqrt(2 * np.pi) * np.exp(-x * x / 2.)
 
             plt.plot(x, y, color="red")
-            # set xrange
-            xmax1=abs(normresid.min())
-            xmax2=abs(normresid.max())
-            xmax = max(xmax1,xmax2)
+
+            # set xyrange
+            plt.xlabel("Normalized Residuals")
+            xmin,xmax = plt.xlim()
+            xmax = max(xmax,abs(xmin))
             plt.xlim(-xmax,xmax)
+            plt.locator_params(axis='x',nbins=6)
+            ymin,ymax = plt.ylim()
+            plt.ylim(ymin,ymax+(ymax-ymin)*0.2)
+            plt.locator_params(axis='y',nbins=6)
+
+
 
             matplotlib.rcdefaults()
             if filename is not None:
@@ -2176,33 +2502,59 @@ class VisTable(UVTable):
         table.to_csv(filename+".csv")
 
         # plot residual of triangles
-        util.matplotlibrc(ncols=1, nrows=2, width=700, height=400)
-        fig, axs = plt.subplots(nrows=2, ncols=1, sharex=False)
+        util.matplotlibrc(ncols=1, nrows=3, width=700, height=400)
+        fig, axs = plt.subplots(nrows=3, ncols=1, sharex=False)
         plt.subplots_adjust(hspace=0.55)
 
         ax = axs[0]
         plt.sca(ax)
+        plt.title(r"$\chi ^2$"+" for each baseline")
         plt.plot(stconcat,chiconcat,"o")
         plt.xticks(rotation=90)
         plt.grid(True)
         plt.ylabel(r"$\chi ^2$")
+        plt.locator_params(axis='y',nbins=6)
 
         ax = axs[1]
         plt.sca(ax)
+        plt.title(r"$\chi ^2 _{\nu}$"+" for each baseline")
         plt.plot(stconcat,rchiconcat,"o")
-        plt.ylabel(r"$\chi ^2 _{\nu}$")
         plt.xticks(rotation=90)
         plt.grid(True)
+        plt.ylabel(r"$\chi ^2 _{\nu}$")
+        plt.locator_params(axis='y',nbins=6)
 
-        if filename is not None:
-            pdf.savefig()
-            plt.close()
+        ax = axs[2]
+        plt.sca(ax)
+        plt.title(r"$\chi ^2 _{\rm total}$"+" for each baseline")
+        plt.plot(stconcat,tchiconcat,"o")
+        plt.xticks(rotation=90)
+        plt.grid(True)
+        plt.ylabel(r"$\chi ^2_{\rm total}$")
+        plt.locator_params(axis='y',nbins=6)
 
         # close pdf file
         if filename is not None:
+            pdf.savefig()
+            plt.close()
             pdf.close()
 
         matplotlib.rcdefaults()
+
+        # make csv table
+        stconcat.insert(0,"total")
+        Ndataconcat.insert(0,np.sum(Ndataconcat))
+        chiconcat.insert(0,np.sum(chiconcat))
+        rchiconcat.insert(0,np.sum(rchiconcat))
+        tchiconcat.insert(0,np.sum(tchiconcat))
+        table = pd.DataFrame()
+        table["baseline"] = stconcat
+        table["Ndata"] = Ndataconcat
+        table["chisq"] = chiconcat
+        table["rchisq_bl"] = rchiconcat
+        table["rchisq_total"] = tchiconcat
+        table.to_csv(filename+".csv")
+
 
 
 class VisSeries(UVSeries):
@@ -2269,10 +2621,10 @@ def check_nontrivial(baselines, redundant):
         return True
 
     flag = False
-    for baseline in baselines:
-        flag |= baseline in redundant
+    for baseline, red in itertools.product(baselines, redundant):
+        flag |= (baseline[0] in red) and (baseline[1] in red)
+        if flag: break
     return not flag
-
 
 def check_baselines(baselines, blset):
     flag = True
