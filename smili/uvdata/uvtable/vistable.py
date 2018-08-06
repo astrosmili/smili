@@ -688,9 +688,10 @@ class VisTable(UVTable):
             stdict2 = self.station_dic(id2name=False)
             for i in xrange(len(redundant)):
                 stationids = []
-                for stid in xrange(len(redundant[i])):
+                for stid in redundant[i]:
                     if isinstance(stid,basestring):
-                        stationids.append(stdict2[stid])
+                        if stid in stdict2.keys():
+                            stationids.append(stdict2[stid])
                     else:
                         stationids.append(stid)
                 redundant[i] = sorted(set(stationids))
@@ -890,7 +891,7 @@ class VisTable(UVTable):
         Args:
             redandant (list of sets of redundant station IDs or names; default=None):
                 If this is specified, non-trivial closure amplitudes will be formed.
-                This is useful for EHT-like array that have redandant stations in the same site.
+                This is useful for EHT-like array that have redundant stations in the same site.
                 For example, if stations 1,2,3 and 4,5 are on the same sites, respectively, then
                 you can specify redundant=[[1,2,3],[4,5]].
             dependent (boolean; default=False):
@@ -2612,10 +2613,10 @@ def check_nontrivial(baselines, redundant):
         return True
 
     flag = False
-    for baseline in baselines:
-        flag |= baseline in redundant
+    for baseline, red in itertools.product(baselines, redundant):
+        flag |= (baseline[0] in red) and (baseline[1] in red)
+        if flag: break
     return not flag
-
 
 def check_baselines(baselines, blset):
     flag = True
