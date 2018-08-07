@@ -1907,12 +1907,12 @@ class VisTable(UVTable):
 
         return imageout
 
-    def plot_model_fcv(self, outimage, filename=None, plotargs={'ms': 1., }):
+    def plot_model_fcv(self, images, filename=None, plotargs={'ms': 1., }):
         '''
         Make summary pdf figures and csv file of checking model, residual
         and chisquare of real and imaginary parts of visibility for each baseline
         Args:
-            outimage (imdata.IMFITS object):
+            images (imdata.IMFITS or imdata.MOVIE object):
                 model image to construct a model visibility
             filename:
               str, pathlib.Path, py._path.local.LocalPath or any object with a read()
@@ -1935,9 +1935,9 @@ class VisTable(UVTable):
 
         # model,residual,chisq
         nullfmt = NullFormatter()
-        model = self.eval_image(imfits=outimage,mask=None)
-        resid = self.residual_image(imfits=outimage,mask=None)
-        chisq,rchisq = self.chisq_image(imfits=outimage,mask=None)
+        model = self.eval_image(imfits=images,mask=None)
+        resid = self.residual_image(imfits=images,mask=None)
+        chisq,rchisq = self.chisq_image(imfits=images,mask=None)
 
         # set figure size
         util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
@@ -2063,10 +2063,18 @@ class VisTable(UVTable):
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
 
+            if(isinstance(images,imdata.IMFITS)):
+                modimages = images
+                modsingle = single
+
+            if(isinstance(images,imdata.MOVIE)):
+                modsingle,modimages=extract_frame(single,images)
+
             nullfmt = NullFormatter()
-            model        = single.eval_image(imfits=outimage,mask=None)
-            resid        = single.residual_image(imfits=outimage,mask=None)
-            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
+            model        = modsingle.eval_image(imfits=modimages,mask=None)
+            resid        = modsingle.residual_image(imfits=modimages,mask=None)
+            chisq,rchisq = modsingle.chisq_image(imfits=modimages,mask=None)
+
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
             plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
@@ -2185,8 +2193,16 @@ class VisTable(UVTable):
             frmid &= self["st2name"] == st2
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
-            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
-            Ndata = len(single)
+
+            if(isinstance(images,imdata.IMFITS)):
+                modimages = images
+                modsingle = single
+            if(isinstance(images,imdata.MOVIE)):
+                modsingle,modimages=extract_frame(single,images)
+
+            chisq,rchisq = modsingle.chisq_image(imfits=modimages,mask=None)
+            Ndata       = len(modsingle)
+
             Ndataconcat.append(Ndata)
             stconcat.append(st1+"-"+st2)
             chiconcat.append(chisq)
@@ -2249,12 +2265,12 @@ class VisTable(UVTable):
 
 
 
-    def plot_model_amp(self, outimage, filename=None, plotargs={'ms': 1., }):
+    def plot_model_amp(self, images, filename=None, plotargs={'ms': 1., }):
         '''
         Make summary pdf figures and csv file of checking model, residual
         and chisquare of visibility amplitudes for each baseline
         Args:
-            outimage (imdata.IMFITS object):
+            images (imdata.IMFITS or imdata.MOVIE object):
                 model image to construct a model visibility
             filename:
               str, pathlib.Path, py._path.local.LocalPath or any object with a read()
@@ -2277,9 +2293,9 @@ class VisTable(UVTable):
 
         # model,residual,chisq
         nullfmt = NullFormatter()
-        model = self.eval_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
-        resid = self.residual_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
-        chisq,rchisq = self.chisq_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+        model = self.eval_image(imfits=images,mask=None,amptable=True,istokes=0,ifreq=0)
+        resid = self.residual_image(imfits=images,mask=None,amptable=True,istokes=0,ifreq=0)
+        chisq,rchisq = self.chisq_image(imfits=images,mask=None,amptable=True,istokes=0,ifreq=0)
 
         # set figure size
         util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
@@ -2386,10 +2402,18 @@ class VisTable(UVTable):
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
 
+            if(isinstance(images,imdata.IMFITS)):
+                modimages = images
+                modsingle = single
+
+            if(isinstance(images,imdata.MOVIE)):
+                modsingle,modimages=extract_frame(single,images)
+
             nullfmt = NullFormatter()
-            model        = single.eval_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
-            resid        = single.residual_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
-            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+            model        = modsingle.eval_image(imfits=modimages,mask=None,amptable=True)
+            resid        = modsingle.residual_image(imfits=modimages,mask=None,amptable=True)
+            chisq,rchisq = modsingle.chisq_image(imfits=modimages,mask=None,amptable=True)
+
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
             plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
@@ -2495,8 +2519,16 @@ class VisTable(UVTable):
             frmid &= self["st2name"] == st2
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
-            chisq,rchisq = single.chisq_image(imfits=outimage,amptable=True,mask=None)
-            Ndata = len(single)
+
+            if(isinstance(images,imdata.IMFITS)):
+                modimages = images
+                modsingle = single
+            if(isinstance(images,imdata.MOVIE)):
+                modsingle,modimages=extract_frame(single,images)
+
+            chisq,rchisq = modsingle.chisq_image(imfits=modimages,mask=None,amptable=True)
+            Ndata       = len(modsingle)
+
             Ndataconcat.append(Ndata)
             stconcat.append(st1+"-"+st2)
             chiconcat.append(chisq)
@@ -2969,3 +3001,48 @@ def _radplot_fcv(vistable, uvunit, errorbar, ls ,marker, **plotargs):
     # Label (Plot)
     plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
     plt.ylabel(r"Real Part of Visibilities (Jy)")
+
+def extract_frame(single,movie):
+
+    '''
+    This extract the images for selected frames of single (bstable)
+    and make movie object by using the images.
+    Args:
+        single: bstable with selected frame index (see movie.set_frmidx)
+        movie : movie object
+    Return:
+        modsingle : modify the number of the frame index
+        modmovie  : extracted movies for selected frames
+    '''
+
+    # Make framelist for single table
+    framelist = np.unique(single.frmidx.values)
+    Nframe    = len(framelist)
+    # Make imagelist of images for selected frames of single table
+    imagelist=[]
+    for iframe in xrange(Nframe):
+        frmid = framelist[iframe]
+        image = movie.images[frmid]
+        imagelist = imagelist+[image]
+    # Make time table for selected frames
+    tmtable = pd.DataFrame()
+    for iframe in xrange(Nframe):
+        frmid  = framelist[iframe]
+        tmtable = pd.concat([tmtable,movie.timetable[frmid:frmid+1]])
+    # Modify the time interval for selected frames
+    for iframe in xrange(Nframe-1):
+        tmtable.tint.values[iframe] = (tmtable.gsthour.values[iframe+1]-tmtable.gsthour.values[iframe])*3600.
+    tmtable.reset_index(drop=True, inplace=True)
+    tmtable.to_csv("test.csv")
+    # make movie object for selected frames (modmovie)
+    if(Nframe>1):
+        modmovie = imdata.MOVIE(timetable="test.csv")
+        for iframe in xrange(Nframe):
+            frmid = framelist[iframe]
+            modmovie.images[iframe] = movie.images[frmid]
+        modsingle = modmovie.set_frmidx(single)
+    else:
+        modmovie = imagelist[0]
+        modsingle = single
+
+    return modsingle,modmovie

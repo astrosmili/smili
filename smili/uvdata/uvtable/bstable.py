@@ -848,12 +848,12 @@ class BSTable(UVTable):
                 plt.ylabel(axislabels[1])
                 plt.ylim(deflims[1])
 
-    def  plot_model(self,outimage, filename=None, plotargs={'ms': 1., }):
+    def  plot_model(self,images, filename=None, plotargs={'ms': 1., }):
         '''
         Make summary pdf figures and csv file of checking model, residual
         and chisq of closure phases for each triangle
         Args:
-            outimage (imdata.IMFITS object):
+            images (imdata.IMFITS or imdata.MOVIE object):
                 model image to construct a model visibility
             filename:
               str, pathlib.Path, py._path.local.LocalPath or any object with a read()
@@ -875,9 +875,9 @@ class BSTable(UVTable):
             pdf = PdfPages(filename)
         # model,residual,chisq
         nullfmt = NullFormatter()
-        model = self.eval_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
-        resid = self.residual_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
-        chisq,rchisq = self.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
+        model = self.eval_image(imfits=images,mask=None,istokes=0,ifreq=0)
+        resid = self.residual_image(imfits=images,mask=None,istokes=0,ifreq=0)
+        chisq,rchisq = self.chisq_image(imfits=images,mask=None,istokes=0,ifreq=0)
 
         # set figure size
         util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
@@ -984,10 +984,18 @@ class BSTable(UVTable):
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
 
+            if(isinstance(images,imdata.IMFITS)):
+                modimages = images
+                modsingle = single
+
+            if(isinstance(images,imdata.MOVIE)):
+                modsingle,modimages=extract_frame(single,images)
+
             nullfmt = NullFormatter()
-            model        = single.eval_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
-            resid        = single.residual_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
-            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
+            model        = modsingle.eval_image(imfits=modimages,mask=None,istokes=0,ifreq=0)
+            resid        = modsingle.residual_image(imfits=modimages,mask=None,istokes=0,ifreq=0)
+            chisq,rchisq = modsingle.chisq_image(imfits=modimages,mask=None,istokes=0,ifreq=0)
+
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
             plt.suptitle(st1+"-"+st2+"-"+st3+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
@@ -1090,8 +1098,16 @@ class BSTable(UVTable):
             frmid &= self["st3name"] == st3
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
-            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
-            Ndata       = len(single)
+
+            if(isinstance(images,imdata.IMFITS)):
+                modimages = images
+                modsingle = single
+            if(isinstance(images,imdata.MOVIE)):
+                modsingle,modimages=extract_frame(single,images)
+
+            chisq,rchisq = modsingle.chisq_image(imfits=modimages,mask=None)
+            Ndata       = len(modsingle)
+
             stconcat.append(st1+"-"+st2+"-"+st3)
             Ndataconcat.append(Ndata)
             chiconcat.append(chisq)
@@ -1187,3 +1203,49 @@ def read_bstable(filename, uvunit=None, **args):
         table["utc"] = at.Time(table["utc"].values.tolist()).datetime
     table.set_uvunit()
     return table
+
+
+def extract_frame(single,movie):
+
+    '''
+    This extract the images for selected frames of single (bstable)
+    and make movie object by using the images.
+    Args:
+        single: bstable with selected frame index (see movie.set_frmidx)
+        movie : movie object
+    Return:
+        modsingle : modify the number of the frame index
+        modmovie  : extracted movies for selected frames
+    '''
+
+    # Make framelist for single table
+    framelist = np.unique(single.frmidx.values)
+    Nframe    = len(framelist)
+    # Make imagelist of images for selected frames of single table
+    imagelist=[]
+    for iframe in xrange(Nframe):
+        frmid = framelist[iframe]
+        image = movie.images[frmid]
+        imagelist = imagelist+[image]
+    # Make time table for selected frames
+    tmtable = pd.DataFrame()
+    for iframe in xrange(Nframe):
+        frmid  = framelist[iframe]
+        tmtable = pd.concat([tmtable,movie.timetable[frmid:frmid+1]])
+    # Modify the time interval for selected frames
+    for iframe in xrange(Nframe-1):
+        tmtable.tint.values[iframe] = (tmtable.gsthour.values[iframe+1]-tmtable.gsthour.values[iframe])*3600.
+    tmtable.reset_index(drop=True, inplace=True)
+    tmtable.to_csv("test.csv")
+    # make movie object for selected frames (modmovie)
+    if(Nframe>1):
+        modmovie = imdata.MOVIE(timetable="test.csv")
+        for iframe in xrange(Nframe):
+            frmid = framelist[iframe]
+            modmovie.images[iframe] = movie.images[frmid]
+        modsingle = modmovie.set_frmidx(single)
+    else:
+        modmovie = imagelist[0]
+        modsingle = single
+
+    return modsingle,modmovie
