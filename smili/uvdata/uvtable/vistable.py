@@ -685,6 +685,7 @@ class VisTable(UVTable):
 
         # Check redundant
         if redundant is not None:
+            redundant_sites = []
             stdict2 = self.station_dic(id2name=False)
             for i in xrange(len(redundant)):
                 stationids = []
@@ -694,8 +695,12 @@ class VisTable(UVTable):
                             stationids.append(stdict2[stid])
                     else:
                         stationids.append(stid)
-                redundant[i] = sorted(set(stationids))
+                if len(stationids) >= 2:
+                    redundant_sites.append(sorted(set(stationids)))
             del stid, stdict2
+        else:
+            redundant_sites=None
+
 
         print("(1/5) Sort data")
         vistable = self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
@@ -779,7 +784,7 @@ class VisTable(UVTable):
 
                 if rank>=Nbsmax and (not dependent):
                     break
-                isnontrivial = check_nontrivial([[st1,st2], [st1,st3], [st2,st3]],redundant)
+                isnontrivial = check_nontrivial([[st1,st2], [st1,st3], [st2,st3]],redundant_sites)
                 isbaselines = check_baselines([bl12,bl23,bl13], blset)
                 if isnontrivial and isbaselines:
                     newrank, newmatrix = calc_matrix_bs(matrix, blid12, blid23, blid13, Nblmax, dependent)
@@ -912,16 +917,21 @@ class VisTable(UVTable):
 
         # Check redundant
         if redundant is not None:
+            redundant_sites = []
             stdict2 = self.station_dic(id2name=False)
             for i in xrange(len(redundant)):
                 stationids = []
-                for stid in xrange(len(redundant[i])):
+                for stid in redundant[i]:
                     if isinstance(stid,basestring):
-                        stationids.append(stdict2[stid])
+                        if stid in stdict2.keys():
+                            stationids.append(stdict2[stid])
                     else:
                         stationids.append(stid)
-                redundant[i] = sorted(set(stationids))
+                if len(stationids) >= 2:
+                    redundant_sites.append(sorted(set(stationids)))
             del stid, stdict2
+        else:
+            redundant_sites=None
 
         print("(1/5) Sort data")
         vistable = self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
@@ -1019,7 +1029,7 @@ class VisTable(UVTable):
                 #   site1 == site4 or site2 == site3.
                 if rank>=Ncamax and (not dependent):
                     break
-                isnontrivial = check_nontrivial([[st1,st4], [st2,st3]],redundant)
+                isnontrivial = check_nontrivial([[st1,st4], [st2,st3]],redundant_sites)
                 isbaselines = check_baselines([bl12,bl34,bl13,bl24], blset)
                 if isnontrivial and isbaselines:
                     newrank, newmatrix = calc_matrix_ca(matrix, blid12, blid34, blid13, blid24, Nblmax, dependent)
@@ -1035,7 +1045,7 @@ class VisTable(UVTable):
                 #   site1 == site2 or site3 == site4.
                 if rank>=Ncamax and (not dependent):
                     break
-                isnontrivial = check_nontrivial([[st1,st2],[st3,st4]],redundant)
+                isnontrivial = check_nontrivial([[st1,st2],[st3,st4]],redundant_sites)
                 isbaselines = check_baselines([bl13,bl24,bl14,bl23],blset)
                 if isnontrivial and isbaselines:
                     newrank, newmatrix = calc_matrix_ca(matrix, blid13, blid24, blid14, blid23, Nblmax, dependent)
@@ -1053,7 +1063,7 @@ class VisTable(UVTable):
                     continue
                 if rank>=Ncamax and (not dependent):
                     break
-                isnontrivial = check_nontrivial([[st1,st3],[st2,st4]],redundant)
+                isnontrivial = check_nontrivial([[st1,st3],[st2,st4]],redundant_sites)
                 isbaselines = check_baselines([bl12,bl34,bl14,bl23],blset)
                 if isnontrivial and isbaselines:
                     newrank, newmatrix = calc_matrix_ca(matrix, blid12, blid34, blid14, blid23, Nblmax, dependent)

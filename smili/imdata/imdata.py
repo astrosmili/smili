@@ -175,8 +175,8 @@ class IMFITS(object):
             if argkey in headerkeys:
                 self.header[argkey] = self.header_dtype[argkey](args[argkey])
 
-        self.header["x"] *= angconv
-        self.header["y"] *= angconv
+        self.header["x"]  *= angconv
+        self.header["y"]  *= angconv
         self.header["dx"] *= angconv
         self.header["dy"] *= angconv
         self.data = np.zeros([self.header["ns"], self.header["nf"],
