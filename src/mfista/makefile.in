@@ -16,17 +16,17 @@ else
 endif
 
 # use the following two lines to enable PTHREAD choose the thread_num properly.
-CFLAGS=$(CCFLAGS_OPT)
-CXXFLAGS = -fPIC $(CCFLAGS_OPT) -DNEED_EXTERN_C
+CFLAGS = $(CCFLAGS_OPT) @FFTW3_CFLAGS@ @FFTW3_LIBS@ @FFTW3TH_LIBS@
+CXXFLAGS = -fPIC $(CCFLAGS_OPT) -DNEED_EXTERN_C @FFTW3_CFLAGS@ @FFTW3_LIBS@ @FFTW3TH_LIBS@
 # -funroll-loops
-CLIBS_FFTW = @FFTW3_LIBS@ @FFTW3TH_LIBS@
-CLIBS_NUFFTW = -fPIC $(CCFLAGS_OPT) -fopenmp @FFTW3_LIBS@ @FFTW3TH_LIBS@ -lstdc++ -lm
+CLIBS_FFTW = @FFTW3_CFLAGS@ @FFTW3_LIBS@ @FFTW3TH_LIBS@
+CLIBS_NUFFTW = -fPIC $(CCFLAGS_OPT) -fopenmp @FFTW3_CFLAGS@ @FFTW3_LIBS@ @FFTW3TH_LIBS@ -lstdc++ -lm
 
 CLIBS=@OPENBLAS_LIBS@
 
 # set the path to the static library of finufft. they wrote
 # static library works for Mac OS.
-NUFFTLIB_STATIC = ../finufft/lib-static/libfinufft.a
+NUFFTLIB_STATIC=../finufft/lib-static/libfinufft.a
 
 targets = libmfista_nufft
 object_io = mfista_io.o
@@ -42,13 +42,13 @@ libmfista_nufft: $(object_tools2) $(object_nufft2)
 	$(CC) $(CFLAGS) -shared $(object_nufft2) $(object_tools2) -o $@.so $(CLIBS) $(NUFFTLIB_STATIC) $(CLIBS_NUFFTW)
 
 .c.o:
-	$(CC) -c -O2 -Wall $(CFLAGS) -o $@ $<
+	$(CC) -c -O2 -Wall $(CFLAGS) $(CLIBS_FFTW) -o $@ $<
 
 .c.o2:
 	$(CC) -c -O2 -Wall -fPIC $(CFLAGS) -o $@ $<
 
 .cpp.o:
-	$(CXX) -c -O2 -Wall $(CXXFLAGS) -o $@ $<
+	$(CXX) -c -O2 -Wall $(CXXFLAGS) $(CLIBS_FFTW) -o $@ $<
 
 .cpp.o2:
 	$(CXX) -c -O2 -Wall -fPIC $(CXXFLAGS) -o $@ $<

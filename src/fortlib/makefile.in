@@ -114,7 +114,7 @@ OBJS+=image3d.o fftim3d.o
 OBJS+=dftlib.o dftim2d.o
 OBJS+=coord.o uvdata.o
 
-all: fortlib.so
+all: libfortlib.a fortlib.so
 
 .f90.o: $(SRCS)
 	$(FC) -Wall -c $< $(FCFLAGS)
