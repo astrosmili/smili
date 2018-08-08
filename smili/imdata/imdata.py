@@ -1255,7 +1255,6 @@ class IMFITS(object):
         plt.ylabel("Relative Dec (%s)" % (angunitlabel))
         return CS
 
-
     #-------------------------------------------------------------------------
     # DS9
     #-------------------------------------------------------------------------
@@ -1551,7 +1550,7 @@ class IMFITS(object):
         Gaussian Convolution
 
         Args:
-          x0, y0 (float): the peak location of the gaussian in the unit of "angunit"
+          x0, y0 (float): x, y shift of the convolved image in the unit of "angunit"
           majsize (float): Major Axis Size
           minsize (float): Minor Axis Size. If None, it will be same to the Major Axis Size (Circular Gaussian)
           angunit (string): Angular Unit for the sizes (uas, mas, asec or arcsec, amin or arcmin, degree)
@@ -1580,8 +1579,8 @@ class IMFITS(object):
         if y0 is None:
             y0 = 0.
 
-        X = (np.arange(outfits.header["nx"]) - outfits.header["nx"]/2.) * outfits.header["dx"] * angconv
-        Y = (np.arange(outfits.header["ny"]) - outfits.header["ny"]/2.) * outfits.header["dy"] * angconv
+        X = (np.arange(outfits.header["nx"]) - (outfits.header["nx"]-1)/2.) * outfits.header["dx"] * angconv
+        Y = (np.arange(outfits.header["ny"]) - (outfits.header["ny"]-1)/2.) * outfits.header["dy"] * angconv
         X, Y = np.meshgrid(X,Y)
         cospa = np.cos(np.deg2rad(pa))
         sinpa = np.sin(np.deg2rad(pa))
