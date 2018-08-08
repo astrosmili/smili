@@ -85,8 +85,9 @@ class IMRegion(pd.DataFrame):
                 You can set parameters of matplotlib.pyplot.plot.
         '''
         if angunit is None:
-            cnt = Counter(self["angunit"])
-            angunit = cnt.most_common()[0][0]
+            raise ValueError("No input angunit")
+            #cnt = Counter(self["angunit"])
+            #angunit = cnt.most_common()[0][0]
 
         for index, row in self.iterrows():
             if row["shape"] == "box":
