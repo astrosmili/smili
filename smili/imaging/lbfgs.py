@@ -183,7 +183,10 @@ def imaging(
         yidx = yidx.reshape(Nyx)
     else:
         print("Imaging Window: Specified. Images will be solved on specified pixels.")
-        imagewin = imregion.imagewin(initimage,istokes,ifreq)
+        if isinstance(imregion,imdata.IMRegion):
+            imagewin = imregion.imagewin(initimage)
+        elif isinstance(imregion,imdata.IMFITS):
+            imagewin = imregion.data[0,0] > 0.5
         idx = np.where(imagewin)
         Iin = Iin[idx]
         x = x[idx]
