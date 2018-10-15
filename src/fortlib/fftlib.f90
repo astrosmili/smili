@@ -77,7 +77,7 @@ subroutine NUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
   !   Sign of the exponent in the forward Fourier Transformation
   !     0: positive (the standard in Radio Astronomy)
   !     1: negative (the textbook standard; e.g. TMS)
-  integer,  parameter :: iflag=0
+  integer,  parameter  :: iflag=0
   !   numerical Accuracy required for FINUFFT
   real(dp),  parameter :: eps=ffteps
   !   error log
@@ -302,18 +302,18 @@ subroutine chisq_fcv(Vcmp,&
   implicit none
 
   ! NuFFT-ed visibilities
-  integer,      intent(in):: Nuv
-  complex(dpc), intent(in):: Vcmp(Nuv)
+  integer,      intent(in) :: Nuv
+  complex(dpc), intent(in) :: Vcmp(Nuv)
   ! Data
-  integer,  intent(in):: Nfcv             ! Number of data
-  integer,  intent(in):: uvidxfcv(Nfcv)   ! UV Index of FCV data
-  complex(dpc), intent(in):: Vfcv(Nfcv)   ! Full complex visibility (FCV) data
-  real(dp), intent(in):: Varfcv(Nfcv)     ! variances of FCV data
+  integer,  intent(in)     :: Nfcv             ! Number of data
+  integer,  intent(in)     :: uvidxfcv(Nfcv)   ! UV Index of FCV data
+  complex(dpc), intent(in) :: Vfcv(Nfcv)       ! Full complex visibility (FCV) data
+  real(dp), intent(in)     :: Varfcv(Nfcv)     ! variances of FCV data
   ! Normalization Factor of Chisquare
-  real(dp), intent(in):: fnorm
+  real(dp), intent(in)     :: fnorm
   ! Outputs
-  real(dp), intent(inout):: chisq           ! chisquare
-  real(dp), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
+  real(dp), intent(inout)  :: chisq                    ! chisquare
+  real(dp), intent(inout)  :: Vresre(Nuv), Vresim(Nuv) ! residual vector
                                             !   its adjoint FT provides
                                             !   the gradient of chisquare)
 
@@ -972,15 +972,15 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   integer,  intent(in) :: Nuv
   real(dp), intent(in) :: u(Nuv), v(Nuv)  ! uv coordinates mutiplied by 2*pi*dx, 2*pi*dy
   ! Data
-  integer,  intent(in):: Ncp            ! Number of data
-  integer,  intent(in):: uvidxcp(3,Ncp) ! UV Index of cp data
-  real(dp), intent(in):: CP(Ncp)        ! Closure Phase data
-  real(dp), intent(in):: Varcp(Ncp)     ! variances of ca data
+  integer,  intent(in) :: Ncp            ! Number of data
+  integer,  intent(in) :: uvidxcp(3,Ncp) ! UV Index of cp data
+  real(dp), intent(in) :: CP(Ncp)        ! Closure Phase data
+  real(dp), intent(in) :: Varcp(Ncp)     ! variances of ca data
   ! Outputs
-  real(dp), intent(out):: chisq           ! chisquare
-  real(dp), intent(out):: model(Ncp)      ! Model Vector
-  real(dp), intent(out):: resid(Ncp)      ! Residual Vector
-  real(dp), intent(out):: gradchisq(Npix) ! its adjoint FT provides
+  real(dp), intent(out) :: chisq           ! chisquare
+  real(dp), intent(out) :: model(Ncp)      ! Model Vector
+  real(dp), intent(out) :: resid(Ncp)      ! Residual Vector
+  real(dp), intent(out) :: gradchisq(Npix) ! its adjoint FT provides
                                           ! the gradient of chisquare
 
   ! allocatable arrays

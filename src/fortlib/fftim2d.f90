@@ -20,7 +20,7 @@ subroutine imaging(&
   Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   u,v,&
   lambl1,lambtv,lambtsv,lambmem,lambcom,doweight,tgtdyrange,&
-  Niter,nonneg,transtype,transprm,pcom,&
+  Niter,nonneg,pcom,&
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,&
   isamp,uvidxamp,Vamp,Varamp,&
   iscp,uvidxcp,CP,Varcp,&
@@ -315,23 +315,28 @@ subroutine calc_cost(&
   real(dp), intent(in) :: u(Nuv), v(Nuv)  ! uv coordinates mutiplied by 2*pi*dx, 2*pi*dy
 
   ! Regularization Parameters
-  real(dp), intent(in) :: lambl1  ! Regularization Parameter for L1-norm
-  real(dp), intent(in) :: lambtv  ! Regularization Parameter for iso-TV
-  real(dp), intent(in) :: lambtsv ! Regularization Parameter for TSV
-  real(dp), intent(in) :: lambmem ! Regularization Parameter for MEM
-  real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
-
-  ! Reweighting
-  integer,  intent(in) :: doweight ! if postive, reweight l1,tsv,tv terms
-  real(dp), intent(in) :: l1_w(Npix), tv_w(Npix), tsv_w(Npix) ! reweight
+  !   L1
+  real(dp), intent(in) :: l1_lamb        ! Regularization Parameter for L1-norm
+  real(dp), intent(in) :: l1_prior(Npix) ! Prior
+  real(dp), intent(in) ::
+  !   TV
+  real(dp), intent(in) :: tv_lamb        ! Regularization Parameter for TV-norm
+  real(dp), intent(in) :: tv_prior(Npix) ! Prior
+  !   TSV
+  real(dp), intent(in) :: tsv_lamb        ! Regularization Parameter for TSV-norm
+  real(dp), intent(in) :: tsv_prior(Npix) ! Prior
+  !   GSent
+  real(dp), intent(in) :: gse_lamb        ! Regularization Parameter for TSV-norm
+  real(dp), intent(in) :: gse_prior(Npix) ! Prior
+  !   SHent
+  real(dp), intent(in) :: she_lamb        ! Regularization Parameter for TSV-norm
+  real(dp), intent(in) :: she_prior(Npix) ! Prior
+  !   Centor-of-mass regularizaiton
+  real(dp), intent(in) :: com_lamb  ! Regularization Parameter for Center of Mass
+  real(dp), intent(in) :: com_power !
 
   ! Imaging Parameter
   real(dp), intent(in) :: fnorm     ! normalization factor for chisquare
-  integer,  intent(in) :: transtype ! 0: No transform
-                                    ! 1: log correction
-                                    ! 2: gamma correction
-  real(dp), intent(in) :: transprm  ! transtype=1: theshold for log
-                                    ! transtype=2: power of gamma correction
   real(dp), intent(in) :: pcom      ! power weight of C.O.M regularization
 
   ! Parameters related to full complex visibilities
@@ -340,6 +345,7 @@ subroutine calc_cost(&
   integer,      intent(in) :: uvidxfcv(Nfcv)  ! uvidx
   complex(dpc), intent(in) :: Vfcv(Nfcv)      ! data
   real(dp),     intent(in) :: Varfcv(Nfcv)    ! variance
+  real(dp),     intent(in) :: wfcv            ! data weights
 
   ! Parameters related to amplitude
   logical,  intent(in) :: isamp           ! is amplitudes?
@@ -347,6 +353,7 @@ subroutine calc_cost(&
   integer,  intent(in) :: uvidxamp(Namp)  ! uvidx
   real(dp), intent(in) :: Vamp(Namp)      ! data
   real(dp), intent(in) :: Varamp(Namp)    ! variance
+  real(dp), intent(in) :: wamp            ! data weights
 
   ! Parameters related to the closure phase
   logical,  intent(in) :: iscp            ! is closure phases?
@@ -354,6 +361,7 @@ subroutine calc_cost(&
   integer,  intent(in) :: uvidxcp(3,Ncp)  ! uvidx
   real(dp), intent(in) :: CP(Ncp)         ! data
   real(dp), intent(in) :: Varcp(Ncp)      ! variance
+  real(dp), intent(in) :: wcp             ! data weights
 
   ! Parameters related to the closure amplitude
   logical,  intent(in) :: isca            ! is closure amplitudes?
@@ -361,8 +369,22 @@ subroutine calc_cost(&
   integer,  intent(in) :: uvidxca(4,Nca)  ! uvidx
   real(dp), intent(in) :: CA(Nca)         ! data
   real(dp), intent(in) :: Varca(Nca)      ! variance
+  real(dp), intent(in) :: wca             ! data weights
 
   ! Outputs
+  !   Chi-squares
+  real(dp), intent(out) :: chisq    ! weighted sum of chisquares
+  real(dp), intent(out) :: chisqfcv ! chisquare of full complex visibilities
+  real(dp), intent(out) :: chisqamp ! chisquare of amplitudes
+  real(dp), intent(out) :: chisqcp  ! chisquare of closure phases
+  real(dp), intent(out) :: chisqca  ! chisquare of closure amplitudes
+  !   regularization function
+  real(dp), intent(out) :: l1_cost  ! cost of l1
+  real(dp), intent(out) :: tv_cost  ! cost of tv
+  real(dp), intent(out) :: tsv_cost ! cost of tsv
+  real(dp), intent(out) :: gse_cost ! cost of gse
+  real(dp), intent(out) :: she_cost ! cost of she
+  !   Total Cost function
   real(dp), intent(out) :: cost
   real(dp), intent(out) :: gradcost(1:Npix)
 
@@ -373,10 +395,10 @@ subroutine calc_cost(&
   real(dp) :: chisq, reg  ! chisquare and regularization
 
   ! allocatable arrays
-  real(dp), allocatable :: I2d(:,:), Iin_reg(:)
-  real(dp), allocatable :: gradchisq2d(:,:)
-  real(dp), allocatable :: gradreg(:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  real(dp),     allocatable :: I2d(:,:), Iin_reg(:)
+  real(dp),     allocatable :: gradchisq2d(:,:)
+  real(dp),     allocatable :: gradreg(:)
+  real(dp),     allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   !------------------------------------
@@ -411,24 +433,34 @@ subroutine calc_cost(&
   Vresim(:) = 0d0
 
   ! Full complex visibility
+  chisqfcv=0d0
   if (isfcv .eqv. .True.) then
-    call chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,fnorm,chisq,Vresre,Vresim,Nuv,Nfcv)
+    call chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,fnorm,chisqfcv,Vresre,Vresim,Nuv,Nfcv)
+    chisq = chisq + wfcv * chisqfcv
   end if
 
   ! Amplitudes
+  chisqamp=0d0
   if (isamp .eqv. .True.) then
-    call chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,fnorm,chisq,Vresre,Vresim,Nuv,Namp)
+    call chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,fnorm,chisqamp,Vresre,Vresim,Nuv,Namp)
+    chisq = chisq + wamp * chisqamp
   end if
 
   ! Log closure amplitudes
+  chisqca=0d0
   if (isca .eqv. .True.) then
-    call chisq_ca(Vcmp,uvidxca,CA,Varca,fnorm,chisq,Vresre,Vresim,Nuv,Nca)
+    call chisq_ca(Vcmp,uvidxca,CA,Varca,fnorm,chisqca,Vresre,Vresim,Nuv,Nca)
+    chisq = chisq + wca * chisqca
   end if
 
   ! Closure phases
+  chisqcp=0d0
   if (iscp .eqv. .True.) then
-    call chisq_cp(Vcmp,uvidxcp,CP,Varcp,fnorm,chisq,Vresre,Vresim,Nuv,Ncp)
+    call chisq_cp(Vcmp,uvidxcp,CP,Varcp,fnorm,chisqcp,Vresre,Vresim,Nuv,Ncp)
+    chisq = chisq + wcp * chisqcp
   end if
+
+  ! comupute the total chisquare
   deallocate(Vcmp)
 
   ! Adjoint Non-unifrom Fast Fourier Transform
