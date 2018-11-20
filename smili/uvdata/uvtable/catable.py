@@ -132,6 +132,25 @@ class CATable(UVTable):
         '''
         return self["amp"]/self["sigma"]
 
+
+    def add_logerror(self, logerror, quadrature=True):
+        '''
+        Increase errors by a specified value
+
+        Args:
+            error (float or array like):
+                error to be added.
+            quadrature (boolean; default=True):
+                if True, error will be added to sigma in quadrature
+        '''
+        outtable = copy.deepcopy(self)
+        if quadrature:
+            outtable["logsigma"] = np.sqrt(outtable["logsigma"]**2 + logerror**2)
+        else:
+            outtable["logsigma"] += error
+        return outtable
+
+
     def eval_image(self, imfits, mask=None, istokes=0, ifreq=0):
         #uvdata.CATable object (storing model closure phase)
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
