@@ -5,198 +5,135 @@ module image
   ! Epsiron for Zero judgement
   real(dp), parameter :: zeroeps=1d-10
 contains
-!
-!
 !-------------------------------------------------------------------------------
-! Copy 1D image vector from/to 2D/3D image vector
+! Calc cost function
 !-------------------------------------------------------------------------------
-subroutine I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
-  !
-  ! I1d --> I2d
-  !
+subroutine calc_cost_reg()
   implicit none
-  !
-  integer, intent(in) :: N1d,Nx,Ny
-  integer, intent(in) :: xidx(N1d), yidx(N1d)
-  real(dp),intent(in) :: I1d(N1d)
-  real(dp),intent(inout) :: I2d(Nx,Ny)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N1d,I1d,xidx,yidx) &
-  !$OMP   PRIVATE(i)
-  do i=1,N1d
-    I2d(xidx(i),yidx(i))=I1d(i)
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
 
-! I1d <-- I2d
-subroutine I1d_I2d_inv(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
-  implicit none
-  !
-  integer, intent(in) :: N1d,Nx,Ny
-  integer, intent(in) :: xidx(N1d), yidx(N1d)
-  real(dp),intent(inout) :: I1d(N1d)
-  real(dp),intent(in) :: I2d(Nx,Ny)
-  !
-  integer :: i
-  !
+  ! Image
+  integer,  intent(in) :: Npix, Nx, Ny
+  integer,  intent(in) :: xidx(Npix), yidx(Npix)
+  real(dp), intent(in) :: Iin(Npix)
+  real(dp), intent(in) :: Nxref, Nyref
+
+  ! parameter for l1
+  real(dp), intent(in) :: l1_l          ! lambda
+  real(dp), intent(in) :: l1_w(Npix)    ! weight
+
+  ! parameter for total variation
+  real(dp), intent(in) :: tv_l          ! lambda
+  real(dp), intent(in) :: tv_w(Npix)    ! weight
+
+  ! parameter for total squared variation
+  real(dp), intent(in) :: tsv_l         ! lambda
+  real(dp), intent(in) :: tsv_w(Npix)   ! weight
+
+  ! parameter for simple shannon entropy
+  real(dp), intent(in) :: shent_l       ! lambda
+  real(dp), intent(in) :: shent_p(Npix) ! weight
+
+  ! parameter for Gull & Skilling entropy
+  real(dp), intent(in) :: gsent_l       ! lambda
+  real(dp), intent(in) :: gsent_p(Npix) ! weight
+
+  ! parameter for the center of mass regularization
+  real(dp), intent(in) :: com_l         ! lambda
+  real(dp), intent(in) :: com_a         ! weight
+
+  ! parameter for the total flux regularization
+  real(dp), intent(in) :: tf_l  ! lambda
+  real(dp), intent(in) :: tf_t  ! the target total flux
+
+  ! regularization function
+  real(dp), intent(out) :: l1_cost    ! cost of l1
+  real(dp), intent(out) :: tv_cost    ! cost of tv
+  real(dp), intent(out) :: tsv_cost   ! cost of tsv
+  real(dp), intent(out) :: gsent_cost ! cost of Gull & Skilling entropy
+  real(dp), intent(out) :: shent_cost ! cost of shannon entropy
+  real(dp), intent(out) :: tf_cost    ! cost of total flux
+
+  ! Total Cost function
+  real(dp), intent(out) :: cost
+  real(dp), intent(out) :: gradcost(1:Npix)
+
+  ! integer
+  integer :: ipix
+
+  ! allocatable arrays
+  real(dp), allocatable :: I2d(:,:)
+
+  !------------------------------------
+  ! Regularization Functions
+  !------------------------------------
+  ! Initialize
+  l1_cost = 0d0
+  tv_cost = 0d0
+  tsv_cost = 0d0
+  gsent_cost = 0d0
+  shent_cost = 0d0
+  tf_cost = 0d0
+  cost = 0d0
+  gradcost(:) = 0d0
+
+  ! Allocate two dimensional array if needed
+  if (tv_l > 0 .or. tsv_l > 0) then
+    allocate(I2d(Nx,Ny))
+    I2d(:,:)=0d0
+    call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
+  end if
+
+  ! Compute regularization term
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N1d,I2d,xidx,yidx) &
-  !$OMP   PRIVATE(i)
-  do i=1,N1d
-    I1d(i)=I2d(xidx(i),yidx(i))
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-!-------------------------------------------------------------------------------
-! Transform Image (log-domain regularization)
-!-------------------------------------------------------------------------------
-subroutine log_fwd(thres,I1d,I1dout,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: thres
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,thres,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i)=(log(abs(I1d(i))+thres)-log(thres)) * sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
+  !$OMP   FIRSTPRIVATE(Npix, Iin, I2d, xidx, yidx,&
+  !$OMP                l1_l, l1_w,&
+  !$OMP                tv_l, tv_w,&
+  !$OMP                tsv_l, tsv_w,&
+  !$OMP                gsent_l, gsent_p,&
+  !$OMP                shent_l, shent_p) &
+  !$OMP   PRIVATE(ipix) &
+  !$OMP   REDUCTION(+: l1_cost, tv_cost, tsv_cost, gsent_cost, shent_cost, cost, gradcost)
+  do ipix=1, Npix
+    ! L1
+    if (l1_l > 0) then
+      l1_cost = l1_cost + l1_l * l1_w(ipix) * l1_e(Iin(ipix))
+      gradcost(ipix) = gradcost(ipix) + l1_l * l1_w(ipix) * l1_grade(Iin(ipix))
+    end if
+
+    ! Shannon Entropy
+    if (shent_l > 0) then
+      shent_cost = shent_cost + shent_l * shent_e(Iin(ipix),shent_p)
+      gradcost(ipix) = gradcost(ipix) + shent_l * shent_grade(Iin(ipix),shent_p)
+    end if
+
+    ! Gull & Skilling Entropy
+    if (gsent_l > 0) then
+      gsent_cost = gsent_cost + gsent_l * gsent_e(Iin(ipix),gsent_p)
+      gradcost(ipix) = gradcost(ipix) + gsent_l * gsent_grade(Iin(ipix),gsent_p)
+    end if
+
+    ! TV
+    if (tv_l > 0) then
+      tv_cost = tv_cost + tv_l * tv_w(ipix) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      gradcost(ipix) = gradcost(ipix) + tv_l * tv_w(ipix) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+    end if
+
+    ! TSV
+    if (tsv_l > 0) then
+      tsv_cost = tsv_cost + tsv_l * tsv_w(ipix) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      gradcost(ipix) = gradcost(ipix) + tsv_l * tsv_w(ipix) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
     end if
   end do
   !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine log_inv(thres,I1d,I1dout,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: thres
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,thres,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i) = thres*(exp(abs(I1d(i)))-1)*sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine log_grad(thres,I1d,gradreg,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: thres
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(inout) :: gradreg(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,thres) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      gradreg(i) = gradreg(i)/(abs(I1d(i)) + thres)
-    else
-      gradreg(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine gamma_fwd(gamma,I1d,I1dout,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: gamma
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,gamma,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i)=abs(I1d(i))**gamma * sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine gamma_inv(gamma,I1d,I1dout,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: gamma
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,gamma,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i) = abs(I1d(i))**(1/gamma) * sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine gamma_grad(gamma,I1d,gradreg,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: gamma
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(inout) :: gradreg(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,gamma) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      gradreg(i) = gradreg(i) * gamma * abs(I1d(i))**(gamma-1) * sign(1d0,I1d(i))
-    else
-      gradreg(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
+
+  ! Total Flux regularization
+
+  ! Center of Mass regularization
+
+  ! de allocate array if needed
+  if (tv_l > 0 .or. tsv_l > 0) then
+    deallocate(I2d)
+  end if
 end subroutine
 !
 !
@@ -204,64 +141,71 @@ end subroutine
 ! Regularization Function
 !-------------------------------------------------------------------------------
 !
-! l1-norm
+! l1-norm (Smoothed version)
 !
 real(dp) function l1_e(I)
   implicit none
-  real(dp),intent(in) :: I
-  !
-  ! Smooth L1 (where alpha = 1/zeroeps)
-  l1_e = sqrt(I**2+zeroeps)
+  real(dp), intent(in) :: I
+  l1_e = smabs(I)
 end function
-!
-! gradient of l1-norm
 !
 real(dp) function l1_grade(I)
   implicit none
-  !
-  real(dp),intent(in) :: I
-  !
-  ! Smooth L1 (where alpha = 1/zeroeps)
-  l1_grade = I/l1_e(I)
+  real(dp), intent(in) :: I
+  l1_grade = smabs_diff(I)
 end function
 !
-! MEM
 !
-real(dp) function mem_e(I)
+! A simple version of the Shannon Information Entropy
+!   Approximate that it can be differentiable everywhere
+!
+real(dp) function shent_e(I, P)
   implicit none
-  !
-  real(dp),intent(in) :: I
-  real(dp) :: absI
-  !
-  !if (abs(I) > zeroeps) then
-  !  mem_e = abs(I)*log(abs(I))
-  !else
-  !  mem_e = 0d0
-  !end if
-  !
-  ! differentiable MEM
-  absI = l1_e(I)
-  mem_e = absI * log(absI)
-end function
-!
-! gradient of MEM
-!
-real(dp) function mem_grade(I)
-  implicit none
-  !
-  real(dp),intent(in) :: I
-  real(dp) :: absI, gradabsI
 
-  !if (abs(I) > zeroeps) then
-  !  mem_grade = (log(abs(I))+1) * sign(1d0,I)
-  !else
-  !  mem_grade = 0d0
-  !end if
-  !
-  ! differentiable MEM
-  absI = l1_e(I)
-  gradabsI = l1_grade(I)
-  mem_grade = gradabsI * (1+log(absI))
+  real(dp),intent(in) :: I, P
+  real(dp) :: absI, absP
+
+  absI = smabs(I)
+  absP = smabs(P)
+  shent_e = absI * log(absI/absP)
+end function
+!
+real(dp) function shent_grade(I, P)
+  implicit none
+
+  real(dp),intent(in) :: I, P
+  real(dp) :: absI, absP, gradabsI
+
+  absI = smabs(I)
+  absP = smabs(P)
+  gradabsI = smabs_diff(I)
+  shent_grade = gradabsI * (1+log(absI))
+end function
+!
+! Gull & Skilling Entropy
+!   Approximate that it can be differentiable everywhere
+!
+real(dp) function gsent_e(I, P)
+  implicit none
+
+  real(dp),intent(in) :: I, P
+  real(dp) :: absI, absP
+
+  absI = smabs(I)
+  absP = smabs(P)
+  gsent_e = absI * (log(absI/absP)-1)
+end function
+!
+real(dp) function gsent_grade(I, P)
+  implicit none
+
+  real(dp),intent(in) :: I, P
+  real(dp) :: absI, absP
+
+  absI = smabs(I)
+  absP = smabs(P)
+  gradabsI = smabs_diff(I)
+  ent_grade = gradabsI * (1+log(absI))
 end function
 !
 ! Isotropic Total Variation
@@ -656,205 +600,71 @@ subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz)
   end do
   !$OMP END PARALLEL DO
 end subroutine
-
 !-------------------------------------------------------------------------------
-! A convinient function to compute regularization functions
-! for python interfaces
+! Absolute apporoximater
 !-------------------------------------------------------------------------------
-subroutine I2d_l1(I2d,cost,costmap,gradmap,Nx,Ny)
+! Smoothed absolute opperator
+!   |x| ~ sqrt(x^2 + e)
+real(dp) function smabs(x)
   implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
+  real(dp),intent(in) :: x
+  smabs = sqrt(x**2+zeroeps)
+end function
+!
+!   d|x|/dx ~ x/sqrt(x^2 + e)
+real(dp) function smabs_diff(x)
+  implicit none
+  real(dp),intent(in) :: x
+  smabs_diff = x/smabs(x)
+end function
+!
+!
+!-------------------------------------------------------------------------------
+! Copy 1D image vector from/to 2D/3D image vector
+!-------------------------------------------------------------------------------
+!
+! I1d --> I2d
+!
+subroutine I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
+  !
+  !
+  implicit none
+  !
+  integer, intent(in) :: N1d,Nx,Ny
+  integer, intent(in) :: xidx(N1d), yidx(N1d)
+  real(dp),intent(in) :: I1d(N1d)
+  real(dp),intent(inout) :: I2d(Nx,Ny)
+  !
+  integer :: i
+  !
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = l1_e(I2d(ix,iy))
-    gradmap(ix,iy) = l1_grade(I2d(ix,iy))
-    cost = cost + costmap(ix,iy)
+  !$OMP   FIRSTPRIVATE(N1d,I1d,xidx,yidx) &
+  !$OMP   PRIVATE(i)
+  do i=1,N1d
+    I2d(xidx(i),yidx(i))=I1d(i)
   end do
   !$OMP END PARALLEL DO
 end subroutine
 !
+! I1d <-- I2d
 !
-subroutine I2d_mem(I2d,cost,costmap,gradmap,Nx,Ny)
+subroutine I1d_I2d_inv(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
   implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
+  !
+  integer, intent(in) :: N1d,Nx,Ny
+  integer, intent(in) :: xidx(N1d), yidx(N1d)
+  real(dp),intent(inout) :: I1d(N1d)
+  real(dp),intent(in) :: I2d(Nx,Ny)
+  !
+  integer :: i
+  !
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = mem_e(I2d(ix,iy))
-    gradmap(ix,iy) = mem_grade(I2d(ix,iy))
-    cost = cost+costmap(ix,iy)
+  !$OMP   FIRSTPRIVATE(N1d,I2d,xidx,yidx) &
+  !$OMP   PRIVATE(i)
+  do i=1,N1d
+    I1d(i)=I2d(xidx(i),yidx(i))
   end do
   !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine I2d_tv(I2d,cost,costmap,gradmap,Nx,Ny)
-  implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = tv_e(ix,iy,I2d,Nx,Ny)
-    gradmap(ix,iy) = tv_grade(ix,iy,I2d,Nx,Ny)
-    cost = cost+costmap(ix,iy)
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine I2d_tsv(I2d,cost,costmap,gradmap,Nx,Ny)
-  implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = tsv_e(ix,iy,I2d,Nx,Ny)
-    gradmap(ix,iy) = tsv_grade(ix,iy,I2d,Nx,Ny)
-    cost = cost+costmap(ix,iy)
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine I2d_com(I2d,Nxref,Nyref,alpha,cost,costmap,gradmap,Nx,Ny)
-  implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny),Nxref,Nyref,alpha
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-  real(dp) :: dix,diy, sumx, sumy, sumI, gradsumI, gradsumx, gradsumy,Ip
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
-
-  ! initialize sums
-  sumx = 0d0
-  sumy = 0d0
-  sumI = 0d0
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,Nxref,Nyref,I2d,alpha) &
-  !$OMP   PRIVATE(ixy,ix,iy,dix,diy,Ip) &
-  !$OMP   REDUCTION(+:sumx,sumy,sumI,costmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-
-    ! pixel from the reference pixel
-    dix = ix - Nxref
-    diy = iy - Nyref
-
-    ! take a alpha
-    if (abs(I2d(ix,iy)) > zeroeps) then
-      Ip = abs(I2d(ix,iy))**alpha
-    else
-      Ip = 0
-    end if
-
-    ! calculate sum
-    costmap(ix,iy) = sqrt((Ip*dix)**2 +(Ip*diy)**2)
-    sumx = sumx + Ip * dix
-    sumy = sumy + Ip * diy
-    sumI = sumI + Ip
-  end do
-  !$OMP END PARALLEL DO
-
-  if (abs(sumI) > zeroeps) then
-    ! calculate cost function
-    cost = sqrt(sumx*sumx+sumy*sumy)/sumI
-
-    ! calculate gradient of cost function
-    !$OMP PARALLEL DO DEFAULT(SHARED) &
-    !$OMP   FIRSTPRIVATE(Nx,Ny,Nxref,Nyref,alpha,I2d,sumx,sumy,sumI,cost) &
-    !$OMP   PRIVATE(ixy,ix,iy,dix,diy,gradsumI,gradsumx,gradsumy) &
-    !$OMP   REDUCTION(+:gradmap)
-    do ixy=1, Nx*Ny
-      call ixy2ixiy(ixy,ix,iy,Nx)
-      costmap(ix,iy) = costmap(ix,iy)/sumI
-
-      ! pixel from the reference pixel
-      dix = ix - Nxref
-      diy = iy - Nyref
-
-      ! gradient of sums
-      if (abs(I2d(ix,iy)) > zeroeps) then
-        if (abs(alpha) - 1 < zeroeps) then
-          gradsumI = sign(1d0,I2d(ix,iy))
-        else
-          gradsumI = alpha*abs(I2d(ix,iy))**(alpha-1)*sign(1d0,I2d(ix,iy))
-        end if
-      else
-        gradsumI = 0
-      end if
-      gradsumx = gradsumI*dix
-      gradsumy = gradsumI*diy
-
-      ! calculate gradint of cost function
-      gradmap(ix,iy) = gradmap(ix,iy) + cost*gradsumI/sumI
-      gradmap(ix,iy) = gradmap(ix,iy) + (sumx*gradsumx+sumy*gradsumy)/(cost*sumI**3)
-    end do
-    !$OMP END PARALLEL DO
-  else
-    costmap(:,:) = 0d0
-  end if
 end subroutine
 !
 !
