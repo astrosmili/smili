@@ -148,11 +148,7 @@ subroutine imaging(&
 
   ! Number of Data
   integer   :: Ndata  ! number of data
-  real(dp)  :: wfcv_n = 0d0
-  real(dp)  :: wamp_n = 0d0
-  real(dp)  :: wcp_n = 0d0
-  real(dp)  :: wca_n = 0d0
-  real(dp)  :: wtotal = 0d0
+  real(dp)  :: wfcv_n, wamp_n, wcp_n, wca_n, wtotal
 
   ! variables and parameters tuning L-BFGS-B
   integer,  parameter   :: iprint = -1
@@ -171,9 +167,10 @@ subroutine imaging(&
   ! Initialize Data
   !-------------------------------------
   ! Check Ndata
-  Ndata = 0
+  Ndata  = 0
+  wtotal = 0
   if (isfcv .eqv. .True.) then
-    Ndata = Ndata + Nfcv
+    Ndata = Ndata + 2 * Nfcv
     wtotal = wtotal + 2 * Nfcv * wfcv
   end if
   if (isamp .eqv. .True.) then
@@ -189,22 +186,25 @@ subroutine imaging(&
     wtotal = wtotal + Nca * wca
   end if
   ! compute weight
+  wfcv_n = 0
   if (isfcv .eqv. .True.) then
     wfcv_n = wfcv / wtotal
   end if
+  wamp_n = 0
   if (isamp .eqv. .True.) then
     wamp_n = wamp / wtotal
   end if
+  wcp_n = 0
   if (iscp .eqv. .True.) then
     wcp_n = wcp / wtotal
   end if
+  wca_n = 0
   if (isca .eqv. .True.) then
     wca_n = wca / wtotal
   end if
   write(*,*) 'Check Data and Weights'
   write(*,*) '  Number of Data          ', Ndata
   write(*,*) '  Number of uv coordinates', Nuv
-  write(*,*) '  Number of uv coordinates', wfcv, wfcv_n, wtotal
 
   ! copy images (Iin -> Iout)
   write(*,*) 'Initialize the parameter vector'
@@ -230,6 +230,28 @@ subroutine imaging(&
     !$OMP END PARALLEL DO
     !write(*,*) 'Vfcv after ',Vfcv(1)
   end if
+
+  print '("Summary of the initial image")'
+  call calc_cost(&
+    Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
+    u,v,&
+    l1_l, l1_wgt, l1_Nwgt,&
+    tv_l, tv_wgt, tv_Nwgt,&
+    tsv_l, tsv_wgt, tsv_Nwgt,&
+    kl_l, kl_wgt, kl_Nwgt,&
+    gs_l, gs_wgt, gs_Nwgt,&
+    tfd_l, tfd_tgtfd,&
+    cen_l, cen_alpha,&
+    isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
+    isamp,uvidxamp,Vamp,Varamp,wamp_n,&
+    iscp,uvidxcp,CP,Varcp,wcp_n,&
+    isca,uvidxca,CA,Varca,wca_n,&
+    1,&
+    chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
+    reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+    cost, gradcost, &
+    Npix,Nuv,Nfcv,Namp,Ncp,Nca&
+  )
 
   !-------------------------------------
   ! L-BFGS-B
@@ -318,6 +340,7 @@ subroutine imaging(&
 
   ! Finary print summary again
   print '("Final Summary")'
+  print '("  Iteration ent at ",I5,"/",I5)',isave(30),Niter
   call calc_cost(&
     Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
     u,v,&
@@ -508,20 +531,46 @@ subroutine calc_cost(&
 
   ! Print summary if requested
   if (doprint > 0) then
-    print '("  Total flux             : ",D13.6)',sum(Iin)
     print '("  Cost Function          : ",D13.6)',cost
+
     print '("  Data term              : ",D13.6)',chisq
-    print '("    Complex Visibilities : ",D13.6)',chisqfcv
-    print '("    Amplitudes           : ",D13.6)',chisqamp
-    print '("    Closure Phase        : ",D13.6)',chisqcp
-    print '("    Closure Amplitudes   : ",D13.6)',chisqca
+    if (isfcv .eqv. .True.) then
+      print '("    Complex Visibilities : ",D13.6)',chisqfcv
+    end if
+    if (isamp .eqv. .True.) then
+      print '("    Amplitudes           : ",D13.6)',chisqamp
+    end if
+    if (iscp .eqv. .True.) then
+      print '("    Closure Phase        : ",D13.6)',chisqcp
+    end if
+    if (isca .eqv. .True.) then
+      print '("    Closure Amplitudes   : ",D13.6)',chisqca
+    end if
+
     print '("  Reguarization term     : ",D13.6)',reg
-    print '("    l1-norm              : ",D13.6)',l1_cost
-    print '("    TV                   : ",D13.6)',tv_cost
-    print '("    TSV                  : ",D13.6)',tsv_cost
-    print '("    KL divergence        : ",D13.6)',kl_cost
-    print '("    GS entropy           : ",D13.6)',gs_cost
-    print '("    Total Flux Density   : ",D13.6)',tfd_cost
+    if (l1_l > 0) then
+      print '("    l1-norm              : ",D13.6)',l1_cost
+    end if
+    if (tv_l > 0) then
+      print '("    TV                   : ",D13.6)',tv_cost
+    end if
+    if (tsv_l > 0) then
+      print '("    TSV                  : ",D13.6)',tsv_cost
+    end if
+    if (kl_l > 0) then
+      print '("    KL divergence        : ",D13.6)',kl_cost
+    end if
+    if (gs_l > 0) then
+      print '("    GS entropy           : ",D13.6)',gs_cost
+    end if
+    if (tfd_l > 0) then
+      print '("    Total Flux Density   : ",D13.6)',tfd_cost
+    end if
+    if (cen_l > 0) then
+      print '("    Centoroid Reg.       : ",D13.6)',cen_cost
+    endif
+
+    print '("  Total flux             : ",D13.6)',sum(Iin)
   end if
 end subroutine
 end module

@@ -61,8 +61,8 @@ def imaging(
         tsv_prior=None,
         kl_lambda=-1,
         kl_prior=None,
-        gs_prior=-1,
         gs_lambda=-1,
+        gs_prior=None,
         tfd_lambda=-1,
         tfd_tgterror=0.01,
         cen_lambda=-1,
@@ -364,7 +364,7 @@ def imaging(
         print("  Initialize Total Flux Density regularization")
         tfd_tgtfd = np.float64(totalflux)
         tfd_l = fortlib.image.init_tfdreg(
-            tfd_l_in = np.float64(tfd_l_in),
+            tfd_l_in = np.float64(tfd_lambda),
             tfd_tgtfd = np.float64(tfd_tgtfd),
             tfd_tgter = np.float64(tfd_tgterror))
     #
