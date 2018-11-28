@@ -382,7 +382,7 @@ subroutine calc_chisq(&
   if (isfcv .eqv. .True.) then
     call calc_chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,wfcv,chisqfcv,Vresre,Vresim,Nuv,Nfcv)
     chisq = chisq + chisqfcv
-    chisqfcv = chisqfcv / wfcv
+    chisqfcv = chisqfcv / wfcv / (2*Nfcv)
   end if
 
   ! Amplitudes
@@ -390,7 +390,7 @@ subroutine calc_chisq(&
   if (isamp .eqv. .True.) then
     call calc_chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,wamp,chisqamp,Vresre,Vresim,Nuv,Namp)
     chisq = chisq + chisqamp
-    chisqamp = chisqamp / wamp
+    chisqamp = chisqamp / wamp / Namp
   end if
 
   ! Log closure amplitudes
@@ -398,7 +398,7 @@ subroutine calc_chisq(&
   if (isca .eqv. .True.) then
     call calc_chisq_ca(Vcmp,uvidxca,CA,Varca,wca,chisqca,Vresre,Vresim,Nuv,Nca)
     chisq = chisq + chisqca
-    chisqca = chisqca / wca
+    chisqca = chisqca / wca / Nca
   end if
 
   ! Closure phases
@@ -406,7 +406,7 @@ subroutine calc_chisq(&
   if (iscp .eqv. .True.) then
     call calc_chisq_cp(Vcmp,uvidxcp,CP,Varcp,wcp,chisqcp,Vresre,Vresim,Nuv,Ncp)
     chisq = chisq + chisqcp
-    chisqcp = chisqcp / wcp
+    chisqcp = chisqcp / wcp / Ncp
   end if
 
   ! comupute the total chisquare

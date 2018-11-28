@@ -174,7 +174,7 @@ subroutine imaging(&
   Ndata = 0
   if (isfcv .eqv. .True.) then
     Ndata = Ndata + Nfcv
-    wtotal = wtotal + Nfcv * wfcv
+    wtotal = wtotal + 2 * Nfcv * wfcv
   end if
   if (isamp .eqv. .True.) then
     Ndata = Ndata + Namp
@@ -290,7 +290,7 @@ subroutine imaging(&
       ! to STOP L-BFGS-B iterations
       if (isave(30) > Niter) then
         task='STOP: TOTAL ITERATION NUMBER EXCEEDS LIMIT'
-      else if (mod(isave(nprint),nprint) == 0) then
+      else if (mod(isave(30),nprint) == 0) then
         print '("Iteration :",I5,"/",I5)',isave(30),Niter
         call calc_cost(&
           Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
