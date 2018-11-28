@@ -154,6 +154,34 @@ class BSTable(UVTable):
         else:
             return self["sigma"]/self["amp"]
 
+    def add_phaseerror(self, phaseerror, quadrature=True, deg=True):
+        '''
+        Increase errors by a specified value
+
+        Args:
+            error (float or array like):
+                error to be added.
+            quadrature (boolean; default=True):
+                if True, error will be added to sigma in quadrature
+        '''
+        outtable = copy.deepcopy(self)
+        # convert errors to radian
+        if deg:
+            phaseerr_rad = np.deg2rad(phaseerror)
+        else:
+            phaseerr_rad = phaseerror
+
+        # convert errors to sigma of the bi-spectra
+        sigma_add = outtable["amp"] * phaseerr_rad
+
+        # add errors
+        if quadrature:
+            outtable["sigma"] = np.sqrt(outtable["sigma"]**2 + sigma_add**2)
+        else:
+            outtable["sigma"] += sigma_add
+
+        return outtable
+
     def snr(self):
         '''
         Return the SNR estimator
