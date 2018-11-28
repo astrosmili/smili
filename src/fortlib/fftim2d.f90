@@ -301,10 +301,10 @@ subroutine imaging(&
           gs_l, gs_wgt, gs_Nwgt,&
           tfd_l, tfd_tgtfd,&
           cen_l, cen_alpha,&
-          isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
-          isamp,uvidxamp,Vamp,Varamp,wamp,&
-          iscp,uvidxcp,CP,Varcp,wcp,&
-          isca,uvidxca,CA,Varca,wca,&
+          isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
+          isamp,uvidxamp,Vamp,Varamp,wamp_n,&
+          iscp,uvidxcp,CP,Varcp,wcp_n,&
+          isca,uvidxca,CA,Varca,wca_n,&
           1,&
           chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
           reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
@@ -327,10 +327,10 @@ subroutine imaging(&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
     cen_l, cen_alpha,&
-    isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
-    isamp,uvidxamp,Vamp,Varamp,wamp,&
-    iscp,uvidxcp,CP,Varcp,wcp,&
-    isca,uvidxca,CA,Varca,wca,&
+    isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
+    isamp,uvidxamp,Vamp,Varamp,wamp_n,&
+    iscp,uvidxcp,CP,Varcp,wcp_n,&
+    isca,uvidxca,CA,Varca,wca_n,&
     1,&
     chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
     reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
