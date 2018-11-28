@@ -3,7 +3,7 @@ module image
   use param, only : dp, dpc, pi, e, i_dpc, deps
   implicit none
   ! Epsiron for Zero judgement
-  real(dp) :: zeroeps = 10 * deps
+  real(dp) :: zeroeps = 1d-10
 contains
 !-------------------------------------------------------------------------------
 ! Calc cost function
