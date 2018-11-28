@@ -471,10 +471,10 @@ subroutine calc_chisq_fcv(Vcmp,&
     end if
 
     ! compute chisquare
-    chisq = chisq + abs(resid)**2/Varfcv(i)/fnorm
+    chisq = chisq + abs(resid)**2/Varfcv(i)*fnorm
 
     ! compute residual vector
-    factor = -2/Varfcv(i)/fnorm
+    factor = -2/Varfcv(i)*fnorm
     Vresre(uvidx) = Vresre(uvidx) + factor*dreal(resid)
     Vresim(uvidx) = Vresim(uvidx) + factor*dimag(resid)*sign(1,uvidxfcv(i))
   end do
@@ -525,10 +525,10 @@ subroutine calc_chisq_amp(Vcmp,&
     resid = Vamp(i) - model
 
     ! compute chisquare
-    chisq = chisq + resid**2/Varamp(i)/fnorm
+    chisq = chisq + resid**2/Varamp(i)*fnorm
 
     ! compute residual vector
-    factor = -2*resid/Varamp(i)/model/fnorm
+    factor = -2*resid/Varamp(i)/model*fnorm
     Vresre(uvidx) = Vresre(uvidx) + factor * dreal(Vcmp(uvidx))
     Vresim(uvidx) = Vresim(uvidx) + factor * dimag(Vcmp(uvidx))
   end do
@@ -597,10 +597,10 @@ subroutine calc_chisq_ca(Vcmp,&
     resid = CA(i) - model
 
     ! compute chisquare
-    chisq = chisq + resid**2/Varca(i)/fnorm
+    chisq = chisq + resid**2/Varca(i)*fnorm
 
     ! compute residual vectors
-    factor = -2*resid/Varca(i)/fnorm
+    factor = -2*resid/Varca(i)*fnorm
     ! re
     Vresre(uvidx1) = Vresre(uvidx1) + factor / Vamp1**2 * dreal(Vcmp1)
     Vresre(uvidx2) = Vresre(uvidx2) + factor / Vamp2**2 * dreal(Vcmp2)
@@ -682,10 +682,10 @@ subroutine calc_chisq_cp(Vcmp,&
     resid = atan2(sin(resid),cos(resid))
 
     ! compute chisquare
-    chisq = chisq + resid**2/Varcp(i)/fnorm
+    chisq = chisq + resid**2/Varcp(i)*fnorm
 
     ! compute residual vectors
-    factor = -2*resid/Varcp(i)/fnorm
+    factor = -2*resid/Varcp(i)*fnorm
 
     Vresre(uvidx1) = Vresre(uvidx1) - factor/Vampsq1*dimag(Vcmp1)*sign1
     Vresre(uvidx2) = Vresre(uvidx2) - factor/Vampsq2*dimag(Vcmp2)*sign2
