@@ -1,7 +1,7 @@
 module fftim2d
   !$use omp_lib
   use param,  only: dp, dpc, deps
-  use fftlib, only: calc_chisq
+  use fftlib, only: calc_chisq, phashift_r2c
   use image,  only: calc_cost_reg
   implicit none
 contains
@@ -27,7 +27,7 @@ subroutine imaging(&
   Iout,&
   chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
   reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
-  cost, gradcost, &
+  cost, &
   Npix,Nuv,Nfcv,Namp,Ncp,Nca&
 )
   !
