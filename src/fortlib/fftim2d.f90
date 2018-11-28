@@ -204,6 +204,7 @@ subroutine imaging(&
   write(*,*) 'Check Data and Weights'
   write(*,*) '  Number of Data          ', Ndata
   write(*,*) '  Number of uv coordinates', Nuv
+  write(*,*) '  Number of uv coordinates', wfcv, wfcv_n, wtotal
 
   ! copy images (Iin -> Iout)
   write(*,*) 'Initialize the parameter vector'
@@ -265,7 +266,7 @@ subroutine imaging(&
 
       ! Calculate cost function and gradcostent of cost function
       call calc_cost(&
-        Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
+        Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
         u,v,&
         l1_l, l1_wgt, l1_Nwgt,&
         tv_l, tv_wgt, tv_Nwgt,&
@@ -274,10 +275,10 @@ subroutine imaging(&
         gs_l, gs_wgt, gs_Nwgt,&
         tfd_l, tfd_tgtfd,&
         cen_l, cen_alpha,&
-        isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
-        isamp,uvidxamp,Vamp,Varamp,wamp,&
-        iscp,uvidxcp,CP,Varcp,wcp,&
-        isca,uvidxca,CA,Varca,wca,&
+        isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
+        isamp,uvidxamp,Vamp,Varamp,wamp_n,&
+        iscp,uvidxcp,CP,Varcp,wcp_n,&
+        isca,uvidxca,CA,Varca,wca_n,&
         -1,&
         chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
         reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
@@ -292,7 +293,7 @@ subroutine imaging(&
       else if (mod(isave(nprint),nprint) == 0) then
         print '("Iteration :",I5,"/",I5)',isave(30),Niter
         call calc_cost(&
-          Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
+          Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
           u,v,&
           l1_l, l1_wgt, l1_Nwgt,&
           tv_l, tv_wgt, tv_Nwgt,&
@@ -318,7 +319,7 @@ subroutine imaging(&
   ! Finary print summary again
   print '("Final Summary")'
   call calc_cost(&
-    Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
+    Iout,xidx,yidx,Nxref,Nyref,Nx,Ny,&
     u,v,&
     l1_l, l1_wgt, l1_Nwgt,&
     tv_l, tv_wgt, tv_Nwgt,&
