@@ -376,7 +376,6 @@ def imaging(
         print("  Initialize the Centroid Regularization")
         if cen_prior is None:
             cen_priorarr = copy.deepcopy(Iin)
-            cen_priorarr[:] = totalflux/Npix
         else:
             if imregion is None:
                 cen_priorarr = cen_prior.data[0,0].reshape(Nyx)
