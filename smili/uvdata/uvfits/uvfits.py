@@ -1292,6 +1292,24 @@ class UVFITS(object):
 
         return outfits
 
+    def gaintable_to_cltable(self, gaintable):
+        cltable = CLTable(self)
+        subarrids = self.subarrays.keys()
+        for subarrid in subarrids:
+            # make empty dictionary
+            
+            utc = sorted(set(gaintable.utc))
+            cltable.gaintabs[subarrid]["utc"]=utc
+            Ndata, Ndec, Nra, Nif, Nch, Nstokes, Ncomp=self.visdata.data.shape
+            Ntime = len(utc)
+            arraydata = self.subarrays[subarrid]
+            Nant = arraydata.antable["name"].shape[0]
+            if Nstokes == 1:
+                pass
+            else:
+                Nstokes = 2
+
+        
 
     def uvavg(self, solint=10, minpoint=2):
         '''
