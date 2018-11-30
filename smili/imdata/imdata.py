@@ -761,6 +761,10 @@ class IMFITS(object):
             saconv = 1
         else:
             saconv = util.angconv("deg",saunit) ** 2
+            dx = -self.header["dx"]
+            dy = self.header["dy"]
+            saconv = saconv * dx * dy
+            saconv = 1./saconv
         return fluxconv * saconv
 
     def get_imarray(self,fluxunit="Jy",saunit="pixel"):
