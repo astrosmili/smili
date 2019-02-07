@@ -175,7 +175,7 @@ def imaging(
         print("       You need to set the total flux constraint by totalflux / tfd_lambda")
         return -1
     elif ((vistable is None) and (amptable is None) and
-          ((totalflux is None) or (fluxconst is False))):
+          ((totalflux is None) or (tfd_lambda < 0))):
         print("Warning: No absolute amplitude information in the input data.")
         print("         The total flux must be constrained")
         return -1
@@ -249,7 +249,7 @@ def imaging(
         l1_nwgt = len(l1_wgt)
         l1_l = l1_lambda
         del l1_priorarr
-    #
+
     #   tv-norm
     if tv_lambda <= 0:
         tv_wgt  = np.float64(np.asarray([0]))
@@ -355,7 +355,7 @@ def imaging(
         gs_nwgt = len(gs_wgt)
         gs_l = gs_lambda
         del gs_priorarr
-    #
+
     #   total flux regularization divergence
     if tfd_lambda <= 0:
         tfd_l = -1
@@ -367,7 +367,7 @@ def imaging(
             tfd_l_in = np.float64(tfd_lambda),
             tfd_tgtfd = np.float64(tfd_tgtfd),
             tfd_tgter = np.float64(tfd_tgterror))
-    #
+
     #   Centroid regularization
     if cen_lambda <= 0:
         cen_l = -1
