@@ -14,7 +14,7 @@ __author__ = "Smili Developer Team"
 import numpy as np
 
 
-def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1e-2):
+def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1e-10):
     '''
     '''
     if ((fcvtable is None) and (amptable is None) and
@@ -88,8 +88,8 @@ def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1
     u = []
     v = []
     uvstack = np.sqrt(np.square(ustack) + np.square(vstack))
-    uvthres = np.max(uvstack) * thres
-    for i in np.arange(Nstack):
+    #uvthres = np.max(uvstack) * thres
+    for i in xrange(Nstack):
         if uvidx[i] == 0:
             dist1 = np.sqrt(
                 np.square(ustack - ustack[i]) + np.square(vstack - vstack[i]))
