@@ -1487,7 +1487,7 @@ class IMFITS(object):
         outfits.update_fits()
         return outfits
 
-    def cpimage(self, fitsdata, save_totalflux=False, order=3):
+    def cpimage(self, fitsdata, save_totalflux=False, order=1):
         '''
         Copy the brightness ditribution of the input IMFITS object
         into the image grid of this image data.
