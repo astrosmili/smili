@@ -155,9 +155,10 @@ class CLTable(object):
         out = out.reset_index(drop=True)
         return out
 
-    def rescale(self):
+    def rescale(self, mean=False):
         '''
-        This method re-scales gain amplitude with mean value.
+        This method re-scales gain amplitude with median or mean value.
+        If mean=False, it will take the median. Otherwise, it will take mean.
         '''
         out = copy.deepcopy(self)
 
@@ -167,7 +168,10 @@ class CLTable(object):
             # get mean amplitude
             greal = self.gaintabs[subarrid]["gain"][:,:,:,:,:,0]
             gimag = self.gaintabs[subarrid]["gain"][:,:,:,:,:,1]
-            meanamp = np.average(np.sqrt(greal*greal + gimag*gimag))
+            if mean:
+                meanamp = np.average(np.sqrt(greal*greal + gimag*gimag))
+            else:
+                meanamp = np.median(np.sqrt(greal*greal + gimag*gimag))
             print(meanamp)
 
             # make rescaled gain
@@ -175,7 +179,7 @@ class CLTable(object):
             out.gaintabs[subarrid]["gain"][:,:,:,:,:,1] = gimag/meanamp
 
         return out
-    
+
     def gainplot(self,
             uvfits,
             station=None,
@@ -200,17 +204,17 @@ class CLTable(object):
             You can set parameters of matplotlib.pyplot.plot() or
             matplotlib.pyplot.errorbars().
             Defaults are {'ls': "none", 'marker': "."}.
-        '''        
+        '''
         plttable = self.get_gaintable(uvfits)
 
         # Get GST
         if "gst" in axis1.lower():
             plttable = plttable.sort_values(by="utc").reset_index(drop=True)
             plttable["gst"] = self.get_gst_datetime(uvfits,continuous=gst_continuous, wraphour=gst_wraphour)
-        
+
         gaintable = pd.DataFrame()
         stnameall = np.asarray([])
-        
+
         # Antenna Name for Each Subarray
         subarrids = self.gaintabs.keys()
         for subarrid in subarrids:
@@ -221,11 +225,11 @@ class CLTable(object):
             st2 = set(np.int32(uvfits.visdata.coord.ant2.values[subid[0]]))
             st = np.asarray(sorted(st1 | st2))
             del st1, st2
-            
-            stname = np.asarray([namedic[(subarrid,i)] for i in st]) 
+
+            stname = np.asarray([namedic[(subarrid,i)] for i in st])
             stnameall = np.r_[stnameall,stname]
             stnameall = np.asarray(sorted(set(stnameall)))
-                                
+
             table = table.rename(columns=dict(zip(st, stname)))
             gaintable = pd.concat([gaintable,table],ignore_index=True)
             gaintable = gaintable.fillna(0)
@@ -242,7 +246,7 @@ class CLTable(object):
             else:
                 stnum = np.int32(station)
                 stname = np.string_(stnameall[st==stnum][0])
-                    
+
         # Plotting
         ax = plt.gca()
 
@@ -254,9 +258,9 @@ class CLTable(object):
             axis1data = gaintable.gst.values
         else:
             axis1data = gaintable.utc.values
-        
+
         plt.subplots_adjust(hspace=0.)
-        
+
         ax1 = plt.subplot(2,1,1)
         plt.title("%s"%(stname))
         print(stname,stnum)
@@ -264,7 +268,7 @@ class CLTable(object):
         plt.ylabel("gain amplitude [Jy]")
         plt.ylim(0,)
         ax1.set_xticklabels([])
- 
+
         plt.subplot(2,1,2)
         plt.plot(axis1data, np.rad2deg(np.angle(gain)), ls=ls, marker=marker, label=label, **plotargs)
         plt.ylabel("gain phase [deg]")
@@ -283,7 +287,7 @@ class CLTable(object):
         '''
         get GST in datetime
         '''
-        
+
         plttable = self.get_gaintable(uvfits)
 
         utc = at.Time(np.datetime_as_string(pd.to_datetime(plttable.utc.values)))
