@@ -1040,71 +1040,123 @@ class UVFITS(object):
         UVW = uvw.T
         return UVW
 
-    def get_vismodel(self,imfits,istokes=0,ifreq=0):
+    def eval_image(self,iimage,qimage=None,uimage=None,vimage=None):
         '''
         This method will compude model visivilities based on uv-coverages of
         data and the input image.
 
         Args:
-          imfits (imdata.IMFITS object): input image data
+          iimage (imdata.IMFITS object): input Stokes I image data
+          qimage (imdata.IMFITS object): input Stokes Q image data
+          uimage (imdata.IMFITS object): input Stokes U image data
+          vimage (imdata.IMFITS object): input Stokes V image data
           istokes (int, default=0): the stoked index of the image to be used
           ifreq (int, default=0): the frequency index of the image to be used
 
         Returns:
-          Vreal, Vimag (ndarray, float64):
-            real and imaginary parts of the model visibilities
+          uvdata.UVFITS object
         '''
         #data number of u,v,w
         Ndata, Ndec, Nra, Nif, Nch, Nstokes, Ncomp=self.visdata.data.shape
 
-        # u,v,w,uv distance
+        # this is the array for each stokes parameter
+        ivis = np.zeros([Ndata, Nif, Nch, 2])
+        qvis = np.zeros([Ndata, Nif, Nch, 2])
+        uvis = np.zeros([Ndata, Nif, Nch, 2])
+        vvis = np.zeros([Ndata, Nif, Nch, 2])
+
+        # u,v coordinates
+        #   the array size is Ndata, Nif, Nch
         UVW=self.get_uvw()
-        u = UVW[0,:,0,0]
-        v = UVW[1,:,0,0]
+        uarr = UVW[0,:,:,:].reshape([Ndata, Nif, Nch])
+        varr = UVW[1,:,:,:].reshape([Ndata, Nif, Nch])
         del UVW
 
-        # model image
-#        if type(imfits) != type(imdata.IMFITS(dx=1)):
-#            raise ValueError("The input imfits must be an imdata.IMFITS object.")
-        #   get number of pixels and also reference pixels
-        Nx    = imfits.header["nx"]
-        Ny    = imfits.header["ny"]
-        Nxref = imfits.header["nxref"]
-        Nyref = imfits.header["nyref"]
+        # compute visibilities
+        iterator = itertools.product(xrange(Nif),xrange(Nch))
+        for iif, ich in tqdm.tqdm(iterator):
+            print("Compute Model Visibilities for IF=%d, CH=%d"%(iif+1,ich+1))
 
-        # dx_rad,dy_rad
-        dx_rad = np.deg2rad(imfits.header["dx"])
-        dy_rad = np.deg2rad(imfits.header["dy"])
+            # uv coordinates
+            utmp = uarr[:,iif,ich]
+            vtmp = varr[:,iif,ich]
 
-        # normalize u, v coordinates
-        u *= 2*np.pi*dx_rad
-        v *= 2*np.pi*dy_rad
+            # Vreal, Vimag
+            Vreal, Vimag = _eval_image_eachfreq(utmp, vtmp, iimage)
+            ivis[:,iif,ich,0] = Vreal
+            ivis[:,iif,ich,1] = Vimag
 
-        # model intensity
-        I2d = np.float64(imfits.data[istokes, ifreq])
-        I2d = np.asfortranarray(I2d.T)
+            if qimage is not None:
+                Vreal, Vimag = _eval_image_eachfreq(utmp, vtmp, qimage)
+                qvis[:,iif,ich,0] = Vreal
+                qvis[:,iif,ich,1] = Vimag
 
-        # model visibility
-        Vreal,Vimag = fortlib.fftlib.nufft_fwd_real(u,v,I2d)
+            if uimage is not None:
+                Vreal, Vimag = _eval_image_eachfreq(utmp, vtmp, qimage)
+                uvis[:,iif,ich,0] = Vreal
+                uvis[:,iif,ich,1] = Vimag
 
-        # phase shift (the image center to the reference pixel)
-        #    pixel deviation of the center of
-        #    the image from the reference pixel
-        ix = Nx/2. + 1 - Nxref
-        iy = Ny/2. + 1 - Nyref
+            if vimage is not None:
+                Vreal, Vimag = _eval_image_eachfreq(utmp, vtmp, vimage)
+                vvis[:,iif,ich,0] = Vreal
+                vvis[:,iif,ich,1] = Vimag
 
-        # complex visbility
-        Vcmp = Vreal+1j*Vimag
+        # output uvfits file
+        outfits = copy.deepcopy(self)
 
-        # new visibility due to the deviation (ix,iy)
-        Vcmp *= np.exp(1j*(u*ix+v*iy))
-        Vreal = np.real(Vcmp)
-        Vimag = np.imag(Vcmp)
+        # compute stokes visibilities
+        stokes_list = outfits.stokes
+        for i in xrange(len(stokes_list)):
+            stokes = stokes_list[i]
+            print("Compute Model Visibilities at Stokes %s"%(stokes))
+            if   stokes.upper() == "I":
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = ivis
+            elif stokes.upper() == "Q":
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = qvis
+            elif stokes.upper() == "U":
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = uvis
+            elif stokes.upper() == "V":
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = vvis
+            elif stokes.upper() == "RR":
+                # RR = I+V
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = ivis + vvis
+            elif stokes.upper() == "LL":
+                # LL = I-V
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = ivis - vvis
+            elif stokes.upper() == "RL":
+                # RL = Q+iU = Re(Q)+iIm(Q) + i(Re(U)+iIm(U))
+                #  Re(RL) = Re(Q) - Im(U)
+                #  Im(RL) = Im(Q) + Re(U)
+                outfits.visdata.data[:, 0, 0, :, :, i, 0] = qvis[:,:,:,0] - uvis[:,:,:,1]
+                outfits.visdata.data[:, 0, 0, :, :, i, 1] = qvis[:,:,:,1] + uvis[:,:,:,0]
+            elif stokes.upper() == "LR":
+                # LR = Q-iU = Re(Q)+iIm(Q) - i(Re(U)+iIm(U))
+                #  Re(LR) = Re(Q) + Im(U)
+                #  Im(LR) = Im(Q) - Re(U)
+                outfits.visdata.data[:, 0, 0, :, :, i, 0] = qvis[:,:,:,0] + uvis[:,:,:,1]
+                outfits.visdata.data[:, 0, 0, :, :, i, 1] = qvis[:,:,:,1] - uvis[:,:,:,0]
+            elif stokes.upper() == "XX":
+                # XX = I+Q
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = ivis + qvis
+            elif stokes.upper() == "YY":
+                # YY = I-Q
+                outfits.visdata.data[:, 0, 0, :, :, i, 0:2] = ivis - qvis
+            elif stokes.upper() == "XY":
+                # XY = U+iV = Re(U)+iIm(U) + i(Re(V)+iIm(V))
+                #  Re(XY) = Re(U) - Im(V)
+                #  Im(XY) = Im(U) + Re(V)
+                outfits.visdata.data[:, 0, 0, :, :, i, 0] = uvis[:,:,:,0] - vvis[:,:,:,1]
+                outfits.visdata.data[:, 0, 0, :, :, i, 1] = uvis[:,:,:,1] + vvis[:,:,:,0]
+            elif stokes.upper() == "YX":
+                # YX = U-iV = Re(U)+iIm(U) - i(Re(V)+iIm(V))
+                #  Re(XY) = Re(U) + Im(V)
+                #  Im(XY) = Im(U) - Re(V)
+                outfits.visdata.data[:, 0, 0, :, :, i, 0] = uvis[:,:,:,0] + vvis[:,:,:,1]
+                outfits.visdata.data[:, 0, 0, :, :, i, 1] = uvis[:,:,:,1] - vvis[:,:,:,0]
+        return outfits
 
-        return Vreal,Vimag
 
-
-    def selfcal(self,imodel,std_amp=1,std_pha=100):
+    def selfcal(self,iimage,qimage=None,uimage=None,vimage=None,std_amp=1,std_pha=100):
         '''
         This function is currently designed for selfcalibration of
         single polarization (LL, RR, I) or dual polarization (RR+LL, XX+YY).
@@ -1114,8 +1166,11 @@ class UVFITS(object):
         for X/Y data.
 
         Args:
-            imodel (imdata.IMFITS object): Input Model
-            std_amp (float, default=0.2):
+            iimage (imdata.IMFITS object): input Stokes I image data
+            qimage (imdata.IMFITS object): input Stokes Q image data
+            uimage (imdata.IMFITS object): input Stokes U image data
+            vimage (imdata.IMFITS object): input Stokes V image data
+            std_amp (float, default=1):
                 Standard deviation of Gain amplitudes from unity.
                 This standard deviation will used for the Gaussian prior
                 of gain amplitudes. The defaul value (Std Gain error=100%)
@@ -1133,7 +1188,7 @@ class UVFITS(object):
         cltable = CLTable(self)
 
         print("Compute Model Visibilities")
-        Vmodel_real,Vmodel_imag = self.get_vismodel(imodel)
+        modeluvfits = self.eval_image(iimage,qimage,uimage,vimage)
 
         # get utc of data
         utc = np.datetime_as_string(self.visdata.coord["utc"])
@@ -1163,6 +1218,12 @@ class UVFITS(object):
                 sigma_itime     = 1/np.sqrt(fdata[:,0,0,iif,ich,istokes,2])
                 del fdata
 
+                # same for the models
+                fdata=modeluvfits.visdata.data[idx_utc]
+                Vmod_real_itime = fdata[:,0,0,iif,ich,istokes,0]
+                Vmod_imag_itime = fdata[:,0,0,iif,ich,istokes,1]
+                del fdata
+
                 # check if data are not flagged
                 idx_flag = np.isnan(sigma_itime)
                 idx_flag|= sigma_itime < 0
@@ -1172,11 +1233,11 @@ class UVFITS(object):
                 # reselect data
                 Vobs_real_itime = Vobs_real_itime[idx_flag]
                 Vobs_imag_itime = Vobs_imag_itime[idx_flag]
-                sigma_itime     = sigma_itime[idx_flag]
+                sigma_itime = sigma_itime[idx_flag]
 
                 # get the corresponding model visibilities
-                Vmodel_real_itime = Vmodel_real[idx_utc][idx_flag]
-                Vmodel_imag_itime = Vmodel_imag[idx_utc][idx_flag]
+                Vmodel_real_itime = Vmod_real_itime[idx_flag]
+                Vmodel_imag_itime = Vmod_imag_itime[idx_flag]
 
                 # antenna ids
                 ant1_itime   = self.visdata.coord.ant1.values[idx_utc][idx_flag]
@@ -1202,11 +1263,8 @@ class UVFITS(object):
                 del Vmodel_real_itime, Vmodel_imag_itime
 
                 # (Tentative) initilize gains
-#                gain0r = cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime-1,0]
-#                gain0i = cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime-1,1]
                 gain0 = np.zeros(Nant_itime*2)
                 gain0[:Nant_itime] = 1.
-
 
                 #if Ndata_itime > Nant_itime:
                 result = leastsq(
@@ -1291,7 +1349,6 @@ class UVFITS(object):
         outfits.visdata.data[:,:,:,:,:,:,2] = weight
 
         return outfits
-
 
     def uvavg(self, solint=10, minpoint=2):
         '''
@@ -1745,6 +1802,91 @@ class UVFITS(object):
         outfits.visdata.data = outfits.visdata.data.reshape(dshape)
         return outfits
 
+    def uv_rotate(self, dPA, deg=True):
+        '''
+        Rotate uv-coordinates by a specified rotation angle
+
+        Args:
+            dPA (float):
+                Rotation angle.
+            deg (boolean, default=True):
+                The unit of dPA. If True, it will be degree. Otherwise,
+                it will be radian
+        Returns:
+            uvdata.UVFITS object
+        '''
+        # warning messages
+        print("[WARNING] uvdata.UVFITS.uvrotate")
+        print("This makes your uv-coodinates no longer consistent with the antenna position informations.")
+
+        # output data
+        outdata = copy.deepcopy(self)
+
+        # rotation angle and cos/sin of them
+        if deg:
+            theta = np.deg2rad(dPA)
+        else:
+            theta = dPA
+        cost = np.cos(theta)
+        sint = np.sin(theta)
+
+        # take uv-coordinates
+        u = self.visdata.coord["usec"]
+        v = self.visdata.coord["vsec"]
+
+        # rotate the uv-coordinates
+        outdata.visdata.coord["vsec"] = v * cost - u * sint
+        outdata.visdata.coord["usec"] = v * sint + u * sint
+
+        return outdata
+
+    def add_frac_noise(self, ferror, quadrature=True):
+        '''
+        Increase errors by specified fractional values of amplitudes
+
+        Args:
+            ferror (float):
+                fractional error to be added.
+            quadrature (boolean; default=True):
+                if True, error will be added to sigma in quadrature.
+                Otherwise, it will be added directly to the current sigma.
+        '''
+        # Data to be output
+        outfits = copy.deepcopy(self)
+
+        # Number of Data
+        Ndata, Ndec, Nra, Nif, Nch, Nstokes, Ncomp = self.visdata.data.shape
+
+        # amplitudes
+        Vreal = np.sqrt(self.visdata.data[:,:,:,:,:,:,0])
+        Vimag = np.sqrt(self.visdata.data[:,:,:,:,:,:,1])
+        Vweig = np.sqrt(self.visdata.data[:,:,:,:,:,:,2])
+        Vamp = np.sqrt(Vreal**2 + Vimag**2)
+        Vsig = np.sqrt(1./np.abs(Vweig))
+
+        # pick up index where data won't be touched
+        idx = Vweig <= 0.
+        idx|= np.isnan(Vweig)
+        idx|= np.isnan(Vsig)
+
+        # compute the new sigma
+        npw = np.where(idx)
+        Vsig_new[npw] = copy.deepcopy(Vsig)
+        if quadrature:
+            Vsig_new[npw] = np.sqrt(Vsig[npw]**2 + (ferror * Vamp[npw])**2)
+        else:
+            Vsig_new[npw] = Vsig[npw] + ferror * Vamp[npw]
+
+        # recompute weights
+        Vweig_new = copy.deepcopy(Vweig)
+        Vweig_new[npw] = 1./Vsig_new[npw]**2
+        Vweig_new[np.where(np.isnan(Vweig_new))] = 0.
+        Vweig_new[npw]*= np.sign(Vweig)
+
+        # update uvfits object to be output
+        outfits.visdata.data[:,:,:,:,:,:,2] = Vweig_new
+        return outfits
+
     def make_vistable(self, flag=True):
         '''
         Convert visibility data to a two dimentional table.
@@ -1847,7 +1989,6 @@ class UVFITS(object):
             outdata = outdata.loc[select, :].reset_index(drop=True)
 
         return outdata
-
 
     def uvplot(self, uvunit=None, conj=True,
                ls="none", marker=".", **plotargs):
@@ -2138,3 +2279,41 @@ def _selfcal_error_dfunc(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
         ddV[i+Nant+Ndata*2, i]      = gain[i]/ampsq
         ddV[i+Nant+Ndata*2, i+Nant] =-gain[i+Nant]/ampsq
     return ddV
+
+def _eval_image_eachfreq(u, v, image):
+    # make a loop for Nif, Nch
+    Nx    = image.header["nx"]
+    Ny    = image.header["ny"]
+    Nxref = image.header["nxref"]
+    Nyref = image.header["nyref"]
+
+    # dx_rad,dy_rad
+    dx_rad = np.deg2rad(image.header["dx"])
+    dy_rad = np.deg2rad(image.header["dy"])
+
+    # normalize u, v coordinates
+    u_scaled = np.float64(2*np.pi*dx_rad*u)
+    v_scaled = np.float64(2*np.pi*dy_rad*v)
+
+    # model intensity
+    I2d = np.float64(image.data[0, 0])
+    I2d = np.asfortranarray(I2d.T)
+
+    # model visibility
+    Vreal,Vimag = fortlib.fftlib.nufft_fwd_real(u_scaled,v_scaled,I2d)
+
+    # phase shift (the image center to the reference pixel)
+    #    pixel deviation of the center of
+    #    the image from the reference pixel
+    ix = Nx/2. + 1 - Nxref
+    iy = Ny/2. + 1 - Nyref
+
+    # complex visbility
+    Vcmp = Vreal+1j*Vimag
+
+    # new visibility due to the deviation (ix,iy)
+    Vcmp *= np.exp(1j*(u_scaled*ix+v_scaled*iy))
+    Vreal = np.real(Vcmp)
+    Vimag = np.imag(Vcmp)
+
+    return Vreal,Vimag
