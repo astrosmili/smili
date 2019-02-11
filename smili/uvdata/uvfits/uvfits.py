@@ -1350,7 +1350,7 @@ class UVFITS(object):
 
         return outfits
 
-    def uvavg(self, solint=10, minpoint=2):
+    def uvavg(self, solint=10, minpoint=4):
         '''
         This method will weighted-average full complex visibilities in time direction.
         Visibilities will be weighted-average, using weight information of data.
@@ -1362,11 +1362,16 @@ class UVFITS(object):
             Time averaging interval (in sec)
             minpoint (int; default =2.):
               Number of points required to re-evaluate weights.
+              It must be larger than 4, since the software is using a cubic
+              interpolation for recalculating uv coordinates.
               If data do not have enough number of points at each time/frequency
               segments specified with dofreq, weight will be set to 0
               meaning that the corresponding point will be flagged out.
         Returns: uvfits.UVFITS object
         '''
+        if minpoint < 4:
+            raise ValueError("Please specify minpoint >= 4")
+
         outfits = copy.deepcopy(self)
 
         # Sort visdata
@@ -1840,13 +1845,13 @@ class UVFITS(object):
 
         return outdata
 
-    def add_frac_noise(self, ferror, quadrature=True):
+    def add_frac_error(self, ferror, quadrature=True):
         '''
         Increase errors by specified fractional values of amplitudes
 
         Args:
             ferror (float):
-                fractional error to be added.
+                fractional error of amplitudes to be added.
             quadrature (boolean; default=True):
                 if True, error will be added to sigma in quadrature.
                 Otherwise, it will be added directly to the current sigma.
@@ -1862,29 +1867,22 @@ class UVFITS(object):
         Vimag = np.sqrt(self.visdata.data[:,:,:,:,:,:,1])
         Vweig = np.sqrt(self.visdata.data[:,:,:,:,:,:,2])
         Vamp = np.sqrt(Vreal**2 + Vimag**2)
-        Vsig = np.sqrt(1./np.abs(Vweig))
-
-        # pick up index where data won't be touched
-        idx = Vweig <= 0.
-        idx|= np.isnan(Vweig)
-        idx|= np.isnan(Vsig)
+        Vsig = 1./np.sqrt(np.abs(Vweig))
 
         # compute the new sigma
-        npw = np.where(idx)
-        Vsig_new[npw] = copy.deepcopy(Vsig)
         if quadrature:
-            Vsig_new[npw] = np.sqrt(Vsig[npw]**2 + (ferror * Vamp[npw])**2)
+            Vsig_new = np.sqrt(Vsig**2 + (ferror * Vamp)**2)
         else:
-            Vsig_new[npw] = Vsig[npw] + ferror * Vamp[npw]
+            Vsig_new = Vsig + ferror * Vamp
 
         # recompute weights
-        Vweig_new = copy.deepcopy(Vweig)
-        Vweig_new[npw] = 1./Vsig_new[npw]**2
+        Vweig_new = 1./(Vsig_new**2) * np.sign(Vweig)
         Vweig_new[np.where(np.isnan(Vweig_new))] = 0.
-        Vweig_new[npw]*= np.sign(Vweig)
+        Vweig_new[np.where(np.isinf(Vweig_new))] = 0.
+        Vweig_new[np.where(Vweig_new<0)] = 0.
 
         # update uvfits object to be output
-        outfits.visdata.data[:,:,:,:,:,:,2] = Vweig_new
+        outfits.visdata.data[:,:,:,:,:,:,2] = Vweig_new[:,:,:,:,:,:]
         return outfits
 
     def make_vistable(self, flag=True):
@@ -2239,7 +2237,6 @@ class SourceData(object):
         lines.append("  Sources:")
         lines.append(prt(self.sutable["id,source,radec,equinox".split(",")],indent*2,output=True))
         return "\n".join(lines)
-
 
 def _selfcal_error_func(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
     g1 = np.asarray([gain[ant1[i]]+1j*gain[Nant+ant1[i]] for i in xrange(Ndata)])
