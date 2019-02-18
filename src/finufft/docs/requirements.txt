@@ -1,2 +1,0 @@
-texext
-sphinx_rtd_theme
