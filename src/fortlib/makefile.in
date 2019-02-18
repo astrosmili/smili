@@ -39,7 +39,7 @@ endif
 # other ocmmand options
 FCLIBS_OMP=-fopenmp
 FCLIBS_OPENBLAS=@OPENBLAS_LIBS@
-FCLIBS_FINUFFT=../finufft/lib-static/libfinufft.a -lstdc++ @FFTW3_LIBS@ @FFTW3TH_LIBS@
+FCLIBS_FINUFFT=@FINUFFT_LIBS@ -lstdc++ @FFTW3_LIBS@ @FFTW3TH_LIBS@
 FCLIBS_LBFGSB=-L../lbfgsb -llbfgsb
 
 # set command options

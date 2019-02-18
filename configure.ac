@@ -3,7 +3,7 @@
 #-------------------------------------------------------------------------------
 AC_PREREQ([2.69])
 AC_INIT([SMILI], [0.0.1], [kakiyama@mit.edu])
-AC_CONFIG_SRCDIR([src/mfista/blas.h])
+AC_CONFIG_SRCDIR([src/fortlib/param.f90])
 
 
 #-------------------------------------------------------------------------------
@@ -73,6 +73,14 @@ AC_LANG_POP(C)
 
 
 #-------------------------------------------------------------------------------
+# Check FINUFFT
+#-------------------------------------------------------------------------------
+PKG_CHECK_MODULES(FINUFFT, finufft)
+AC_MSG_RESULT("CFLAGS: $FINUFFT_CFLAGS")
+AC_MSG_RESULT("LIBS:   $FINUFFT_LIBS")
+
+
+#-------------------------------------------------------------------------------
 # Check CPP libraries.
 #-------------------------------------------------------------------------------
 
@@ -111,7 +119,5 @@ AC_SUBST([dbg_flag])
 # Makefiles
 AC_CONFIG_FILES([makefile
                  src/lbfgsb/makefile
-                 src/finufft/makefile
-                 src/fortlib/makefile
-                 src/mfista/makefile])
+                 src/fortlib/makefile])
 AC_OUTPUT
