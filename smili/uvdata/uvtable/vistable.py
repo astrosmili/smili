@@ -174,52 +174,6 @@ class VisTable(UVTable):
 
         return outtable
 
-    def fit_beam(self, angunit="mas", errorweight=-2):
-        '''
-        This method estimates the synthesized beam size at natural weighting.
-
-        Args:
-          angunit (string):
-            Angular unit (uas, mas, asec or arcsec, amin or arcmin, degree)
-          errweight (float; experimental):
-            index for errer weighting
-          ftsign (integer):
-            a sign for fourier matrix
-        Returns:
-          beam parameters in a dictionary.
-        '''
-        # infer the parameters of clean beam
-        parm0 = calc_bparms(self,angunit)
-
-        # generate a small image 4 times larger than the expected major axis
-        # size of the beam
-        fitsdata = imdata.IMFITS(dx=parm0[0]/10,nx=20,angunit=angunit)
-
-        # create output fits
-        dbeam = self.map_beam(fitsdata, errorweight=errorweight)
-
-        X, Y = fitsdata.get_xygrid(angunit=angunit, twodim=True)
-        dbeam = dbeam.data[0, 0]
-        parms = optimize.leastsq(fit_chisq, parm0, args=(X, Y, dbeam))
-
-        (maja, mina, PA) = parms[0]
-        maja = np.abs(maja)
-        mina = np.abs(mina)
-
-        # adjust these parameters
-        if maja < mina:
-            maja, mina = mina, maja
-            PA += 90
-        while np.abs(PA) > 90:
-            if PA > 90:
-                PA -= 180
-            elif PA < -90:
-                PA += 180
-
-        # return as parameters of gauss_convolve
-        cb_parms = ({'majsize': maja, 'minsize': mina, 'angunit': angunit, 'pa': PA})
-        return cb_parms
-
     def snrcutoff(self, threshold=5):
         '''
         Thesholding data with SNR (amp/sigma)
@@ -239,9 +193,10 @@ class VisTable(UVTable):
 
         Args:
             error (float or array like):
-                error to be added.
+                errors to be added.
             quadrature (boolean; default=True):
-                if True, error will be added to sigma in quadrature
+                if True, specified errors will be added to sigma in quadrature.
+                Otherwise, specified errors will be simply added.
         '''
         outtable = copy.deepcopy(self)
         if quadrature:
@@ -440,7 +395,7 @@ class VisTable(UVTable):
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
             else:
-                for i in xrange(len(Iin)):
+                for i in range(len(Iin)):
                     Iin[i] = Iin[i].reshape(Nyx)
 
             x = x.reshape(Nyx)
@@ -453,7 +408,7 @@ class VisTable(UVTable):
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin[idx]
             else:
-                for i in xrange(len(Iin)):
+                for i in range(len(Iin)):
                     Iin[i] = Iin[i][idx]
             x = x[idx]
             y = y[idx]
@@ -696,7 +651,7 @@ class VisTable(UVTable):
         # Check redundant
         if redundant is not None:
             stdict2 = self.station_dic(id2name=False)
-            for i in xrange(len(redundant)):
+            for i in range(len(redundant)):
                 stationids = []
                 for stid in redundant[i]:
                     if isinstance(stid,basestring):
@@ -713,7 +668,7 @@ class VisTable(UVTable):
 
         print("(2/5) Tagging data")
         vistable["tag"] = np.zeros(Ndata, dtype=np.int64)
-        for idata in tqdm.tqdm(xrange(1,Ndata)):
+        for idata in tqdm.tqdm(range(1,Ndata)):
             flag = vistable.loc[idata, "utc"] == vistable.loc[idata-1, "utc"]
             flag&= vistable.loc[idata, "stokesid"] == vistable.loc[idata-1, "stokesid"]
             flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
@@ -731,7 +686,7 @@ class VisTable(UVTable):
         blsetid=0
         bltype = np.zeros(Ntag, dtype=np.int64) # this is an array storing an ID
                                                 # number of cl sets corresponding timetag.
-        for itag in tqdm.tqdm(xrange(Ntag)):
+        for itag in tqdm.tqdm(range(Ntag)):
             tmptab = vistable.loc[vistable["tag"]==itag, :].reset_index(drop=True)
 
             # Check number of baselines
@@ -819,7 +774,7 @@ class VisTable(UVTable):
         outtab = {}
         for key in keys:
             outtab[key]=[]
-        for itag in tqdm.tqdm(xrange(Ntag)):
+        for itag in tqdm.tqdm(range(Ntag)):
             # Check ID number for Baseline combinations
             blsetid = bltype[itag]
             if blsetid == -1:
@@ -837,7 +792,7 @@ class VisTable(UVTable):
             ifid = tmptab.loc[0, "ifid"]
             chid = tmptab.loc[0, "chid"]
             ch = tmptab.loc[0, "ch"]
-            for iset in xrange(len(cblset)):
+            for iset in range(len(cblset)):
                 bl1tab = tmptab.loc[tmptab["bl"]==cblset[iset][0],:].reset_index(drop=True)
                 bl2tab = tmptab.loc[tmptab["bl"]==cblset[iset][1],:].reset_index(drop=True)
                 bl3tab = tmptab.loc[tmptab["bl"]==cblset[iset][2],:].reset_index(drop=True)
@@ -889,7 +844,7 @@ class VisTable(UVTable):
         outtab["phase"] = np.rad2deg(np.arctan2(np.sin(outtab["phase"]),np.cos(outtab["phase"])))
         # generate CATable object
         outtab = BSTable(outtab)[BSTable.bstable_columns].reset_index(drop=True)
-        for i in xrange(len(BSTable.bstable_columns)):
+        for i in range(len(BSTable.bstable_columns)):
             column = BSTable.bstable_columns[i]
             outtab[column] = BSTable.bstable_types[i](outtab[column])
         return outtab
@@ -923,9 +878,9 @@ class VisTable(UVTable):
         # Check redundant
         if redundant is not None:
             stdict2 = self.station_dic(id2name=False)
-            for i in xrange(len(redundant)):
+            for i in range(len(redundant)):
                 stationids = []
-                for stid in xrange(len(redundant[i])):
+                for stid in range(len(redundant[i])):
                     if isinstance(stid,basestring):
                         stationids.append(stdict2[stid])
                     else:
@@ -939,7 +894,7 @@ class VisTable(UVTable):
 
         print("(2/5) Tagging data")
         vistable["tag"] = np.zeros(Ndata, dtype=np.int64)
-        for idata in tqdm.tqdm(xrange(1,Ndata)):
+        for idata in tqdm.tqdm(range(1,Ndata)):
             flag = vistable.loc[idata, "utc"] == vistable.loc[idata-1, "utc"]
             flag&= vistable.loc[idata, "stokesid"] == vistable.loc[idata-1, "stokesid"]
             flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
@@ -957,7 +912,7 @@ class VisTable(UVTable):
         blsetid=0
         bltype = np.zeros(Ntag, dtype=np.int64) # this is an array storing an ID
                                                 # number of cl sets corresponding timetag.
-        for itag in tqdm.tqdm(xrange(Ntag)):
+        for itag in tqdm.tqdm(range(Ntag)):
             tmptab = vistable.loc[vistable["tag"]==itag, :].reset_index(drop=True)
 
             # Check number of baselines
@@ -1092,7 +1047,7 @@ class VisTable(UVTable):
         outtab = {}
         for key in keys:
             outtab[key]=[]
-        for itag in tqdm.tqdm(xrange(Ntag)):
+        for itag in tqdm.tqdm(range(Ntag)):
             # Check ID number for Baseline combinations
             blsetid = bltype[itag]
             if blsetid == -1:
@@ -1110,7 +1065,7 @@ class VisTable(UVTable):
             ifid = tmptab.loc[0, "ifid"]
             chid = tmptab.loc[0, "chid"]
             ch = tmptab.loc[0, "ch"]
-            for iset in xrange(len(cblset)):
+            for iset in range(len(cblset)):
                 bl1tab = tmptab.loc[tmptab["bl"]==cblset[iset][0],:].reset_index(drop=True)
                 bl2tab = tmptab.loc[tmptab["bl"]==cblset[iset][1],:].reset_index(drop=True)
                 bl3tab = tmptab.loc[tmptab["bl"]==cblset[iset][2],:].reset_index(drop=True)
@@ -1187,7 +1142,7 @@ class VisTable(UVTable):
 
         # generate CATable object
         outtab = CATable(outtab)[CATable.catable_columns].reset_index(drop=True)
-        for i in xrange(len(CATable.catable_columns)):
+        for i in range(len(CATable.catable_columns)):
             column = CATable.catable_columns[i]
             outtab[column] = CATable.catable_types[i](outtab[column])
         return outtab
@@ -1255,7 +1210,7 @@ class VisTable(UVTable):
 
         # Calculate index of uv for gridding
         # Flag for skipping already averaged data
-        skip = np.asarray([False for i in xrange(Ntable)])
+        skip = np.asarray([False for i in range(Ntable)])
 
         # Create new list for gridded data
         outlist = {
@@ -1271,7 +1226,7 @@ class VisTable(UVTable):
         }
 
         # Convolutional gridding
-        for itable in xrange(Ntable):
+        for itable in range(Ntable):
             if skip[itable]:
                 continue
 
@@ -1545,7 +1500,7 @@ class VisTable(UVTable):
         pltarrays = []
         axislabels = []
         deflims = []
-        for i in xrange(2):
+        for i in range(2):
             axis = axises[i]
             normerror = normerrors[i]
             if   "utc" in axis:
@@ -1660,7 +1615,7 @@ class VisTable(UVTable):
             )
 
         # set formatter if utc or gst will be plotted
-        for i in xrange(2):
+        for i in range(2):
             axis = axises[i]
             # Set time
             if i==0:
@@ -1745,13 +1700,228 @@ class VisTable(UVTable):
         else:
             plt.xlabel("Universal Time")
 
-    def map_beam(self,image,errorweight=-2,normalize=True,istokes=0,ifreq=0):
+    def uvdensity(self, image, npix=2):
         '''
-        This method calculates the synthesized beam
+        Compute the density of uvpoints by convolving the uv-sample function by
+        a circular Gaussian of which FWHM is npix/fov, where fov is given by
+        fov = 2 * max(ra**2+dec**2) of the image.
 
         Args:
-            image (imdata.IMFITS object): image for grid size
-            errorweight: index of weight
+            image (imdata.IMFITS object): required to compute a fov
+            npix (integer, default=2): FWHM size of the kernel in the unit of 1/fov.
+        Returns:
+            1-D numpy array contains density functions
+        '''
+        # compute a grid size of the image in uv-domain.
+        x,y = image.get_xygrid(angunit="rad")
+        r = np.sqrt(x*x + y*y).max()*2
+        du = 1/r
+
+        # density
+        Ndata = len(self.amp.values)
+        u = self.u.values/du
+        v = self.v.values/du
+
+        '''
+        def _count(u, v, u0, v0, fwhm):
+            # compute sigma
+            sigma = fwhm/np.sqrt(8*np.log(2))
+            gamma = -1/2./sigma**2
+
+            # compute Gaussian
+            sum = np.sum(np.exp(gamma*((u-u0)**2+(v-v0)**2)))
+            sum+= np.sum(np.exp(gamma*((u+u0)**2+(v+v0)**2)))
+            return sum
+        '''
+        def _count(u, v, u0, v0, npix):
+            # compute sigma
+            cnt = np.zeros(u.shape)
+            cnt[np.where((u-u0)**2+(v-v0)**2<npix**2)] = 1
+            cnt[np.where((u+u0)**2+(v+v0)**2<npix**2)] = 1
+            #cnt[np.where(np.max(np.abs([u-u0,v-v0]))<=npix)] = 1
+            #cnt[np.where(np.max(np.abs([u+u0,v+v0]))<=npix)] = 1
+
+            # compute Gaussian
+            return cnt.sum()
+
+        npoints = [_count(u,v,u[i],v[i],npix) for i in range(Ndata)]
+        return np.asarray(npoints)
+
+    def uvweight(self, uniform=True, image=None, werror=0, npix=2):
+        '''
+        Compute relative weights on each data points. This function computes two types of weights.
+        (A) density weightings (uniform or natural):
+            weight \propto rho^wuv where rho is the density of uv-points computed with an effecitve bin size
+            of npix/fov where fov is computed from the input image (see self.uvdensity for details).
+
+            wuv=1 gives uniform weighting, while wuv=0 gives natural weighting.
+
+        (B) error weightings:
+            weight \propto sigma^werror where sigma is the thermal error estimate of each visibility.
+
+            werror = 0: no error, werror = -1: popular weighting in DIFMAP, werror = -2: statistically-correct errors used in imaging
+
+        Compute the density of uvpoints by convolving the uv-sample function by a circular Gaussian of which FWHM is npix/fov,
+        where fov is given by fov = 2 * max(ra**2+dec**2) of the image.
+
+        Args:
+            uniform (boolean, default=True):
+                use uniform weighting (True) or natrual weighting (False)
+            image (imdata.IMFITS object):
+                required to compute a fov for uniform weighting
+            npix (integer, default=2):
+                FWHM size of the kernel in the unit of 1/fov, which will be used to compute uv density for uniform weighting
+            werror (integer, default=0):
+                index for the error weighting. -2 gives the statistically-correct weights used in imaging for imaging.
+            normalize (boolean, default=True):
+                If True, rescale the total flux such that its peak becomes the unity.
+        Returns:
+            1-D numpy array contains weighting functions
+        '''
+        # number of data
+        Ndata = len(self.amp.values)
+
+        # Density Weight
+        uvweight = np.zeros(Ndata)
+        if not uniform:
+            print("use natural weighting")
+            uvweight[:] = 1
+        else:
+            print("use uniform weighting")
+            if image is None:
+                raise(ValueError, "you need to input an image to compute weights with uniform weighting.")
+            uvweight[:] = 1./self.uvdensity(image=image, npix=npix)
+            uvweight[:] /= uvweight.max()
+
+        # Error Weight
+        errweight = np.zeros(Ndata)
+        if werror == 0:
+            errweight[:] = 1
+        else:
+            errweight[:] = np.power(self["sigma"].values, werror)
+            errweight[:] /= errweight.max()
+
+        # Total Weight
+        totweight = uvweight * errweight
+        totweight/= totweight.sum()
+
+        return totweight
+
+    def fit_beam(self,image,uniform=True,werror=0,npix=2,angunit=None,
+                 difmap_fudge=False,istokes=0,ifreq=0):
+        '''
+        This method calculates the synthesized beam. It computes the second momentum of
+        the uv-coverage by computing the eigenvalues and eigenvectors of its
+        co-variance matrix weighted by specified uv/error-weights.
+
+        In default, the FWHM of a Gaussian on the image domain whose variances
+        on uv-domain are given by these eigenvalues will be computed as the beam size.
+        This will use a fudge factor of sqrt(2*ln(2))/pi ~ 0.37. However, one can
+        use another fudge factor of ~0.35 adopted in DIFMAP, if one specify difmap_fudge=True.
+
+        This function computes the beam using two types of weights.
+        (A) density weightings (uniform or natural):
+            weight \propto rho^wuv where rho is the density of uv-points computed with an effecitve bin size
+            of npix/fov where fov is computed from the input image (see self.uvdensity for details).
+
+            wuv=1 gives uniform weighting, while wuv=0 gives natural weighting.
+
+        (B) error weightings:
+            weight \propto sigma^werror where sigma is the thermal error estimate of each visibility.
+
+            werror = 0: no error, werror = -1: popular weighting in DIFMAP, werror = -2: statistically-correct errors used in imaging
+
+        Compute the density of uvpoints by convolving the uv-sample function by a circular Gaussian of which FWHM is npix/fov,
+        where fov is given by fov = 2 * max(ra**2+dec**2) of the image.
+
+        Args:
+            image (imdata.IMFITS object):
+                The image where the synthesized beam will be mapped.
+            uniform (boolean, default=True):
+                use uniform weighting (True) or natrual weighting (False)
+            npix (integer, default=2):
+                FWHM size of the kernel in the unit of 1/fov, which will be used to compute uv density for uniform weighting
+            werror (integer, default=0):
+                index for the error weighting. -2 gives the statistically-correct weights used in imaging for imaging.
+            angunit (str, default=None):
+                Angular unit of the output beam. If not specified,
+                it will use the unit of the input image.
+            difmap_fudge (boolean, default=False):
+                If True, it will use a fudge factor adopted in DIFMAP.
+                Note that for uniform-weighting or error-weighting, this option
+                does necesarily give the exact same beam size, since SMILI
+                does not use uv-gridding and adopts a slightly different way
+                to compute the density of the uv coverage.
+        Returns:
+            imdata.IMFITS object of synthesized beam map
+        '''
+        # angular unit
+        if angunit is None:
+            angunit = image.angunit
+
+        # Fudge factor adopted in Difmap
+        w = self.uvweight(uniform=uniform, image=image, werror=werror, npix=npix)
+        w/= w.sum()
+
+        # extract uv coordinates
+        u = self.u.values
+        v = self.v.values
+
+        # take weighted mean of u^2, v^2, uv
+        muu = np.sum(u*u*w)
+        mvv = np.sum(v*v*w)
+        muv = np.sum(u*v*w)
+
+        # This is deriving the second moment of uv coverages
+        ftmp = np.sqrt(4.0*muv*muv+(muu-mvv)**2)
+        bpa = -0.5*np.arctan2(2.0*muv, muu - mvv) * 180. / np.pi # Direction of the Eigen Vector
+        varuv_maj = (muu+mvv)/2. + ftmp/2.  # Eigen values
+        varuv_min = (muu+mvv)/2. - ftmp/2.  # Eigen values
+
+        # Choise of the fudge factor
+        if difmap_fudge:
+            # This is a fudge factor adopted in Difmap with no reasons
+            fudge = 0.7/2.
+        else:
+            # This is a fudge factor of ~0.37, giving the equivalent image-domain FWHM
+            #  of the Gaussian corresponding
+            fudge = np.sqrt(8*np.log(2))/(2*np.pi)
+
+        # compute the beam size
+        bmin = fudge/np.sqrt(varuv_maj) * util.angconv("rad", angunit)
+        bmaj = fudge/np.sqrt(varuv_min) * util.angconv("rad", angunit)
+
+        # return as parameters of gauss_convolve
+        cb_parms = ({'majsize': bmaj, 'minsize': bmin, 'angunit': angunit, 'pa': bpa})
+        return cb_parms
+
+    def map_beam(self,image,uniform=True,werror=0,npix=2,normalize=True,istokes=0,ifreq=0):
+        '''
+        This method calculates the synthesized beam
+        Compute the synthesized beam. This function computes the beam using two types of weights.
+        (A) density weightings (uniform or natural):
+            weight \propto rho^wuv where rho is the density of uv-points computed with an effecitve bin size
+            of npix/fov where fov is computed from the input image (see self.uvdensity for details).
+
+            wuv=1 gives uniform weighting, while wuv=0 gives natural weighting.
+
+        (B) error weightings:
+            weight \propto sigma^werror where sigma is the thermal error estimate of each visibility.
+
+            werror = 0: no error, werror = -1: popular weighting in DIFMAP, werror = -2: statistically-correct errors used in imaging
+
+        Compute the density of uvpoints by convolving the uv-sample function by a circular Gaussian of which FWHM is npix/fov,
+        where fov is given by fov = 2 * max(ra**2+dec**2) of the image.
+
+        Args:
+            image (imdata.IMFITS object):
+                The image where the synthesized beam will be mapped.
+            uniform (boolean, default=True):
+                use uniform weighting (True) or natrual weighting (False)
+            npix (integer, default=2):
+                FWHM size of the kernel in the unit of 1/fov, which will be used to compute uv density for uniform weighting
+            werror (integer, default=0):
+                index for the error weighting. -2 gives the statistically-correct weights used in imaging for imaging.
 
         Returns:
             imdata.IMFITS object of synthesized beam map
@@ -1772,6 +1942,11 @@ class VisTable(UVTable):
         vt = np.concatenate([v,-v])
         Nuv = len(ut)
 
+        # weights
+        w = self.uvweight(uniform=uniform, image=image, werror=werror, npix=npix)
+        wt = np.concatenate([w,w])
+        wt /= wt.sum()
+
         # u-v coverage
         dix = Nx/2. + 1 - Nxref
         diy = Ny/2. + 1 - Nyref
@@ -1779,16 +1954,9 @@ class VisTable(UVTable):
         Vsynsr = np.real(Vsynsc)
         Vsynsi = np.imag(Vsynsc)
 
-        # weight
-        if errorweight==0:
-            weightc = 1.
-            sum_w = Nuv
-        else:
-            weight  = np.power(self["sigma"].values, errorweight)
-            weightc = np.concatenate([weight,weight])
-            sum_w   = weightc.sum()
-        Vinreal = Vsynsr*weightc/sum_w
-        Vinimag = Vsynsi*weightc/sum_w
+        # compute weighted visibilities
+        Vinreal = Vsynsr*wt
+        Vinimag = Vsynsi*wt
 
         # synthesized beam
         Isyns=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vinreal,Vinimag,Nx,Ny,Nuv)
@@ -1801,16 +1969,36 @@ class VisTable(UVTable):
         imageout.update_fits()
         return imageout
 
-    def map_residual(self,image,errorweight=-2,istokes=0,ifreq=0):
+    def map_residual(self,image,uniform=False,werror=-2,npix=2,restore=False,istokes=0,ifreq=0):
         '''
-        This method calculates the residual map by using visibility and model image
+        This method calculates the synthesized beam
+        Compute the residual beam. This function computes the beam using two types of weights.
+        (A) density weightings (uniform or natural):
+            weight \propto rho^wuv where rho is the density of uv-points computed with an effecitve bin size
+            of npix/fov where fov is computed from the input image (see self.uvdensity for details).
+
+            wuv=1 gives uniform weighting, while wuv=0 gives natural weighting.
+
+        (B) error weightings:
+            weight \propto sigma^werror where sigma is the thermal error estimate of each visibility.
+
+            werror = 0: no error, werror = -1: popular weighting in DIFMAP, werror = -2: statistically-correct errors used in imaging
+
+        Compute the density of uvpoints by convolving the uv-sample function by a circular Gaussian of which FWHM is npix/fov,
+        where fov is given by fov = 2 * max(ra**2+dec**2) of the image.
 
         Args:
-            images (imdata.IMFITS object): model image
-            errorweight: index of weight
+            image (imdata.IMFITS object):
+                The image where the synthesized beam will be mapped.
+            uniform (boolean, default=False):
+                use uniform weighting (True) or natrual weighting (False)
+            npix (integer, default=2):
+                FWHM size of the kernel in the unit of 1/fov, which will be used to compute uv density for uniform weighting
+            werror (integer, default=-2):
+                index for the error weighting. -2 gives the statistically-correct weights used in imaging for imaging.
 
         Returns:
-            imdata.IMFITS object of residual map
+            imdata.IMFITS object of the residual map
         '''
         residvis = self.residual_image(image)
 
@@ -1831,6 +2019,11 @@ class VisTable(UVTable):
         Nuv = len(ut)
         del u,v
 
+        # weights
+        w = self.uvweight(uniform=uniform, image=image, werror=werror, npix=npix)
+        wt = np.concatenate([w,w])
+        wt /= wt.sum()
+
         # visibility data
         Vcomp_data = residvis.comp()
         Vcomp_data = np.concatenate([Vcomp_data, np.conj(Vcomp_data)])
@@ -1842,28 +2035,16 @@ class VisTable(UVTable):
         Vfcvrt = np.real(Vcomp_data)
         Vfcvit = np.imag(Vcomp_data)
 
-        # weight
-        if errorweight==0:
-            weightc = 1.
-            sum_w   = Nuv
-        else:
-            weight  = np.power(self["sigma"].values, errorweight)
-            weightc = np.concatenate([weight,weight])
-            sum_w   = weightc.sum()
-
         # take weighted residual between data and model visibilities
-        Vfcvrt*= weightc/sum_w
-        Vfcvit*= weightc/sum_w
+        Vfcvrt *= wt
+        Vfcvit *= wt
 
         # compute residual image
         residual=fortlib.fftlib.nufft_adj_real1d(ut,vt,Vfcvrt,Vfcvit,Nx,Ny,Nuv)
         residual = residual.reshape([Ny,Nx])
 
-        # normalize with beam
-        beam = self.map_beam(image,errorweight=errorweight, normalize=False)
-
         imageout = copy.deepcopy(image)
-        imageout.data[istokes,ifreq]=residual/beam.totalflux()
+        imageout.data[istokes,ifreq]=residual
         imageout.update_fits()
         return imageout
 
@@ -2037,7 +2218,7 @@ class VisTable(UVTable):
         # tplot==========================
         baselines= self.baseline_list()
         Nbsl = len(baselines)
-        for ibsl in xrange(Nbsl):
+        for ibsl in range(Nbsl):
             st1 = baselines[ibsl][0]
             st2 = baselines[ibsl][1]
 
@@ -2160,7 +2341,7 @@ class VisTable(UVTable):
         baselines= self.baseline_list()
         Nqua = len(baselines)
         tNdata = len(self["amp"])
-        for iqua in xrange(Nqua):
+        for iqua in range(Nqua):
             st1 = baselines[iqua][0]
             st2 = baselines[iqua][1]
 
@@ -2360,7 +2541,7 @@ class VisTable(UVTable):
         # tplot==========================
         baselines= self.baseline_list()
         Nbsl = len(baselines)
-        for ibsl in xrange(Nbsl):
+        for ibsl in range(Nbsl):
             st1 = baselines[ibsl][0]
             st2 = baselines[ibsl][1]
 
@@ -2470,7 +2651,7 @@ class VisTable(UVTable):
         baselines= self.baseline_list()
         Nqua = len(baselines)
         tNdata = len(self["amp"])
-        for iqua in xrange(Nqua):
+        for iqua in range(Nqua):
             st1 = baselines[iqua][0]
             st2 = baselines[iqua][1]
 
@@ -2676,87 +2857,6 @@ def calc_matrix_bs(matrix, blid1, blid2, blid3, Nbl, dependent):
     else:
         newrank = np.linalg.matrix_rank(newmatrix)
     return newrank, newmatrix
-
-def calc_bparms(vistable, angunit="mas"):
-    '''
-    Infer beam parameters (major size, minor size, position angle)
-
-    Args:
-      vistable: input visibility data
-    '''
-    # read uv information
-    U = np.float64(vistable["u"].values)
-    V = np.float64(vistable["v"].values)
-
-    # calculate minor size of the beam
-    maxuvdist = np.max(vistable.uvdist.values)
-    mina = 1 / maxuvdist * 0.6 * util.angconv("rad",angunit)
-
-    # calculate PA
-    index = np.argmax(vistable.uvdist.values)
-    angle = np.rad2deg(np.arctan2(U[index], V[index]))
-
-    # rotate uv coverage for calculating major size
-    PA = angle + 90
-    cosPA = np.cos(np.radians(PA))
-    sinPA = np.sin(np.radians(PA))
-    newU = U * cosPA - V * sinPA
-    newV = U * sinPA + V * cosPA
-
-    # calculate major size of the beam
-    maxV = np.max(np.abs(newV))
-    maja = 1./maxV * 0.6 * util.angconv("rad",angunit)
-
-    return maja, mina, PA
-
-
-def gauss_func(X, Y, maja, mina, PA, x0=0., y0=0., scale=1.):
-    '''
-    Calculate 2-D gauss function
-
-    Args:
-      X: 2-D array of x-axis
-      Y: 2-D array of y-axis
-      maja (float): major size of the gauss
-      mina (float): minor size
-      PA (float): position angle
-      x0 (float): value of x-position at the center of the gauss
-      y0 (float): value of y-position at the center of the gauss
-      scale (float): scaling factor
-    '''
-    # scaling
-    maja *= scale
-    mina *= scale
-
-    # calculate gauss function
-    cosPA = np.cos(np.radians(PA))
-    sinPA = np.sin(np.radians(PA))
-    L = ((X * sinPA + Y * cosPA)**2) / (maja**2) + \
-        ((X * cosPA - Y * sinPA)**2) / (mina**2)
-    return np.exp(-L * 4 * np.log(2))
-
-
-def fit_chisq(parms, X, Y, dbeam):
-    '''
-    Calculate residuals of two 2-D array
-
-    Args:
-      parms: information of clean beam
-      X: 2-D array of x-axis
-      Y: 2-D array of y-axis
-      dbeam: an array of dirty beam
-    '''
-    # get parameters of clean beam
-    (maja, mina, angle) = parms
-
-    # calculate clean beam and residuals
-    cbeam = gauss_func(X, Y, maja, mina, angle)
-    cbeam /= np.max(cbeam)
-    if cbeam.size == dbeam.size:
-        return (dbeam - cbeam).reshape(dbeam.size)
-    else:
-        print("not equal the size of two beam array")
-
 
 def _radplot_amp(vistable, uvunit, errorbar, ls ,marker, **plotargs):
     # Conversion Factor
