@@ -130,14 +130,14 @@ class CLTable(object):
 
             # get the number of data along each dimension
             Ntime,Nif,Nch,Nstokes,Nant,Ncomp = self.gaintabs[subarrid]["gain"].shape
-            for iif,ich,istokes in itertools.product(xrange(Nif),xrange(Nch),xrange(Nstokes)):
+            for iif,ich,istokes in itertools.product(range(Nif),range(Nch),range(Nstokes)):
 
                 # get complex gain
                 greal = self.gaintabs[subarrid]["gain"][:,iif,ich,istokes,:,0]
                 gimag = self.gaintabs[subarrid]["gain"][:,iif,ich,istokes,:,1]
                 gain = greal + 1j*gimag
                 gain = pd.DataFrame(gain)
-                gain.columns = xrange(1,Nant+1,1)
+                gain.columns = range(1,Nant+1,1)
 
                 # get the number of time stamps
                 Ndata = len(self.gaintabs[subarrid]["utc"])

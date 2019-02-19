@@ -179,7 +179,7 @@ def prt(obj, indent="", output=False):
             lines = obj.__repr__().split("\n")
         else:
             lines = [""]
-    for i in xrange(len(lines)):
+    for i in range(len(lines)):
         lines[i] = indent + lines[i]
     if output:
         return "\n".join(lines)

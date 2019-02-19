@@ -82,11 +82,11 @@ class MOVIE(object):
                 else:
                     tmtable["tint"] = tint
             else:
-                tmtable["tint"] = [tint for i in xrange(self.Nt)]
+                tmtable["tint"] = [tint for i in range(self.Nt)]
         self.timetable = tmtable
 
         # Initialize images
-        self.images = [imdata.IMFITS(**imgprm) for i in xrange(self.Nt)]
+        self.images = [imdata.IMFITS(**imgprm) for i in range(self.Nt)]
 
     #---------------------------------------------------------------------------
     # Get some information of movie data
@@ -142,7 +142,7 @@ class MOVIE(object):
         Returns:
             3d ndarray object contains 3-dimensional images
         '''
-        return np.asarray([self.images[i].data[0,0] for i in xrange(self.Nt)])
+        return np.asarray([self.images[i].data[0,0] for i in range(self.Nt)])
 
     def get_lightcurve(self):
         '''
@@ -170,7 +170,7 @@ class MOVIE(object):
             imdata.MOVIE ovbject
         '''
         outmovie=copy.deepcopy(self)
-        outmovie.images = [copy.deepcopy(image) for i in xrange(self.Nt)]
+        outmovie.images = [copy.deepcopy(image) for i in range(self.Nt)]
         return outmovie
 
 
@@ -186,7 +186,7 @@ class MOVIE(object):
             imdata.MOVIE object including gaussian model
         '''
         outmovie=copy.deepcopy(self)
-        outmovie.images = [self.images[i].add_gauss(**gaussprm) for i in xrange(self.Nt)]
+        outmovie.images = [self.images[i].add_gauss(**gaussprm) for i in range(self.Nt)]
         return outmovie
 
     def winmod(self,imregion,save_totalflux=False):
@@ -201,7 +201,7 @@ class MOVIE(object):
                 if True, keep Totalflux
         '''
         outmovie=copy.deepcopy(self)
-        outmovie.images = [self.images[i].winmod(imregion,save_totalflux) for i in xrange(self.Nt)]
+        outmovie.images = [self.images[i].winmod(imregion,save_totalflux) for i in range(self.Nt)]
         return outmovie
 
     def min_threshold(self,  threshold=0.0, replace=0.0,
@@ -227,7 +227,7 @@ class MOVIE(object):
                                 relative=relative,
                                 replace=replace,
                                 save_totalflux=save_totalflux)
-                           for i in xrange(self.Nt)]
+                           for i in range(self.Nt)]
         return outmovie
 
     def hard_threshold(self, threshold=0.01, relative=True, save_totalflux=False):
@@ -247,7 +247,7 @@ class MOVIE(object):
                                 threshold=threshold,
                                 relative=relative,
                                 save_totalflux=save_totalflux)
-                           for i in xrange(self.Nt)]
+                           for i in range(self.Nt)]
         return outmovie
 
     def soft_threshold(self, threshold=0.01, relative=True, save_totalflux=False):
@@ -265,7 +265,7 @@ class MOVIE(object):
                                 threshold=threshold,
                                 relative=relative,
                                 save_totalflux=save_totalflux)
-                           for i in xrange(self.Nt)]
+                           for i in range(self.Nt)]
         return outmovie
 
     def refshift(self,x0=0.,y0=0.,angunit=None,save_totalflux=False):
@@ -288,7 +288,7 @@ class MOVIE(object):
         outmovie.images = [self.images[i].refshift(
                                 x0=x0, y0=y0, angunit=angunit,
                                 save_totalflux=save_totalflux)
-                           for i in xrange(self.Nt)]
+                           for i in range(self.Nt)]
         return outmovie
 
     def comshift(self, alpha=1., save_totalflux=False):
@@ -336,7 +336,7 @@ class MOVIE(object):
                                 pa=pa, scale=scale,
                                 angunit=angunit,
                                 save_totalflux=save_totalflux)
-                           for i in xrange(self.Nt)]
+                           for i in range(self.Nt)]
         return outmovie
 
 
@@ -376,7 +376,7 @@ class MOVIE(object):
 
         outtable["frmidx"] = np.zeros(len(outtable.utc), dtype='int32')
         outtable.loc[:, "frmidx"] = -1
-        for i in xrange(len(dutcset)):
+        for i in range(len(dutcset)):
             idx = np.abs(mutcarr - dutcset[i]) < mutcint/2
             if True in idx:
                 outtable.loc[dutcarr==dutcset[i], "frmidx"] = np.where(idx)[0][0]
@@ -410,12 +410,12 @@ class MOVIE(object):
             uvfits_framelist=[]
             uvfits_idlist=[]
 
-            for iuvfits in xrange(Nuvfits):
+            for iuvfits in range(Nuvfits):
                 uvfits_frm = copy.deepcopy(uvfitslist[iuvfits])
                 Ndata = len(uvfits_frm.visdata.coord["utc"])
                 utc_uvfits = uvfits_frm.get_utc()
 
-                idx = np.array([True for i in xrange(Ndata)])
+                idx = np.array([True for i in range(Ndata)])
                 if ifrm > 1:
                     idx &= utc_uvfits > utcbound[ifrm-1]
                 if ifrm < self.Nt-1:
@@ -448,7 +448,7 @@ class MOVIE(object):
 
         cltable_list_list = []
         print("Start selfcal")
-        for it in tqdm(xrange(self.Nt)):
+        for it in tqdm(range(self.Nt)):
             if uvfits_framelist_list[it] is None:
                 cltable_list_list.append(None)
                 continue
@@ -502,7 +502,7 @@ class MOVIE(object):
             vmax = self.get_3darray().max()
         fig = plt.figure()
         with writer.saving(fig, filename, dpi):
-            for it in xrange(self.Nt):  # 回数
+            for it in range(self.Nt):  # 回数
                 if(vmax_type is "eachtime"):
                     vmax =lightcurve()[it]
                     self.images[it].imshow(vmin=vmin, vmax=vmax, **imshowprm)
@@ -530,7 +530,7 @@ class MOVIE(object):
         Returns:
             filename+"%03d.fits"%(it)
         '''
-        for it in xrange(self.Nt):
+        for it in range(self.Nt):
             self.images[it].to_fits(header+".%03d."%(it)+ext)
 
     #---------------------------------------------------------------------------
@@ -606,7 +606,7 @@ class MOVIE(object):
 
         # Plotting
         ax = plt.gca()
-        for i in xrange(self.Nt):
+        for i in range(self.Nt):
             ax.axvspan(xmin=utcst[i].datetime, xmax=utced[i].datetime, alpha=alpha, color=colors[i])
 
     def imshow(self, it,**imshowprm):
@@ -626,10 +626,10 @@ def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
 
     Nt      = len(uvfits_idlist_list)
     Nuvfits = np.max(np.max(uvfits_idlist_list))+1
-    uvfits_con_list = [None for iuvfits in xrange(Nuvfits)]
+    uvfits_con_list = [None for iuvfits in range(Nuvfits)]
 
     print("concatenate uvfits files")
-    for it in tqdm(xrange(Nt)):
+    for it in tqdm(range(Nt)):
         uvfits_idlist = uvfits_idlist_list[it]
         uvfits_framelist = uvfits_framelist_list[it]
 
@@ -639,7 +639,7 @@ def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
             continue
 
         Nuvfits_split = len(uvfits_idlist)
-        for iuvfits in xrange(Nuvfits_split):
+        for iuvfits in range(Nuvfits_split):
             id = uvfits_idlist[iuvfits]
             uvfits = uvfits_framelist[iuvfits]
             if uvfits_con_list[id] is None:
@@ -657,7 +657,7 @@ def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
         uvfits_con_list.remove(None)
 
     print("sort uvfits files")
-    for iuvfits in tqdm(xrange(len(uvfits_con_list))):
+    for iuvfits in tqdm(range(len(uvfits_con_list))):
         uvfits_con_list[iuvfits].visdata.sort()
 
     return uvfits_con_list
@@ -675,7 +675,7 @@ def apply_cltable(uvfits_framelist_list,uvfits_idlist_list,cltable_list_list):
 
     uvfitscal_framelist_list=[]
 
-    for it in tqdm(xrange(Nt)):
+    for it in tqdm(range(Nt)):
         if uvfits_framelist_list[it] is None:
             uvfitscal_framelist_list.append(None)
             continue
@@ -684,7 +684,7 @@ def apply_cltable(uvfits_framelist_list,uvfits_idlist_list,cltable_list_list):
         uvfits_framelist = uvfits_framelist_list[it]
         caltable_list = cltable_list_list[it]
 
-        uvfitscal_framelist = [uvfits_framelist[iuvfits].apply_cltable(caltable_list[iuvfits]) for iuvfits in xrange(Nuvfits)]
+        uvfitscal_framelist = [uvfits_framelist[iuvfits].apply_cltable(caltable_list[iuvfits]) for iuvfits in range(Nuvfits)]
         uvfitscal_framelist_list.append(uvfitscal_framelist)
 
     uvfits_totlist=concat_uvfits(uvfitscal_framelist_list,uvfits_idlist_list)

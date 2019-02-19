@@ -240,7 +240,7 @@ class CATable(UVTable):
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
             else:
-                for i in xrange(len(Iin)):
+                for i in range(len(Iin)):
                     Iin[i] = Iin[i].reshape(Nyx)
 
             x = x.reshape(Nyx)
@@ -253,7 +253,7 @@ class CATable(UVTable):
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin[idx]
             else:
-                for i in xrange(len(Iin)):
+                for i in range(len(Iin)):
                     Iin[i] = Iin[i][idx]
             x = x[idx]
             y = y[idx]
@@ -704,7 +704,7 @@ class CATable(UVTable):
         pltarrays = []
         axislabels = []
         deflims = []
-        for i in xrange(2):
+        for i in range(2):
             axis = axises[i]
             normerror = normerrors[i]
             if   "utc" in axis:
@@ -819,7 +819,7 @@ class CATable(UVTable):
             )
 
         # set formatter if utc or gst will be plotted
-        for i in xrange(2):
+        for i in range(2):
             axis = axises[i]
             # Set time
             if i==0:
@@ -968,7 +968,7 @@ class CATable(UVTable):
         # tplot==========================
         quadratures= self.quadrature_list()
         Nqad = len(quadratures)
-        for iqad in xrange(Nqad):
+        for iqad in range(Nqad):
             st1 = quadratures[iqad][0]
             st2 = quadratures[iqad][1]
             st3 = quadratures[iqad][2]
@@ -1077,7 +1077,7 @@ class CATable(UVTable):
         quadratures= self.quadrature_list()
         Nqad = len(quadratures)
         tNdata = len(self["logamp"])
-        for iqad in xrange(Nqad):
+        for iqad in range(Nqad):
             st1 = quadratures[iqad][0]
             st2 = quadratures[iqad][1]
             st3 = quadratures[iqad][2]

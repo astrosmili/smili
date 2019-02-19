@@ -127,7 +127,7 @@ def imaging3d(
         ValueError("The number of frame must be larger than 1")
 
     # get initial images
-    Iin = [initmovie.images[i].data[istokes, ifreq] for i in xrange(Nt)]
+    Iin = [initmovie.images[i].data[istokes, ifreq] for i in range(Nt)]
     initimage = initmovie.images[0]
 
     # size of images
@@ -149,7 +149,7 @@ def imaging3d(
 
     if imregion is None:
         print("Imaging Window: Not Specified. We solve the image on all the pixels.")
-        Iin = [Iin[i].reshape(Nyx) for i in xrange(len(Iin))]
+        Iin = [Iin[i].reshape(Nyx) for i in range(len(Iin))]
         x = x.reshape(Nyx)
         y = y.reshape(Nyx)
         xidx = xidx.reshape(Nyx)
@@ -158,7 +158,7 @@ def imaging3d(
         print("Imaging Window: Specified. Images will be solved on specified pixels.")
         imagewin = imregion.imagewin(initimage,istokes,ifreq)
         idx = np.where(imagewin)
-        Iin = [Iin[i][idx] for i in xrange(len(Iin))]
+        Iin = [Iin[i][idx] for i in range(len(Iin))]
         x = x[idx]
         y = y[idx]
         xidx = xidx[idx]
@@ -350,8 +350,8 @@ def imaging3d(
     outmovie = copy.deepcopy(initmovie)
     print("before import outimlist")
     ipix = 0
-    for it in xrange(Nt):
-        for i in xrange(len(xidx)):
+    for it in range(Nt):
+        for i in range(len(xidx)):
             outmovie.images[it].data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[ipix+i]
         outmovie.images[it].update_fits()
         ipix += len(xidx)

@@ -278,7 +278,7 @@ class BSTable(UVTable):
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
             else:
-                for i in xrange(len(Iin)):
+                for i in range(len(Iin)):
                     Iin[i] = Iin[i].reshape(Nyx)
 
             x = x.reshape(Nyx)
@@ -291,7 +291,7 @@ class BSTable(UVTable):
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin[idx]
             else:
-                for i in xrange(len(Iin)):
+                for i in range(len(Iin)):
                     Iin[i] = Iin[i][idx]
             x = x[idx]
             y = y[idx]
@@ -725,7 +725,7 @@ class BSTable(UVTable):
         pltarrays = []
         axislabels = []
         deflims = []
-        for i in xrange(2):
+        for i in range(2):
             axis = axises[i]
             normerror = normerrors[i]
             if   "utc" in axis:
@@ -855,7 +855,7 @@ class BSTable(UVTable):
             )
 
         # set formatter if utc or gst will be plotted
-        for i in xrange(2):
+        for i in range(2):
             axis = axises[i]
             # Set time
             if i==0:
@@ -1001,7 +1001,7 @@ class BSTable(UVTable):
         # tplot==========================
         triangles = self.triangle_list()
         Ntri = len(triangles)
-        for itri in xrange(Ntri):
+        for itri in range(Ntri):
             st1 = triangles[itri][0]
             st2 = triangles[itri][1]
             st3 = triangles[itri][2]
@@ -1108,7 +1108,7 @@ class BSTable(UVTable):
         triangles   = self.triangle_list()
         Ntri = len(triangles)
         tNdata = len(self["phase"])
-        for itri in xrange(Ntri):
+        for itri in range(Ntri):
             st1 = triangles[itri][0]
             st2 = triangles[itri][1]
             st3 = triangles[itri][2]

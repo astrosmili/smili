@@ -25,5 +25,7 @@ setup(
     package_data={'smili': ['*.so','imaging/*.so']},
     install_requires = [
         "future","numpy","scipy","matplotlib","pandas","xarray",
-        "scikit-image","astropy","tqdm","sympy","theano","pymc3","pyds9"]
+        "scikit-image","astropy","tqdm","sympy","theano","pymc3","pyds9",
+        "ehtplot"
+    ]
 )

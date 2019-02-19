@@ -92,7 +92,7 @@ class UVFITS(object):
         SUtabs = {}
         ghdu = None
         prt("Loading HDUs in the input UVFITS files.")
-        for ihdu in xrange(Nhdu):
+        for ihdu in range(Nhdu):
             hduname = hduinfo[ihdu][1]
             if hduname == "PRIMARY":
                 if ghdu is not None:
@@ -241,7 +241,7 @@ class UVFITS(object):
         # Load Data
         freqdata.frqsels = FQtab.data["FRQSEL"]
         Nfrqsel = len(freqdata.frqsels)
-        for i in xrange(Nfrqsel):
+        for i in range(Nfrqsel):
             frqsel = freqdata.frqsels[i]
             fqdic = {
                 "if_freq_offset":FQtab.data["IF FREQ"][i],
@@ -285,7 +285,7 @@ class UVFITS(object):
             equinox = ghdu.header.get("EPOCH")
         else:
             equinox = 2000.0
-        if isinstance(equinox, str) or isinstance(equinox, unicode):
+        if isinstance(equinox, str):
             if "J" in equinox: equinox = equinox.replace("J","")
             if "B" in equinox: equinox = equinox.replace("B","")
             equinox = np.float64(equinox)
@@ -374,11 +374,11 @@ class UVFITS(object):
         Ndata = visdata.data.shape[0]
 
         # Read Random Parameters
-        paridxes = [None for i in xrange(9)]
+        paridxes = [None for i in range(9)]
         parnames = hdu.data.parnames
         Npar = len(parnames)
         visdata.coord = pd.DataFrame()
-        for i in xrange(Npar):
+        for i in range(Npar):
             parname = parnames[i]
             if "UU" in parname:
                 paridxes[0] = i+1
@@ -425,7 +425,7 @@ class UVFITS(object):
             errmsg = "Random Parameters do not have 'SOURCE' although UVFITS is for multi sources."
             raise ValueError(errmsg)
         elif (self.ismultisrc is False) and (paridxes[6] is None):
-            visdata.coord["source"] = np.asarray([1 for i in xrange(Ndata)])
+            visdata.coord["source"] = np.asarray([1 for i in range(Ndata)])
             paridxes[6] = -1
 
         #   Frequency
@@ -433,7 +433,7 @@ class UVFITS(object):
             errmsg = "Random Parameters do not have 'FREQSEL' although UVFITS have multi frequency setups."
             raise ValueError(errmsg)
         elif (self.ismultifrq is False) and (paridxes[8] is None):
-            visdata.coord["freqsel"] = np.asarray([1 for i in xrange(Ndata)])
+            visdata.coord["freqsel"] = np.asarray([1 for i in range(Ndata)])
             paridxes[8] = -1
 
         if None in paridxes:
@@ -594,7 +594,7 @@ class UVFITS(object):
             ghdu.header.insert("PTYPE1", card)
 
         # PTYPE HEADER
-        for i in xrange(len(parnames)):
+        for i in range(len(parnames)):
             if i == 4:
                 pzero = utc_ref.jd1 - 0.5
             elif i == 5:
@@ -638,7 +638,7 @@ class UVFITS(object):
 
         # Columns
         tables = []
-        for i in xrange(Nfrqsel):
+        for i in range(Nfrqsel):
             fqtable = freqdata.fqtables[freqdata.frqsels[i]]
             Nif = fqtable.shape[0]
             tables.append(np.asarray(fqtable).transpose().reshape([4,1,Nif]))
@@ -809,7 +809,7 @@ class UVFITS(object):
                 "number of polarization valibration values / Nif",
                 "type of polarization calibration",
             ]
-            for i in xrange(len(keys)):
+            for i in range(len(keys)):
                 key = keys[i]
                 if arraydata.header[key] is not None:
                     #card = (key,types[i](arraydata.header[key]),
@@ -845,7 +845,7 @@ class UVFITS(object):
 
             # Create Columns
             cols = []
-            for i in xrange(Ncol):
+            for i in range(Ncol):
                 args = {}
                 args["name"] = names[i]
                 args["format"] = formats[i]
@@ -912,7 +912,7 @@ class UVFITS(object):
         for subarr in subarrs:
             antable=self.subarrays[subarr].antable
             Nant = len(antable["name"])
-            for iant in xrange(Nant):
+            for iant in range(Nant):
                 outdic[(subarr,iant+1)]=antable.loc[iant, key].strip(" ")
         return outdic
 
@@ -939,7 +939,7 @@ class UVFITS(object):
         for frqsel,subarr in itertools.product(frqsels,subarrs):
             fqtable = self.fqsetup.fqtables[frqsel]
             reffreq = self.subarrays[subarr].header["FREQ"]
-            for iif,ich in itertools.product(xrange(Nif),xrange(Nch)):
+            for iif,ich in itertools.product(range(Nif),range(Nch)):
                 chbw = fqtable.loc[iif, "ch_bandwidth"]
                 fqof = fqtable.loc[iif, "if_freq_offset"]
                 sideband = fqtable.loc[iif, "sideband"]
@@ -971,7 +971,7 @@ class UVFITS(object):
         outdic = {}
         for frqsel in frqsels:
             fqtable = self.fqsetup.fqtables[frqsel]
-            for iif,ich in itertools.product(xrange(Nif),xrange(Nch)):
+            for iif,ich in itertools.product(range(Nif),range(Nch)):
                 chbw = fqtable.loc[iif, "ch_bandwidth"]
                 fqof = fqtable.loc[iif, "if_freq_offset"]
                 if center:
@@ -1029,8 +1029,8 @@ class UVFITS(object):
         freqdic =self.get_freq()
 
         # calculate UVW=(u, v, w, uvdistance)
-        for i,j in itertools.product(xrange(Nif),xrange (Nch)): #0<=i<Nif, 0<=j<Nch
-            freq = [freqdic[subarray[k],freqsel[k],i+1,j+1] for k in xrange(Ndata)] # 0<=k<Ndata
+        for i,j in itertools.product(range(Nif),range (Nch)): #0<=i<Nif, 0<=j<Nch
+            freq = [freqdic[subarray[k],freqsel[k],i+1,j+1] for k in range(Ndata)] # 0<=k<Ndata
             uvw[j,i,:,0] = freq[:]*usec
             uvw[j,i,:,1] = freq[:]*vsec
             uvw[j,i,:,2] = freq[:]*wsec
@@ -1073,7 +1073,7 @@ class UVFITS(object):
         del UVW
 
         # compute visibilities
-        iterator = itertools.product(xrange(Nif),xrange(Nch))
+        iterator = itertools.product(range(Nif),range(Nch))
         for iif, ich in tqdm.tqdm(iterator):
             print("Compute Model Visibilities for IF=%d, CH=%d"%(iif+1,ich+1))
 
@@ -1106,7 +1106,7 @@ class UVFITS(object):
 
         # compute stokes visibilities
         stokes_list = outfits.stokes
-        for i in xrange(len(stokes_list)):
+        for i in range(len(stokes_list)):
             stokes = stokes_list[i]
             print("Compute Model Visibilities at Stokes %s"%(stokes))
             if   stokes.upper() == "I":
@@ -1205,7 +1205,7 @@ class UVFITS(object):
 
             # get utc information
             utcset = cltable.gaintabs[subarrid]["utc"]
-            for itime,iif,ich,istokes in tqdm.tqdm(itertools.product(xrange(Ntime),xrange(Nif),xrange(Nch),xrange(Nstokes))):
+            for itime,iif,ich,istokes in tqdm.tqdm(itertools.product(range(Ntime),range(Nif),range(Nch),range(Nstokes))):
                 # data index of the current time
                 idx_utc = utc == utcset[itime]
                 idx_utc &= idx_subarr
@@ -1252,8 +1252,8 @@ class UVFITS(object):
                 Nant_itime = len(antset_itime)
 
                 # create dictionary of antenna ids
-                ant1id = [antset_itime.index(ant1_itime[i]) for i in xrange(Ndata_itime)]
-                ant2id = [antset_itime.index(ant2_itime[i]) for i in xrange(Ndata_itime)]
+                ant1id = [antset_itime.index(ant1_itime[i]) for i in range(Ndata_itime)]
+                ant2id = [antset_itime.index(ant2_itime[i]) for i in range(Ndata_itime)]
 
                 # compute wij and Xij
                 w_itime = np.sqrt(Vmodel_real_itime**2+Vmodel_imag_itime**2)
@@ -1273,7 +1273,7 @@ class UVFITS(object):
 
                 # make cltable
                 g = result[0]
-                for i in xrange(Nant_itime):
+                for i in range(Nant_itime):
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,0]= g[i]
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,1]= g[i+Nant_itime]
         return cltable
@@ -1313,7 +1313,7 @@ class UVFITS(object):
             gain = cltable.gaintabs[subarrid]["gain"]
             antset = outfits.subarrays[subarrid].antable.id.values
 
-            for itime, istokes, iant in itertools.product(xrange(Ntime),xrange(Nstokes),xrange(Nant)):
+            for itime, istokes, iant in itertools.product(range(Ntime),range(Nstokes),range(Nant)):
                 # data index of the current time and antenna
                 idx = set(tuple(utcgroup.groups[utcset[itime]]))
 
@@ -1421,16 +1421,16 @@ class UVFITS(object):
         del out
 
         print("(5/5) Forming UV data")
-        utc = [tsecout for i in xrange(Nidx)]
-        #usec = [0.0 for i in xrange(Nidx*Nt)]
-        #vsec = [0.0 for i in xrange(Nidx*Nt)]
-        #wsec = [0.0 for i in xrange(Nidx*Nt)]
-        subarray = [[combset[idx][0] for i in xrange(Nt)] for idx in xrange(Nidx)]
-        ant1 = [[combset[idx][1] for i in xrange(Nt)] for idx in xrange(Nidx)]
-        ant2 = [[combset[idx][2] for i in xrange(Nt)] for idx in xrange(Nidx)]
-        source = [[combset[idx][3] for i in xrange(Nt)] for idx in xrange(Nidx)]
-        inttim = [solint for i in xrange(Nidx*Nt)]
-        freqsel = [[combset[idx][4] for i in xrange(Nt)] for idx in xrange(Nidx)]
+        utc = [tsecout for i in range(Nidx)]
+        #usec = [0.0 for i in range(Nidx*Nt)]
+        #vsec = [0.0 for i in range(Nidx*Nt)]
+        #wsec = [0.0 for i in range(Nidx*Nt)]
+        subarray = [[combset[idx][0] for i in range(Nt)] for idx in range(Nidx)]
+        ant1 = [[combset[idx][1] for i in range(Nt)] for idx in range(Nidx)]
+        ant2 = [[combset[idx][2] for i in range(Nt)] for idx in range(Nidx)]
+        source = [[combset[idx][3] for i in range(Nt)] for idx in range(Nidx)]
+        inttim = [solint for i in range(Nidx*Nt)]
+        freqsel = [[combset[idx][4] for i in range(Nt)] for idx in range(Nidx)]
         utc = at.Time(np.concatenate(utc), format="cxcsec", scale="utc").datetime
 
         outfits.visdata.coord = pd.DataFrame()
@@ -1913,8 +1913,8 @@ class UVFITS(object):
         subarr = np.int32(self.visdata.coord.subarray)
         st1 = np.int32(self.visdata.coord.ant1.values)
         st2 = np.int32(self.visdata.coord.ant2.values)
-        st1name = np.asarray([namedic[(subarr[i],st1[i])] for i in xrange(Ndata)])
-        st2name = np.asarray([namedic[(subarr[i],st2[i])] for i in xrange(Ndata)])
+        st1name = np.asarray([namedic[(subarr[i],st1[i])] for i in range(Ndata)])
+        st2name = np.asarray([namedic[(subarr[i],st2[i])] for i in range(Ndata)])
 
         # other parameters
         frqsel = self.visdata.coord.freqsel.values
@@ -1924,11 +1924,11 @@ class UVFITS(object):
 
         # Create Tables
         outdata = VisTable()
-        for idec, ira, iif, ich, istokes in itertools.product(xrange(Ndec),
-                                                             xrange(Nra),
-                                                             xrange(Nif),
-                                                             xrange(Nch),
-                                                             xrange(Nstokes)):
+        for idec, ira, iif, ich, istokes in itertools.product(range(Ndec),
+                                                             range(Nra),
+                                                             range(Nif),
+                                                             range(Nch),
+                                                             range(Nstokes)):
             tmpdata = VisTable()
 
             # Time
@@ -1949,7 +1949,7 @@ class UVFITS(object):
             tmpdata.loc[:, "chid"] = np.int32(ich)
             tmpdata["ch"] = tmpdata["ifid"] + tmpdata["chid"] * Nif
 
-            tmpdata["freq"] = [freqdic[(subarr[i],frqsel[i],iif+1,ich+1)] for i in xrange(Ndata)]
+            tmpdata["freq"] = [freqdic[(subarr[i],frqsel[i],iif+1,ich+1)] for i in range(Ndata)]
 
             # uvw
             tmpdata["u"] = u*tmpdata["freq"]
@@ -2129,7 +2129,7 @@ class FrequencyData(object):
 
     def __repr__(self):
         lines = []
-        for i in xrange(len(self.frqsels)):
+        for i in range(len(self.frqsels)):
             frqsel = self.frqsels[i]
             fqtable = self.fqtables[frqsel]
             lines.append("Frequency Setup ID: %d"%(frqsel))
@@ -2239,16 +2239,16 @@ class SourceData(object):
         return "\n".join(lines)
 
 def _selfcal_error_func(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
-    g1 = np.asarray([gain[ant1[i]]+1j*gain[Nant+ant1[i]] for i in xrange(Ndata)])
-    g2 = np.asarray([gain[ant2[i]]-1j*gain[Nant+ant2[i]] for i in xrange(Ndata)])
+    g1 = np.asarray([gain[ant1[i]]+1j*gain[Nant+ant1[i]] for i in range(Ndata)])
+    g2 = np.asarray([gain[ant2[i]]-1j*gain[Nant+ant2[i]] for i in range(Ndata)])
     dV = w*(X-g1*g2)
-    Pamp = [(np.sqrt(gain[i]**2+gain[i+Nant]**2)-1)/std_amp for i in xrange(Nant)]
-    Ppha = [np.arctan2(gain[i+Nant],gain[i])/std_pha for i in xrange(Nant)]
+    Pamp = [(np.sqrt(gain[i]**2+gain[i+Nant]**2)-1)/std_amp for i in range(Nant)]
+    Ppha = [np.arctan2(gain[i+Nant],gain[i])/std_pha for i in range(Nant)]
     return np.hstack([np.real(dV),np.imag(dV),Pamp,Ppha])
 
 def _selfcal_error_dfunc(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
     ddV = np.zeros([Ndata*2+Nant*2,Nant*2])
-    for idata in xrange(Ndata):
+    for idata in range(Ndata):
         # antenna id
         i = ant1[idata]
         j = ant2[idata]
@@ -2268,7 +2268,7 @@ def _selfcal_error_dfunc(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
         ddV[idata+Ndata, j]      = -w[idata]*gi_i # d(Vimag)/d(gr_j)
         ddV[idata+Ndata, i+Nant] = -w[idata]*gr_j # d(Vimag)/d(gi_i)
         ddV[idata+Ndata, j+Nant] = +w[idata]*gr_i # d(Vimag)/d(gi_j)
-    for i in xrange(Nant):
+    for i in range(Nant):
         ampsq = gain[i]**2+gain[i+Nant]**2
         amp = np.sqrt(ampsq)
         ddV[i+Ndata*2, i]      = gain[i]/amp

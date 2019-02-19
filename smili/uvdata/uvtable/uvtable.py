@@ -58,7 +58,7 @@ class UVTable(pd.DataFrame):
 
         # Name
         out = collections.OrderedDict()
-        for icv in xrange(nfold):
+        for icv in range(nfold):
             trainkeyname = "t%d" % (icv)
             validkeyname = "v%d" % (icv)
             if Nval * (icv + 1) == Ndata:

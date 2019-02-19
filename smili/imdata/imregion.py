@@ -60,7 +60,7 @@ class IMRegion(pd.DataFrame):
         '''
 
         if len(self.keys())==0:
-            for i in xrange(len(IMRegion.imreg_columns)):
+            for i in range(len(IMRegion.imreg_columns)):
                 column = IMRegion.imreg_columns[i]
                 self[column] = []
         else:
@@ -308,7 +308,7 @@ class IMRegion(pd.DataFrame):
 
         region = region.append(s,ignore_index=True)
 
-        for i in xrange(len(IMRegion.imreg_columns)):
+        for i in range(len(IMRegion.imreg_columns)):
             column = IMRegion.imreg_columns[i]
             if IMRegion.imreg_types[i] is None:
                 pass
@@ -345,7 +345,7 @@ class IMRegion(pd.DataFrame):
 
         region = region.append(s,ignore_index=True)
 
-        for i in xrange(len(IMRegion.imreg_columns)):
+        for i in range(len(IMRegion.imreg_columns)):
             column = IMRegion.imreg_columns[i]
             if IMRegion.imreg_types[i] is None:
                 pass
@@ -386,7 +386,7 @@ class IMRegion(pd.DataFrame):
 
         region = region.append(s,ignore_index=True)
 
-        for i in xrange(len(IMRegion.imreg_columns)):
+        for i in range(len(IMRegion.imreg_columns)):
             column = IMRegion.imreg_columns[i]
             if IMRegion.imreg_types[i] is None:
                 pass

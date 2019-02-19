@@ -89,7 +89,7 @@ def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1
     v = []
     uvstack = np.sqrt(np.square(ustack) + np.square(vstack))
     #uvthres = np.max(uvstack) * thres
-    for i in xrange(Nstack):
+    for i in range(Nstack):
         if uvidx[i] == 0:
             dist1 = np.sqrt(
                 np.square(ustack - ustack[i]) + np.square(vstack - vstack[i]))
@@ -147,7 +147,7 @@ def get_uvlist_loop(Nt, fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=
     Nuvs = []
 
     idxcon = 0
-    for i in xrange(Nt):
+    for i in range(Nt):
         fcvsingle, ampsingle, bssingle, casingle = None, None, None, None
         if fcvconcat is not None:
             frmid = fcvconcat["frmidx"] == i

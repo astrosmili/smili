@@ -487,7 +487,7 @@ class IMFITS(object):
 
         # Add the brightness distribution to the image
         count = 0
-        for i in xrange(len(flux)):
+        for i in range(len(flux)):
             try:
                 self.data[0,0,iy[i],ix[i]] += flux[i]
             except:
@@ -1524,7 +1524,7 @@ class IMFITS(object):
         coord[0, :] = y.reshape(Nx1 * Ny1)
         coord[1, :] = x.reshape(Nx1 * Ny1)
 
-        for idxs, idxf in itertools.product(xrange(self.header["ns"]),xrange(self.header["nf"])):
+        for idxs, idxf in itertools.product(range(self.header["ns"]),range(self.header["nf"])):
             outfits.data[idxs, idxf] = sn.map_coordinates(
                 fitsdata.data[idxs, idxf], coord, order=order,
                 mode='constant', cval=0.0, prefilter=True).reshape([Ny1, Nx1]
@@ -1596,7 +1596,7 @@ class IMFITS(object):
 
         # Convolusion (except:gauss is zero array)
         if np.any(gauss != 0):
-            for idxs, idxf in itertools.product(xrange(outfits.header["ns"]),xrange(outfits.header["nf"])):
+            for idxs, idxf in itertools.product(range(outfits.header["ns"]),range(outfits.header["nf"])):
                 orgimage = outfits.data[idxs, idxf]
                 newimage = convolve_fft(orgimage, gauss, normalize_kernel=True)
                 outfits.data[idxs, idxf] = newimage
@@ -1701,7 +1701,7 @@ class IMFITS(object):
         #sina = np.sin(radangle)
         Nx = outfits.header["nx"]
         Ny = outfits.header["ny"]
-        for istokes, ifreq in itertools.product(xrange(self.header["ns"]),xrange(self.header["nf"])):
+        for istokes, ifreq in itertools.product(range(self.header["ns"]),range(self.header["nf"])):
             image = outfits.data[istokes, ifreq]
             # rotate data
             newimage = sn.rotate(image, degangle)
