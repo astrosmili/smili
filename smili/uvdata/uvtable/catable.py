@@ -68,6 +68,16 @@ class CATable(UVTable):
         return CASeries
 
     def set_uvunit(self, uvunit=None):
+        '''
+        Set or guess uvunit.
+
+        Args:
+            uvunit (str, default=None)
+                The unit for spacial frequencies.
+                Availables are lambda, klambda, mlambda and glambda.
+                If not specified, uvunit will be guessed.
+        '''
+
         # Check uvunits
         if uvunit is None:
             uvmax = np.max(self.uvdistmax.values)
@@ -152,6 +162,20 @@ class CATable(UVTable):
 
 
     def eval_image(self, imfits, mask=None, istokes=0, ifreq=0):
+        '''
+        This function returns model log closure amplitudes calculated by an input image
+
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct model log closure amplitudes
+             mask (array):
+                array for masking
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+        Returns:
+            CATable object of model log closure amplitudes based on an input image
+        '''
+
         #uvdata.CATable object (storing model closure phase)
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -168,6 +192,20 @@ class CATable(UVTable):
         return catable
 
     def residual_image(self, imfits, mask=None, istokes=0, ifreq=0):
+        '''
+        This function returns residual between observational and model log closure amplitudes.
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct model log closure amplitudes
+            mask (array):
+                array for masking
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+
+        Returns:
+            CATable object of residual between observational and model log closure amplitudes
+        '''
+
         #uvdata CATable object (storing residual closure phase)
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -184,6 +222,21 @@ class CATable(UVTable):
         return residtable
 
     def chisq_image(self, imfits, mask=None, istokes=0, ifreq=0):
+        '''
+        This function returns (mean square) standardized residuals.
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct model log closure amplitudes
+            mask (array):
+                array for masking
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+
+        Returns:
+            (mean square) standardized residuals based on an input image
+
+        '''
+
         # calcurate chisqared and reduced chisqred.
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -235,7 +288,6 @@ class CATable(UVTable):
 
         # apply the imaging area
         if mask is None:
-            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
 
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
@@ -328,7 +380,7 @@ class CATable(UVTable):
         Args:
             geomodel (geomodel.geomodel.GeoModel) object
         Returns:
-            uvdata.VisTable object
+            uvdata.CATable object
         '''
         # create a table to be output
         outtable = copy.deepcopy(self)
@@ -601,7 +653,7 @@ class CATable(UVTable):
 
     def vplot(self,
             axis1="utc",
-            axis2="phase",
+            axis2="logamp",
             quadrature=None,
             normerror1=False,
             normerror2=None,
@@ -863,7 +915,7 @@ class CATable(UVTable):
         if filename is not None:
             pdf = PdfPages(filename)
         else:
-            filename = "model"
+            filename = "plot_model_logcamp.pdf"
             pdf = PdfPages(filename)
 
         # model,residual,chisq
@@ -877,13 +929,13 @@ class CATable(UVTable):
 
         # first figure: All data
         fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-        plt.suptitle(r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq),fontsize=18)
+        plt.suptitle(r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq),fontsize=18)
         plt.subplots_adjust(hspace=0.4)
 
-        # 1. Radplot of closure amplitudes
+        # 1. Radial plot of closure amplitudes
         ax = axs[0,0]
         plt.sca(ax)
-        plt.title("Radplot of closure amplitude")
+        plt.title("Radial plot of closure amplitude")
         plotargs1=copy.deepcopy(plotargs)
         plotargs1["label"]="Observation"
         self.radplot(uvdtype="ave", color="black",errorbar=False, **plotargs1)
@@ -899,10 +951,10 @@ class CATable(UVTable):
         plt.locator_params(axis='y',nbins=6)
         plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
 
-        # 2. Radplot of normalized residuals
+        # 2. Radial plot of normalized residuals
         ax = axs[1,0]
         plt.sca(ax)
-        plt.title("Radplot of normalized residuals")
+        plt.title("Radial plot of normalized residuals")
         resid.radplot(uvdtype="ave",normerror=True,errorbar=False,color="black",**plotargs)
         plt.autoscale()
 
@@ -987,7 +1039,7 @@ class CATable(UVTable):
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-            plt.suptitle(st1+"-"+st2+"-"+st3+"-"+st4+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
+            plt.suptitle(st1+"-"+st2+"-"+st3+"-"+st4+": "+r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq) ,fontsize=18)
             plt.subplots_adjust(hspace=0.4)
 
             # 1. Time plot of closure phases
