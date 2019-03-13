@@ -175,7 +175,7 @@ def imaging(
         print("       You need to set the total flux constraint by totalflux / tfd_lambda")
         return -1
     elif ((vistable is None) and (amptable is None) and
-          ((totalflux is None) or (fluxconst is False))):
+          ((totalflux is None) or (tfd_lambda <= 0))):
         print("Warning: No absolute amplitude information in the input data.")
         print("         The total flux must be constrained")
         return -1
