@@ -1,11 +1,11 @@
 # SMILI: Sparse Modeling Imaging Library for Interferometry
 
-SMILI is a python-interfaced library for interferometric imaging using sparse sampling techniques and other regularization methods. SMILI is mainly designed for very long baseline interferometry, and has been under the active development primarily for the [Event Horizon Telescope](https://eventhorizontelescope.org/).
+SMILI is a python-interfaced library for interferometric imaging using sparse sampling techniques and other regularization methods. SMILI is mainly designed for very long baseline interferometry, and has been under the active development primarily for the [Event Horizon Telescope (EHT)](https://eventhorizontelescope.org/).
 
 ## Documentation and Contact
 Here is [the SMILI documentation](https://astrosmili.github.io/smili). Since SMILI has yet been actively and dynamically developed for many new topics and challenges of the EHT, the documentation is not perfect and sometimes outdated due to dynamical changes in data structure.
 
-Please contact with Kazu Akiyama at MIT Haystack Observatory if you have any questions about this library. You may contact with some of other core developers, too.
+Please contact with Kazu Akiyama at MIT Haystack Observatory if you have any questions about this library. You may contact with following other core developers, too.
 - [Kazu Akiyama](http://kazuakiyama.github.io/) at MIT Haystack Observatory, the Main Developer
 - [Fumie Tazaki](https://ftazaki.github.io/webpage) at National Astronomical Observatory of Japan
 - [Shiro Ikeda](https://www.ism.ac.jp/~shiro/) at the Institute of Statistical Mathematics
@@ -14,7 +14,7 @@ Please contact with Kazu Akiyama at MIT Haystack Observatory if you have any que
 Please have a look at [the installation guide](https://astrosmili.github.io/smili/_static/install.html).
 
 ## What's the reference for this software?
-We are now preparing a software paper (Akiyama et al. in prep.) including descriptions of some new functions after Kuramochi et al. 2018. Until this paper will come out, please cite following two papers for SMILI.
+We are now preparing a software paper (Akiyama et al. in prep.) describing the latest snapshot of some new functions after Kuramochi et al. 2018. Until this paper will come out, please cite following two papers for SMILI.
 
 - [Akiyama et al. 2017a, ApJ, 838, 1](https://ui.adsabs.harvard.edu/#abs/2017ApJ...838....1A)
 - [Akiyama et al. 2017b, AJ, 153, 159](https://ui.adsabs.harvard.edu/#abs/2017AJ....153..159A)
