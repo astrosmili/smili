@@ -1,11 +1,14 @@
-# Smili: Sparse Modeling Imaging Library for Interferometry
+# SMILI: Sparse Modeling Imaging Library for Interferometry
 
 SMILI is a python-interfaced library for interferometric imaging using sparse sampling techniques and other regularization methods. SMILI is mainly designed for very long baseline interferometry, and has been under the active development primarily for the [Event Horizon Telescope](https://eventhorizontelescope.org/).
 
 ## Documentation and Contact
-Here is [the documentation of this library](https://astrosmili.github.io/smili). Since the software has yet been actively and dynamically developed, the documentation is not perfect and sometimes outdated due to dynamical changes in data structure. Please contact with Kazu Akiyama at MIT Haystack Observatory if you have any questions about this library.
+Here is [the SMILI documentation](https://astrosmili.github.io/smili). Since SMILI has yet been actively and dynamically developed for many new topics and challenges of the EHT, the documentation is not perfect and sometimes outdated due to dynamical changes in data structure.
 
-- Kazu Akiyama, the Main Developer of SMILI, [Website](http://kazuakiyama.github.io/)
+Please contact with Kazu Akiyama at MIT Haystack Observatory if you have any questions about this library. You may contact with some of other core developers, too.
+- [Kazu Akiyama](http://kazuakiyama.github.io/) at MIT Haystack Observatory, the Main Developer
+- [Fumie Tazaki](https://ftazaki.github.io/webpage) at National Astronomical Observatory of Japan
+- [Shiro Ikeda](https://www.ism.ac.jp/~shiro/) at the Institute of Statistical Mathematics
 
 ## How to install this library?
 Please have a look at [the installation guide](https://astrosmili.github.io/smili/_static/install.html).
@@ -19,13 +22,12 @@ We are now preparing a software paper (Akiyama et al. in prep.) including descri
 There are some other related publications.
 
 - [Honma et al. 2014, PASJ, 66, 95H](https://ui.adsabs.harvard.edu/#abs/2014PASJ...66...95H)
-- [Ikeda et al. 2016, PASJ, 858, 56](https://ui.adsabs.harvard.edu/#abs/2016PASJ...68...45I)
-- [Kuramochi et al. 2018, ApJ, 858, 56](https://ui.adsabs.harvard.edu/#abs/2018ApJ...858...56K)
+- [Ikeda et al. 2016, PASJ, 68, 45I](https://ui.adsabs.harvard.edu/#abs/2016PASJ...68...45I)
+- [Kuramochi et al. 2018, ApJ, 858, 56K](https://ui.adsabs.harvard.edu/#abs/2018ApJ...858...56K)
 
 ## License
 SMILI is licensed under GPLv3 as described in LICENSE.txt.
-SMILI also includes some internal packages from other libraries (LBFGSB, FINUFFT, MFISTA),
-for which corresponding LICENSE files are included.
+SMILI also includes some internal packages from other libraries (LBFGSB, FINUFFT, MFISTA), for which corresponding LICENSE files are included.
 
 - LBFGSB: http://users.iems.northwestern.edu/~nocedal/lbfgsb.html
 - FINUFFT: https://github.com/flatironinstitute/finufft
