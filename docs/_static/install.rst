@@ -5,8 +5,8 @@ Installation
 Requirements
 ===============
 
-Smili consists of python modules and Fortran/C internal libraries called from python modules.
-Here, we summarize required python packages and external packages for Smili.
+SMILI consists of python modules and Fortran/C internal libraries called from python modules.
+Here, we summarize required python packages and external packages for SMILI.
 
 You will also need `ds9`_ for some functions such as setting imaging regions
 (CLEAN box) interatively.
@@ -14,33 +14,27 @@ You will also need `ds9`_ for some functions such as setting imaging regions
 .. _ds9: http://ds9.si.edu/site/Home.html
 
 Python Packages and Modules
----------------------------
-Smili has been tested and developped in Python 2.7 environments provided by the `Anaconda`_ package. We recommend using Anaconda for Smili.
-Smili and related functions will use **future**, **numpy**, **scipy**, **matplotlib**, **pandas**, **astropy**, **xarray**, **pyds9**, **tqdm**, **sympy**, **theano**, **pymc3**.
+===========================
+SMILI has been tested and developed in Python 2.7 environments provided
+by the `Anaconda`_ package. We recommend using Anaconda for SMILI.
 
 .. _Anaconda: https://www.continuum.io/anaconda-overview
 
-You can install above packages with conda and/or pip as follows
-(see the official website of `pyds9`_ for its installation).
+All of mandatory packages will be automatically installed during installation.
+There are some optional packages that can be used for SMILI.
 
-.. code-block:: Bash
+ - ehtim: https://github.com/achael/eht-imaging
+ - ehtplot: https://github.com/chanchikwan/ehtplot
 
-  # if you have conda
-  conda install future xarray tqdm sympy theano pymc3
-  # You may use pip, if you do not have or want to use conda
-  pip install future xarray tqdm sympy theano pymc3
+External Libraries (For MacPort users, Ubuntu/Debian users)
+===========================================================
 
-  # to install pyds9, you can use pip command.
-  pip install git+https://github.com/ericmandel/pyds9.git#egg=pyds9
+Fortran/C internal libraries of SMILI use following external libraries.
+This path has been tested for
 
-.. _xarray: http://xarray.pydata.org/en/stable/
-.. _pyds9: https://github.com/ericmandel/pyds9
+- Mac OS X 10.012/10.13 with MacPort's gcc 8
+- Ubuntu 2016LTS & 2018LTS.
 
-
-External Libraries
-------------------
-
-Fortran/C internal libraries of Smili use following external libraries.
 
 1) OpenBLAS
   We use OpenBLAS, which is the fastest library among publicly-available BLAS implementations.
@@ -61,9 +55,10 @@ Fortran/C internal libraries of Smili use following external libraries.
     make USE_OPENMP=1
     make PREFIX="Your install directory; such as /usr/local or $HOME/local" install
 
+  Note that for MacOSX, USE_OPENMP=1 option does not work and should be omitted.
   You may need superuser to install OpenBLAS (i.e. to run the last command).
 
-  Smili uses **pkg-config** to find appropriate compiler flags for OpenBLAS.
+  SMILI uses **pkg-config** to find appropriate compiler flags for OpenBLAS.
   Once the library is installed, you can check if the package configuration file
   can be accessible. You can type
 
@@ -111,7 +106,7 @@ Fortran/C internal libraries of Smili use following external libraries.
 
   You may need superuser to install FFTW3 (i.e. to run the last command).
 
-  Smili uses **pkg-config** to find appropriate compiler flags for FFTW3.
+  SMILI uses **pkg-config** to find appropriate compiler flags for FFTW3.
   Once the library is installed, you can check if the package configuration file
   can be accessible. You can type
 
@@ -135,11 +130,57 @@ Fortran/C internal libraries of Smili use following external libraries.
     the option for Openmp (--enable-openmp). So, you don't need to install it
     by yourself.
 
-Download, Install and Update
-============================
 
-Downloading Smili
----------------------
+External Libraries (for homebrew users in MacOS)
+===========================================================
+1) pyenv and Anaconda installation: Since Anaconda conflicts with Homebrew, it should be installed via pyenv.
+
+  .. code-block:: Bash
+
+    brew install pyenv
+    export PATH=$HOME/.pyenv/shims:$PATH
+
+Then install Anaconda.
+
+  .. code-block:: Bash
+
+    pyenv install -l | grep anaconda2
+    pyenv install anaconda2-X   # select anaconda 2 version
+    pyenv global anaconda2-X
+    python --version # check versions
+
+2) OPENBLAS installation: It is mostly same to the above one, but you will need to install gcc.
+
+  .. code-block:: Bash
+
+    # Clone the current repository
+    git clone https://github.com/xianyi/OpenBLAS
+
+    # Install gcc49
+    brew install gcc49
+    sudo ln -sf /usr/local/bin/gcc-4.9 /usr/bin/gcc
+    sudo ln -sf /usr/local/bin/g++-4.9 /usr/bin/g++
+
+    # Install OPENBLAS
+    make USE_OPENMP=1 CC=gcc
+    make PREFIX=/usr/local install
+
+3) FFTW3 installation: No net change from the above one.
+
+  .. code-block:: Bash
+
+    # Download the source code
+    wget http://www.fftw.org/fftw-3.3.X.tar.gz
+    tar xzvf fftw-3.3.X.tar.gz
+    cd fftw-3.X.7
+
+    # Install
+    ./configure prefix="/usr/local" --enable-openmp --enable-threads --enable-shared
+    make
+    make install
+
+Downloading SMILI
+=================
 You can download the code from github.
 
 .. code-block:: Bash
@@ -147,14 +188,14 @@ You can download the code from github.
   # Clone the repository
   git clone https://github.com/astrosmili/smili
 
-Installing Smili
---------------------
+Installing SMILI
+================
 
-For compiling the whole library, you need to work in your Smili directory.
+For compiling the whole library, you need to work in your SMILI directory.
 
 .. code-block:: Bash
 
-  cd (Your Smili Directory)
+  cd (Your SMILI Directory)
 
 Generate Makefiles with `./configure`.
 If you have correct paths to package-config files for OpenBLAS and FFTW3,
@@ -187,11 +228,11 @@ your Python environment.
   make install
 
 If you can load following modules in your python interpretator,
-Smili is probably installed successfully.
+SMILI is probably installed successfully.
 
 .. code-block:: Python
 
-  # import smili
+  # import SMILI
   from smili import imdata, uvdata, imaging
 
 **(IMPORTANT NOTE; 2018/04/26)**
@@ -199,19 +240,19 @@ Previously, you needed to type autoconf before ./configure command.
 This is no longer necessary.
 
 **(IMPORTANT NOTE; 2018/01/04)**
-Previously, you needed to add a PYTHONPATH to your Smili Directory.
+Previously, you needed to add a PYTHONPATH to your SMILI Directory.
 This is no longer required, because the `make` command will run setup.py and install
-smili into the package list of your Python environment.
+SMILI into the package list of your Python environment.
 
 
-Updating Smili
-------------------
+Updating SMILI
+==============
 
 **We strongly recommend cleaning up the entire library before updating.**
 
 .. code-block:: Bash
 
-  cd (Your Smili Directory)
+  cd (Your SMILI Directory)
   make uninstall
 
 Then, you can update the repository with `git pull`.
@@ -220,4 +261,4 @@ Then, you can update the repository with `git pull`.
 
   git pull
 
-Now, the repository has updated. You can follow the above section `Installing Smili`_ for recompiling your Smili.
+Now, the repository has updated. You can follow the above section `Installing SMILI`_ for recompiling your SMILI.

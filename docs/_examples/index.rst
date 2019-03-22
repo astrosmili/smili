@@ -4,9 +4,9 @@ Tutorial and Example Scripts
 Handling Images
 ------------------
 .. toctree::
-  :maxdepth: 1
+  :maxdepth: 2
   :numbered:
-  
+
   imregion/imregion
 
 Handlint UV data sets
@@ -15,13 +15,7 @@ Handlint UV data sets
 Imaging
 -------
 .. toctree::
-  :maxdepth: 1
+  :maxdepth: 2
   :numbered:
 
   maps/maps
-
-Feature Extraction
-------------------
-
-Modeling
-------------------

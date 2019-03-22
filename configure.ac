@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 #-------------------------------------------------------------------------------
 AC_PREREQ([2.69])
-AC_INIT([SMILI], [0.0.1], [kakiyama@mit.edu])
+AC_INIT([SMILI], [0.0.0], [kakiyama@mit.edu])
 AC_CONFIG_SRCDIR([src/mfista/blas.h])
 
 
