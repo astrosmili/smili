@@ -11,4 +11,6 @@ Development of SMILI has been financially supported by the following programs.
 - National Science Foundation's Research Experiences for Undergraduates (REU) program
 - NASA Massachusetts Space Grant Consortium
 
-We also thank `Michael Johnson <http://www.scintillatingastronomy.com>`_, `Andrew Chael <https://achael.github.io>`_, `Katie Bouman <https://people.csail.mit.edu/klbouman>`_, `Chi-Kwan Chan <http://fermi.myds.me>`_, and many other EHT Imaging friends for many fruitful discussions.
+We also thank `Michael Johnson <http://www.scintillatingastronomy.com>`_,
+`Andrew Chael <https://achael.github.io>`_, `Katie Bouman <https://people.csail.mit.edu/klbouman>`_,
+`Chi-Kwan Chan <http://fermi.myds.me>`_, and many other EHT Imaging friends for fruitful discussions.

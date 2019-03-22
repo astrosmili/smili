@@ -21,7 +21,7 @@ other core developers, too.
 - `Kazu Akiyama (The Main Developer) <http://kazuakiyama.github.io>`_ at NRAO/MIT Haystack Observatory
 - `Fumie Tazaki (Developer) <https://ftazaki.github.io/webpage>`_ (Japanese Only) at NAOJ
 - `Shiro Ikeda (Developer) <https://www.ism.ac.jp/~shiro>`_  at the Institute of Statistical Mathematics
-- Kotaro Moriyama (Developer) at NAOJ
+- Kotaro Moriyama (Developer) at NAOJ/MIT Haystack Observatory
 
 Table of Contents
 =================
