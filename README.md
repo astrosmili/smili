@@ -1,11 +1,51 @@
 # Smili: Sparse Modeling Imaging Library for Interferometry
-**Please contact to [Kazu Akiyama](http://kazuakiyama.github.io/) at MIT Haystack Observatory, if you would like to try the library**.
 
-## Documentation
-We are working on [the documentation of this library](https://astrosmili.github.io/smili).
+SMILI is a python-interfaced library for interferometric imaging using sparse sampling techniques and other regularization methods. SMILI is mainly designed for very long baseline interferometry, and has been under the active development primarily for the [Event Horizon Telescope](https://eventhorizontelescope.org/).
+
+## Documentation and Contact
+Here is [the documentation of this library](https://astrosmili.github.io/smili). Since the software has yet been actively developed, the documentation is not perfect and sometimes outdated. Please contact with Kazu Akiyama at MIT Haystack Observatory if you have any questions about this library.
+
+- Kazu Akiyama, the Main Developer of SMILI, [Website](http://kazuakiyama.github.io/)
 
 ## How to install this library?
 Please have a look at [the installation guide](https://astrosmili.github.io/smili/_static/install.html).
 
-## Contact
-Kazu Akiyama, the Main Developer of SMILI, [Website](http://kazuakiyama.github.io/)
+## What's the reference for this software?
+We are now preparing a software paper (Akiyama et al. in prep.) including descriptions of some new functions after Kuramochi et al. 2018. Until this paper will come out, please cite following two papers for SMILI.
+
+- [Akiyama et al. 2017a, ApJ, 838, 1](https://ui.adsabs.harvard.edu/#abs/2017ApJ...838....1A)
+- [Akiyama et al. 2017b, AJ, 153, 159](https://ui.adsabs.harvard.edu/#abs/2017AJ....153..159A)
+
+There are some other related publications.
+
+- [Honma et al. 2014, PASJ, 66, 95H](https://ui.adsabs.harvard.edu/#abs/2014PASJ...66...95H)
+- [Ikeda et al. 2016, PASJ, 858, 56](https://ui.adsabs.harvard.edu/#abs/2016PASJ...68...45I)
+- [Kuramochi et al. 2018, ApJ, 858, 56](https://ui.adsabs.harvard.edu/#abs/2018ApJ...858...56K)
+
+## License
+SMILI is licensed under GPLv3 as described in LICENSE.txt.
+SMILI also includes some internal packages from other libraries (LBFGSB, FINUFFT, MFISTA),
+for which corresponding LICENSE files are included.
+
+- LBFGSB: http://users.iems.northwestern.edu/~nocedal/lbfgsb.html
+- FINUFFT: https://github.com/flatironinstitute/finufft
+
+## Acknowledgement
+Development of SMILI has been financially supported by the following programs.
+- Japan Society for the Promotion of Science (JSPS) Postdoctoral Fellowships for Research Abroad (Kazu Akiyama: 2015-2017)
+- National Radio Astronomy Observatory 2017 Jansky Fellowship program (Kazu Akiyama: 2017-Present)
+- MEXT/JSPS KAKENHI (grant Numbers 24540242, 25120007, and 25120008)
+- National Science Foundation AAG Grants (AST-1440254; AST-1614868)
+- National Science Foundation's Research Experiences for Undergraduates (REU) program
+- NASA Massachusetts Space Grant Consortium
+
+We also thank [Michael Johnson](http://www.scintillatingastronomy.com/), [Andrew Chael](https://achael.github.io/), [Katie Bouman](https://people.csail.mit.edu/klbouman/), [Chi-Kwan Chan](http://fermi.myds.me/) and many other EHT Imaging friends for many fruitful discussions.
+
+## Link
+- [Kazu Akiyama (Primary Developer)](http://kazuakiyama.github.io/)
+- [Shiro Ikeda (Developer)](https://www.ism.ac.jp/~shiro/)
+- [Fumie Tazaki (Developer)](https://ftazaki.github.io/webpage) (Japanese Only)
+- [Mareki Honma (Developer)](https://guas-astronomy.jp/eng/Supervisors/m-honma.html)
+- [Event Horizon Telescope Official](https://eventhorizontelescope.org/)
+- [Event Horizon Telescope Japan Official](https://www.miz.nao.ac.jp/eht-j/) (Japanese Only)
+- [MIT Haystack Observatory](https://www.haystack.mit.edu/)
