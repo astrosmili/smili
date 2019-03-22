@@ -14,16 +14,17 @@ However, SMILI has yet been actively and dynamically developed for many new topi
 and challenges of the EHT. The documentation is not perfect and
 sometimes outdated due to dynamical changes in the data structure.
 
-Please contact to `Kazu Akiyama at MIT Haystack Observatory <http://kazuakiyama.github.io/>`_
+Please contact to `Kazu Akiyama at NRAO/MIT Haystack Observatory <http://kazuakiyama.github.io/>`_
 if you have any questions about this library. You may contact with following
 other core developers, too.
 
-- `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_
-- `Fumie Tazaki (Developer) <https://ftazaki.github.io/webpage>`_ (Japanese Only)
-- `Shiro Ikeda (Developer) <https://www.ism.ac.jp/~shiro>`_
+- `Kazu Akiyama (The Main Developer) <http://kazuakiyama.github.io>`_ at NRAO/MIT Haystack Observatory
+- `Fumie Tazaki (Developer) <https://ftazaki.github.io/webpage>`_ (Japanese Only) at NAOJ
+- `Shiro Ikeda (Developer) <https://www.ism.ac.jp/~shiro>`_  at the Institute of Statistical Mathematics
+- Kotaro Moriyama (Developer) at NAOJ
 
-Tutorials
-=========
+Table of Contents
+=================
 .. toctree::
   :maxdepth: 1
   :numbered:
@@ -32,14 +33,5 @@ Tutorials
   _examples/index
   _static/license
   _static/references
+  _static/link
   _static/acknowledgement
-
-Link
-====
-- `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_- `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_
-- `Shiro Ikeda (Developer) <https://www.ism.ac.jp/~shiro>`_
-- `Fumie Tazaki (Developer) <https://ftazaki.github.io/webpage>`_ (Japanese Only)
-- `Mareki Honma (Developer) <https://guas-astronomy.jp/eng/Supervisors/m-honma.html>`_
-- `Event Horizon Telescope Official <https://eventhorizontelescope.org>`_
-- `Event Horizon Telescope Japan Official (Japanese Only) <https://www.miz.nao.ac.jp/eht-j>`_
-- `MIT Haystack Observatory <https://www.haystack.mit.edu/>`_
