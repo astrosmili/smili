@@ -35,3 +35,4 @@ Table of Contents
   _static/references
   _static/link
   _static/acknowledgement
+  _autodoc/smili
