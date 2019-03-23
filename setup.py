@@ -13,14 +13,14 @@ if path.isfile(path.join(here, "smili/libmfista.so")):
 
 setup(
     name="smili",
-    version = "0.0",
+    version = "0.0.0",
     description = "SMILI: Sparse Modeling Imaging library for Interferometry",
     long_description = long_description,
     url = "https://smili.github.io/smili",
     author = "Kazunori Akiyama",
     author_email = "kakiyama@mit.edu",
     license = "GPL ver 3.0",
-    keywords = "imaging astronomy EHT",
+    keywords = "radio astronomy, interferometry, imaging, event horizon telescope",
     packages = find_packages(exclude=["doc*", "test*"]),
     package_data={'smili': ['*.so','imaging/*.so']},
     install_requires = [

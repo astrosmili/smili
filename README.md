@@ -20,10 +20,11 @@ We are now preparing a software paper (Akiyama et al. in prep.) describing the l
 - [Akiyama et al. 2017a, ApJ, 838, 1](https://ui.adsabs.harvard.edu/#abs/2017ApJ...838....1A)
 - [Akiyama et al. 2017b, AJ, 153, 159](https://ui.adsabs.harvard.edu/#abs/2017AJ....153..159A)
 
-There are some other related publications.
+There are some other related publications about imaging techniques using SMILI.
 
 - [Honma et al. 2014, PASJ, 66, 95H](https://ui.adsabs.harvard.edu/#abs/2014PASJ...66...95H)
 - [Ikeda et al. 2016, PASJ, 68, 45I](https://ui.adsabs.harvard.edu/#abs/2016PASJ...68...45I)
+- [Obuchi et al. 2017, PLoSO, 1288012O](https://ui.adsabs.harvard.edu//#abs/2017PLoSO..1288012O)
 - [Kuramochi et al. 2018, ApJ, 858, 56K](https://ui.adsabs.harvard.edu/#abs/2018ApJ...858...56K)
 
 ## License
@@ -35,12 +36,14 @@ SMILI also includes some internal packages from other libraries (LBFGSB, FINUFFT
 
 ## Acknowledgement
 Development of SMILI has been financially supported by the following programs.
-- Japan Society for the Promotion of Science (JSPS) Postdoctoral Fellowships for Research Abroad (Kazu Akiyama: 2015-2017)
-- National Radio Astronomy Observatory 2017 Jansky Fellowship program (Kazu Akiyama: 2017-Present)
+- Japan Society for the Promotion of Science Postdoctoral Fellowships for Research Abroad
+- National Radio Astronomy Observatory Jansky Fellowship program
 - MEXT/JSPS KAKENHI (grant Numbers 24540242, 25120007, and 25120008)
-- National Science Foundation AAG Grants (AST-1440254; AST-1614868)
-- National Science Foundation's Research Experiences for Undergraduates (REU) program
+- National Science Foundation Astronomy and Astrophysics Grants (AST-1440254; AST-1614868)
+- National Science Foundation Research Experiences for Undergraduates program
 - NASA Massachusetts Space Grant Consortium
+- University of Science and Technology: the Overseas Research Exchange program
+- National Research Foundation of Korea: Global PhD Fellowship Grant (NRF-2015H1A2A1033752)
 
 We also thank [Michael Johnson](http://www.scintillatingastronomy.com), [Andrew Chael](https://achael.github.io), [Katie Bouman](https://people.csail.mit.edu/klbouman), [Chi-Kwan Chan](http://fermi.myds.me) and many other EHT Imaging friends for fruitful discussions.
 
