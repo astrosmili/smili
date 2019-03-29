@@ -170,9 +170,9 @@ Then install Anaconda.
   .. code-block:: Bash
 
     # Download the source code
-    wget http://www.fftw.org/fftw-3.3.X.tar.gz
-    tar xzvf fftw-3.3.X.tar.gz
-    cd fftw-3.X.7
+    wget http://www.fftw.org/fftw-3.X.X.tar.gz
+    tar xzvf fftw-3.X.X.tar.gz
+    cd fftw-3.X.X
 
     # Install
     ./configure prefix="/usr/local" --enable-openmp --enable-threads --enable-shared
