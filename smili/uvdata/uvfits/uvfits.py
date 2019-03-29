@@ -1042,7 +1042,7 @@ class UVFITS(object):
 
     def get_vismodel(self,imfits,istokes=0,ifreq=0):
         '''
-        This method will compude model visivilities based on uv-coverages of
+        This method will compute model visivilities based on uv-coverages of
         data and the input image.
 
         Args:
@@ -1221,6 +1221,16 @@ class UVFITS(object):
         return cltable
 
     def apply_cltable(self,cltable):
+
+        '''
+        This function returns complex visibilities by means of gain calibration table.
+
+        Args:
+            cltable (CLTable object):
+                gain calibration table for full complex visibilities
+        Return:
+            uvfits.UVFITS object
+        '''
 
         #def get_vis_correction(self,imfits,cltable):
         subarrids = self.subarrays.keys()
@@ -1956,6 +1966,10 @@ def _bindstokes(data, stokes1, stokes2, factr1, factr2):
 class VisibilityData(object):
     # Default Variables
     def __init__(self):
+        '''
+        This class is for handling two dimensional tables of full complex visibilities.
+        '''
+
         self.data = np.zeros([0,1,1,1,1,1,3])
 
         columns = "utc,usec,vsec,wsec,subarray,ant1,ant2,source,inttim,freqsel"

@@ -24,6 +24,9 @@ module param
   real(dp), parameter :: dhug = huge(1d0)
   real(dp), parameter :: deps = epsilon(1d0)
   real(dp), parameter :: dtin = tiny(1d0)
-  real(dp), parameter :: pi=4*atan(1d0)
   complex(dpc), parameter :: i_dpc=dcmplx(0d0,1d0)
+
+  !other constant
+  real(dp), parameter :: pi=4*atan(1d0)
+  real(dp), parameter :: e=exp(1d0)
 end module

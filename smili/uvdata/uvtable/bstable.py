@@ -69,6 +69,16 @@ class BSTable(UVTable):
         return BSSeries
 
     def set_uvunit(self, uvunit=None):
+        '''
+        Set or guess uvunit.
+
+        Args:
+            uvunit (str, default=None)
+                The unit for spacial frequencies.
+                Availables are lambda, klambda, mlambda and glambda.
+                If not specified, uvunit will be guessed.
+        '''
+
         if uvunit is None:
             uvmax = np.max(self.uvdistmax.values)
             if uvmax < 1e3:
@@ -164,6 +174,7 @@ class BSTable(UVTable):
             quadrature (boolean; default=True):
                 if True, error will be added to sigma in quadrature
         '''
+
         outtable = copy.deepcopy(self)
         # convert errors to radian
         if deg:
@@ -189,6 +200,20 @@ class BSTable(UVTable):
         return self["amp"]/self["sigma"]
 
     def eval_image(self, imfits, mask=None, istokes=0, ifreq=0):
+        '''
+        This function returns model bispectra calculated by an input image
+
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct model bispectra
+             mask (array):
+                array for masking
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+        Returns:
+            BSTable object of a model bispectrum based on an input image
+        '''
+
         #uvdata.BSTable object (storing model closure phase)
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -206,6 +231,20 @@ class BSTable(UVTable):
 
 
     def residual_image(self, imfits, mask=None, istokes=0, ifreq=0):
+        '''
+        This function returns residual between observational and model bispectra.
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct model bispectra
+            mask (array):
+                array for masking
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+
+        Returns:
+            BSTable object of residual between observational and model bispectra
+        '''
+
         #uvdata BSTable object (storing residual closure phase)
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -222,6 +261,21 @@ class BSTable(UVTable):
 
 
     def chisq_image(self, imfits, mask=None, istokes=0, ifreq=0):
+        '''
+        This function returns (mean square) standardized residuals.
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct model bispectra
+            mask (array):
+                array for masking
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+
+        Returns:
+            (mean square) standardized residuals based on an input image
+
+        '''
+
         # calcurate chisqared and reduced chisqred.
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,
@@ -273,7 +327,6 @@ class BSTable(UVTable):
 
         # apply the imaging area
         if mask is None:
-            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
 
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
@@ -286,7 +339,6 @@ class BSTable(UVTable):
             xidx = xidx.reshape(Nyx)
             yidx = yidx.reshape(Nyx)
         else:
-            print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
             idx = np.where(mask)
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin[idx]
@@ -899,7 +951,7 @@ class BSTable(UVTable):
         if filename is not None:
             pdf = PdfPages(filename)
         else:
-            filename = "model"
+            filename = "plot_model_cphase.pdf"
             pdf = PdfPages(filename)
         # model,residual,chisq
         nullfmt = NullFormatter()
@@ -912,13 +964,13 @@ class BSTable(UVTable):
 
         # First figure: All data
         fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-        plt.suptitle(r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq),fontsize=18)
+        plt.suptitle(r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq),fontsize=18)
         plt.subplots_adjust(hspace=0.4)
 
-        # 1. Radplot of closure phases
+        # 1. Radial plot of closure phases
         ax = axs[0,0]
         plt.sca(ax)
-        plt.title("Radplot of closure phases")
+        plt.title("Radial plot of closure phases")
         plotargs1=copy.deepcopy(plotargs)
         plotargs1["label"]="Observation"
         self.radplot(uvdtype="ave", color="black",errorbar=False, **plotargs1)
@@ -932,10 +984,10 @@ class BSTable(UVTable):
         plt.locator_params(axis='y',nbins=6)
         plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
 
-        # 2. Radplot of normalized residuals
+        # 2. Radial plot of normalized residuals
         ax = axs[1,0]
         plt.sca(ax)
-        plt.title("Radplot of normalized residuals")
+        plt.title("Radial plot of normalized residuals")
         resid.radplot(uvdtype="ave",normerror=True,errorbar=False,color="black",**plotargs)
 
         # set xyrange
@@ -1018,7 +1070,7 @@ class BSTable(UVTable):
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-            plt.suptitle(st1+"-"+st2+"-"+st3+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
+            plt.suptitle(st1+"-"+st2+"-"+st3+": "+r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq) ,fontsize=18)
             plt.subplots_adjust(hspace=0.4)
 
             # 1. Time plot of closure phases

@@ -137,7 +137,7 @@ class VisTable(UVTable):
     def deblurr(self, thetamaj=1.309, thetamin=0.64, alpha=2.0, pa=78.0):
         '''
         This is a special function for Sgr A* data, which deblurrs
-        visibility amplitudes and removes a dominant effect of scattering effects.
+        visibility amplitudes and removes dominant scattering effects.
 
         This method calculates a scattering kernel based on specified parameters
         of the lambda-square scattering law, and devide visibility amplitudes
@@ -326,6 +326,22 @@ class VisTable(UVTable):
         return self["amp"]/self["sigma"]
 
     def eval_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
+        '''
+        This function returns model visibilities calculated by an input image.
+
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct model visibilities
+            mask (array):
+                array for masking
+            amptable (True or False):
+                If it is not False, this function returns a table of a model visibility amplitude.
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+
+        Returns:
+            uvdata.VisTable object of a model visibility based on an input image
+        '''
         #uvdata.VisTable object (storing model full complex visibility
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
@@ -353,6 +369,22 @@ class VisTable(UVTable):
             return amptable
 
     def residual_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
+        '''
+        This function returns residual between observational and model visibilities.
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct a model visibility
+            mask (array):
+                array for masking
+            amptable (True or False):
+                If it is not False, this function returns a table of a model visibility amplitude.
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+
+        Returns:
+            uvdata.VisTable object of a residual between observational and model visibilities
+
+        '''
         #uvdata VisTable object (storing residual full complex visibility)
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
@@ -381,6 +413,21 @@ class VisTable(UVTable):
         return residtable
 
     def chisq_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
+        '''
+        This function returns a (mean square) standardized residual.
+        Args:
+            imfits (imdata.IMFITS object):
+                model image to construct a model visibility
+            mask (array):
+                array for masking
+            amptable (True, False, or uvdata.VisTable object):
+                If it is not False, this function returns a table of a model visibility amplitude.
+            istokes (integer): index for Stokes Parameter at which the image will be edited
+            ifreq (integer): index for Frequency at which the image will be edited
+
+        Returns:
+            (mean square) standardized residuals based on an input image
+        '''
         # calcurate chisqared and reduced chisqred.
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
@@ -436,7 +483,6 @@ class VisTable(UVTable):
 
         # apply the imaging area
         if mask is None:
-            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
             else:
@@ -448,7 +494,6 @@ class VisTable(UVTable):
             xidx = xidx.reshape(Nyx)
             yidx = yidx.reshape(Nyx)
         else:
-            print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
             idx = np.where(mask)
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin[idx]
@@ -1806,7 +1851,7 @@ class VisTable(UVTable):
         This method calculates the residual map by using visibility and model image
 
         Args:
-            images (imdata.IMFITS object): model image
+            image (imdata.IMFITS object): model image
             errorweight: index of weight
 
         Returns:
@@ -1869,10 +1914,10 @@ class VisTable(UVTable):
 
     def map_clean(self,image,restore=False,errorweight=-2,istokes=0,ifreq=0):
         '''
-        This method calculates the residual map by using visibility and model image
+        This method calculates the model image adding residual map based on visibility and model image
 
         Args:
-            images (imdata.IMFITS object): model image
+            image (imdata.IMFITS object): model image
             errorweight: index of weight
         Returns:
             imdata.IMFITS object of residual+model image
@@ -1913,7 +1958,7 @@ class VisTable(UVTable):
         if filename is not None:
             pdf = PdfPages(filename)
         else:
-            filename = "model"
+            filename = "plot_model_fcv.pdf"
             pdf = PdfPages(filename)
 
         # model,residual,chisq
@@ -1927,13 +1972,13 @@ class VisTable(UVTable):
 
         # First figure: All data
         fig, axs = plt.subplots(nrows=2, ncols=2)
-        plt.suptitle(r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq),fontsize=18)
+        plt.suptitle(r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq),fontsize=18)
         plt.subplots_adjust(hspace=0.4)
 
-        # 1. Radplot of visibilities
+        # 1. Radial plot of visibilities
         ax = axs[0,0]
         plt.sca(ax)
-        plt.title("Radplot of Visibilities")
+        plt.title("Radial plot of Visibilities")
         plotargs1=copy.deepcopy(plotargs)
         plotargs1["label"]="Real"
         self.radplot(datatype="real",errorbar=False, **plotargs1)
@@ -1954,10 +1999,10 @@ class VisTable(UVTable):
         plt.locator_params(axis='y',nbins=6)
         plt.legend(loc='best',markerscale=2.,ncol=4,handlelength=0.1,mode="expand")
 
-        # 2. Radplot of normalized residuals
+        # 2. Radial plot of normalized residuals
         ax = axs[1,0]
         plt.sca(ax)
-        plt.title("Radplot of normalized residuals")
+        plt.title("Radial plot of normalized residuals")
         plotargs1["label"]="Real"
         resid.radplot(datatype="real",normerror=True,errorbar=False,color="red",**plotargs1)
         plotargs1["label"]="Imag"
@@ -2052,7 +2097,7 @@ class VisTable(UVTable):
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-            plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
+            plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq) ,fontsize=18)
             plt.subplots_adjust(hspace=0.4)
 
             # 1. Time plot of visibilities
@@ -2230,8 +2275,6 @@ class VisTable(UVTable):
         table["rchisq_total"] = tchiconcat
         table.to_csv(filename+".csv")
 
-
-
     def plot_model_amp(self, outimage, filename=None, plotargs={'ms': 1., }):
         '''
         Make summary pdf figures and csv file of checking model, residual
@@ -2255,7 +2298,7 @@ class VisTable(UVTable):
         if filename is not None:
             pdf = PdfPages(filename)
         else:
-            filename = "model"
+            filename = "plot_model_amp.pdf"
             pdf = PdfPages(filename)
 
         # model,residual,chisq
@@ -2269,13 +2312,13 @@ class VisTable(UVTable):
 
         # First figure: All data
         fig, axs = plt.subplots(nrows=2, ncols=2)
-        plt.suptitle(r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq),fontsize=18)
+        plt.suptitle(r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq),fontsize=18)
         plt.subplots_adjust(hspace=0.4)
 
-        # 1. Radplot of visibility amplitudes
+        # 1. Radial plot of visibility amplitudes
         ax = axs[0,0]
         plt.sca(ax)
-        plt.title("Radplot of amplitudes")
+        plt.title("Radial plot of amplitudes")
         plotargs1=copy.deepcopy(plotargs)
         plotargs1["label"]="Observation"
         self.radplot(datatype="amp", color="black",errorbar=False, **plotargs1)
@@ -2292,10 +2335,10 @@ class VisTable(UVTable):
         plt.locator_params(axis='y',nbins=6)
         plt.legend(loc='upper left',markerscale=2.,ncol=4,handlelength=0.1)
 
-        # 2. Radplot of normalized residuals
+        # 2. Radial plot of normalized residuals
         ax = axs[1,0]
         plt.sca(ax)
-        plt.title("Radplot of normalized residuals")
+        plt.title("Radial plot of normalized residuals")
         resid.radplot(datatype="amp",normerror=True,errorbar=False,color="black",**plotargs)
         plt.ylabel("Normalized Residuals")
 
@@ -2375,7 +2418,7 @@ class VisTable(UVTable):
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
-            plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
+            plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%.2f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%.2f"%(rchisq) ,fontsize=18)
             plt.subplots_adjust(hspace=0.4)
 
             # 1. Time plot of closure phases
@@ -2485,21 +2528,6 @@ class VisTable(UVTable):
             chiconcat.append(chisq)
             rchiconcat.append(rchisq)
             tchiconcat.append(chisq/tNdata)
-
-        stconcat.insert("total")
-        Ndataconcat.insert(np.sum(Ndataconcat))
-        chiconcat.insert(np.sum(chiconcat))
-        rchiconcat.insert(np.sum(rchiconcat))
-        tchiconcat.insert(np.sum(tchiconcat))
-
-        # make csv table
-        table = pd.DataFrame()
-        table["baseline"] = stconcat
-        table["Ndata"] = np.zeros(Ntri+1)
-        table["chisq"] = chiconcat
-        table["rchisq_bl"] = rchiconcat
-        table["rchisq_total"] = tchiconcat
-        table.to_csv(filename+".csv")
 
         # plot residual of triangles
         util.matplotlibrc(ncols=1, nrows=3, width=700, height=400)

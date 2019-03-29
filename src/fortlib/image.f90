@@ -1,270 +1,435 @@
 module image
   !$use omp_lib
-  use param, only : dp, dpc, pi, i_dpc
+  use param, only : dp, dpc, pi, e, i_dpc, deps
   implicit none
   ! Epsiron for Zero judgement
-  real(dp), parameter :: zeroeps=1d-10
+  real(dp), parameter :: zeroeps = 1d-10
 contains
-!
-!
 !-------------------------------------------------------------------------------
-! Copy 1D image vector from/to 2D/3D image vector
+! Calc cost function
 !-------------------------------------------------------------------------------
-subroutine I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
-  !
-  ! I1d --> I2d
-  !
+subroutine calc_cost_reg(&
+    I1d, xidx, yidx, Nxref, Nyref, Nx, Ny, &
+    l1_l, l1_wgt, l1_Nwgt,&
+    tv_l, tv_wgt, tv_Nwgt,&
+    tsv_l, tsv_wgt, tsv_Nwgt,&
+    kl_l, kl_wgt, kl_Nwgt,&
+    gs_l, gs_wgt, gs_Nwgt,&
+    tfd_l, tfd_tgtfd,&
+    cen_l, cen_alpha,&
+    l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
+    tfd_cost, cen_cost,&
+    cost, gradcost, &
+    N1d)
   implicit none
-  !
-  integer, intent(in) :: N1d,Nx,Ny
-  integer, intent(in) :: xidx(N1d), yidx(N1d)
-  real(dp),intent(in) :: I1d(N1d)
-  real(dp),intent(inout) :: I2d(Nx,Ny)
-  !
-  integer :: i
+
+  ! Image
+  integer,  intent(in)  :: N1d, Nx, Ny
+  integer,  intent(in)  :: xidx(N1d), yidx(N1d)
+  real(dp), intent(in)  :: I1d(N1d)
+  real(dp), intent(in)  :: Nxref, Nyref
+
+  ! parameter for l1
+  real(dp), intent(in)  :: l1_l              ! lambda
+  integer,  intent(in)  :: l1_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: l1_wgt(l1_Nwgt)   ! weight
+
+  ! parameter for total variation
+  real(dp), intent(in)  :: tv_l              ! lambda
+  integer,  intent(in)  :: tv_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: tv_wgt(tv_Nwgt)   ! weight
+
+  ! parameter for total squared variation
+  real(dp), intent(in)  :: tsv_l             ! lambda
+  integer,  intent(in)  :: tsv_Nwgt          ! size of the weight vector
+  real(dp), intent(in)  :: tsv_wgt(tsv_Nwgt) ! weight
+
+  ! parameter for kl divergence
+  real(dp), intent(in)  :: kl_l              ! lambda
+  integer,  intent(in)  :: kl_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: kl_wgt(kl_Nwgt)   ! weight
+
+  ! parameter for Gull & Skilling entropy
+  real(dp), intent(in)  :: gs_l              ! lambda
+  integer,  intent(in)  :: gs_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: gs_wgt(gs_Nwgt)   ! weight
+
+  ! parameter for the total flux density regularization
+  real(dp), intent(in)  :: tfd_l             ! lambda (Normalized)
+  real(dp), intent(in)  :: tfd_tgtfd         ! target total flux
+
+  ! parameter for the centoroid regularization
+  real(dp), intent(in)  :: cen_l             ! lambda (Normalized)
+  real(dp), intent(in)  :: cen_alpha         ! alpha
+
+  ! regularization function
+  real(dp), intent(out) :: l1_cost    ! cost of l1
+  real(dp), intent(out) :: tv_cost    ! cost of tv
+  real(dp), intent(out) :: tsv_cost   ! cost of tsv
+  real(dp), intent(out) :: kl_cost    ! cost of KL divergence
+  real(dp), intent(out) :: gs_cost    ! cost of GS entropy
+  real(dp), intent(out) :: tfd_cost   ! cost of total flux regularization
+  real(dp), intent(out) :: cen_cost   ! cost of centoroid regularizaiton
+
+  ! Total Cost function
+  real(dp), intent(out) :: cost             ! cost function
+  real(dp), intent(out) :: gradcost(1:N1d)  ! gradient of the cost function
+
+  ! integer and real
+  integer   :: ipix
+  real(dp)  :: tmp
+
+  ! allocatable arrays
+  real(dp), allocatable :: I2d(:,:)
+  real(dp), allocatable :: tmp1d(:)
+
+  ! Initialize
+  l1_cost     = 0d0
+  tv_cost     = 0d0
+  tsv_cost    = 0d0
+  gs_cost     = 0d0
+  kl_cost     = 0d0
+  tfd_cost    = 0d0
+  cen_cost    = 0d0
+  cost        = 0d0
+  gradcost(:) = 0d0
+
+  ! Totalflux regularization
+  if (tfd_l > 0) then
+    call calc_tfdreg(I1d,tfd_tgtfd,tfd_cost,tmp,N1d)
+    tfd_cost = tfd_l * tfd_cost
+    gradcost = gradcost + tfd_l * tmp
+  end if
+
+  ! Center of mass regularization
+  if (cen_l > 0) then
+    allocate(tmp1d(N1d))
+    call calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,cen_alpha,tmp,tmp1d,N1d)
+    cen_cost = cen_l * tmp
+    gradcost = gradcost + cen_l * tmp1d
+    deallocate(tmp1d)
+  end if
+
+  ! Compute pixel-based regularizations (MEM, l1, tv, tsv)
+  !   Allocate two dimensional array if needed
+  if (tv_l > 0 .or. tsv_l > 0) then
+    allocate(I2d(Nx,Ny))
+    I2d(:,:)=0d0
+    call I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
+  end if
   !
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N1d,I1d,xidx,yidx) &
-  !$OMP   PRIVATE(i)
-  do i=1,N1d
-    I2d(xidx(i),yidx(i))=I1d(i)
+  !$OMP   FIRSTPRIVATE(N1d, I1d, I2d, xidx, yidx,&
+  !$OMP                l1_l,  l1_wgt,&
+  !$OMP                tv_l,  tv_wgt,&
+  !$OMP                tsv_l, tsv_wgt,&
+  !$OMP                gs_l,  gs_wgt,&
+  !$OMP                kl_l,  kl_wgt) &
+  !$OMP   PRIVATE(ipix) &
+  !$OMP   REDUCTION(+: l1_cost, tv_cost, tsv_cost, gs_cost, kl_cost, gradcost)
+  do ipix=1, N1d
+    ! weighted L1
+    if (l1_l > 0) then
+      l1_cost = l1_cost + l1_l * l1_wgt(ipix) * l1_e(I1d(ipix))
+      gradcost(ipix) = gradcost(ipix) + l1_l * l1_wgt(ipix) * l1_grade(I1d(ipix))
+    end if
+
+    ! KL divergence
+    if (kl_l > 0) then
+      kl_cost = kl_cost + kl_l * kl_e(I1d(ipix),kl_wgt(ipix))
+      gradcost(ipix) = gradcost(ipix) + kl_l * kl_grade(I1d(ipix),kl_wgt(ipix))
+    end if
+
+    ! GS Entropy
+    if (gs_l > 0) then
+      gs_cost = gs_cost + gs_l * gs_e(I1d(ipix),gs_wgt(ipix))
+      gradcost(ipix) = gradcost(ipix) + gs_l * gs_grade(I1d(ipix),gs_wgt(ipix))
+    end if
+
+    ! TV
+    if (tv_l > 0) then
+      tv_cost = tv_cost + tv_l * tv_wgt(ipix) * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      gradcost(ipix) = gradcost(ipix) + tv_l * tv_wgt(ipix) * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+    end if
+
+    ! TSV
+    if (tsv_l > 0) then
+      tsv_cost = tsv_cost + tsv_l * tsv_wgt(ipix) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+      gradcost(ipix) = gradcost(ipix) + tsv_l * tsv_wgt(ipix) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+    end if
   end do
   !$OMP END PARALLEL DO
+
+  ! de allocate array if needed
+  if (tv_l > 0 .or. tsv_l > 0) then
+    deallocate(I2d)
+  end if
+
+  ! take summation of all the cost function
+  cost = l1_cost + tv_cost + tsv_cost + kl_cost + gs_cost + tfd_cost + cen_cost
 end subroutine
 
-! I1d <-- I2d
-subroutine I1d_I2d_inv(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
-  implicit none
-  !
-  integer, intent(in) :: N1d,Nx,Ny
-  integer, intent(in) :: xidx(N1d), yidx(N1d)
-  real(dp),intent(inout) :: I1d(N1d)
-  real(dp),intent(in) :: I2d(Nx,Ny)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N1d,I2d,xidx,yidx) &
-  !$OMP   PRIVATE(i)
-  do i=1,N1d
-    I1d(i)=I2d(xidx(i),yidx(i))
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
+
 !-------------------------------------------------------------------------------
-! Transform Image (log-domain regularization)
+! Regularization Function: weighted l1-norm (smoothed version)
 !-------------------------------------------------------------------------------
-subroutine log_fwd(thres,I1d,I1dout,N)
+! compute normalized weight for the l1-norm
+subroutine init_l1reg(l1_prior,l1_wgt,N1d)
   implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: thres
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,thres,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i)=(log(abs(I1d(i))+thres)-log(thres)) * sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
-    end if
+
+  integer,  intent(in)  :: N1d            ! Number of pixels
+  real(dp), intent(in)  :: l1_prior(N1d)  ! Input Prior Image
+  real(dp), intent(out) :: l1_wgt(N1d)    ! l1 weight
+
+  integer   :: ipix
+
+  ! compute weights
+  do ipix=1, N1d
+    l1_wgt(ipix) = 1/l1_e(l1_prior(ipix))
   end do
-  !$OMP END PARALLEL DO
+
+  ! normalize weights
+  l1_wgt = l1_wgt / l1(l1_prior,l1_wgt,N1d)
 end subroutine
-!
-!
-subroutine log_inv(thres,I1d,I1dout,N)
+
+
+! compute weighted l1-norm
+real(dp) function l1(I1d,l1_wgt,N1d)
   implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: thres
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,thres,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i) = thres*(exp(abs(I1d(i)))-1)*sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
-    end if
+
+  integer,  intent(in) :: N1d           ! Number of Pixels
+  real(dp), intent(in) :: I1d(N1d)      ! Input Image
+  real(dp), intent(in) :: l1_wgt(N1d)   ! weight
+
+  integer :: ipix
+
+  ! compute weights
+  l1 = 0d0
+  do ipix=1, N1d
+    l1 = l1 + l1_e(I1d(ipix)) * l1_wgt(ipix)
   end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine log_grad(thres,I1d,gradreg,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: thres
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(inout) :: gradreg(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,thres) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      gradreg(i) = gradreg(i)/(abs(I1d(i)) + thres)
-    else
-      gradreg(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine gamma_fwd(gamma,I1d,I1dout,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: gamma
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,gamma,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i)=abs(I1d(i))**gamma * sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine gamma_inv(gamma,I1d,I1dout,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: gamma
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(out) :: I1dout(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,gamma,I1d) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      I1dout(i) = abs(I1d(i))**(1/gamma) * sign(1d0,I1d(i))
-    else
-      I1dout(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine gamma_grad(gamma,I1d,gradreg,N)
-  implicit none
-  !
-  integer, intent(in) :: N
-  real(dp), intent(in) :: gamma
-  real(dp), intent(in) :: I1d(N)
-  real(dp), intent(inout) :: gradreg(N)
-  !
-  integer :: i
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(N,gamma) &
-  !$OMP   PRIVATE(i)
-  do i=1,N
-    if (abs(I1d(i)) > zeroeps) then
-      gradreg(i) = gradreg(i) * gamma * abs(I1d(i))**(gamma-1) * sign(1d0,I1d(i))
-    else
-      gradreg(i) = 0d0
-    end if
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-!-------------------------------------------------------------------------------
-! Regularization Function
-!-------------------------------------------------------------------------------
-!
-! l1-norm
-!
+end function
+
+
+! l1-norm of each pixel
 real(dp) function l1_e(I)
   implicit none
-  real(dp),intent(in) :: I
-  !
-  ! Smooth L1 (where alpha = 1/zeroeps)
-  l1_e = sqrt(I**2+zeroeps)
+  real(dp), intent(in) :: I
+  l1_e = smabs(I)
 end function
-!
-! gradient of l1-norm
-!
+
+
+! gradient of l1-norm at each pixel
 real(dp) function l1_grade(I)
   implicit none
-  !
-  real(dp),intent(in) :: I
-  !
-  ! Smooth L1 (where alpha = 1/zeroeps)
-  l1_grade = I/l1_e(I)
+  real(dp), intent(in) :: I
+  l1_grade = smabs_diff(I)
 end function
-!
-! MEM
-!
-real(dp) function mem_e(I)
+
+
+!-------------------------------------------------------------------------------
+! Regularization Function: Kullback-Leibler Divergence (relative entropy)
+!   Approximate that it can be differentiable everywhere
+!-------------------------------------------------------------------------------
+! Initialize Prior
+subroutine init_klreg(kl_l_in,kl_prior,kl_l,kl_wgt,N1d)
   implicit none
-  !
-  real(dp),intent(in) :: I
+
+  integer,  intent(in) :: N1d           ! Number of Pixels
+  real(dp), intent(in) :: kl_l_in       ! input lambda
+  real(dp), intent(in) :: kl_prior(N1d) ! prior image
+  real(dp), intent(out):: kl_l          ! normalized lambda
+  real(dp), intent(out):: kl_wgt(N1d)   ! weight
+
+  ! compute prior
+  call calc_kl_wgt(kl_prior,kl_wgt,N1d)
+  ! normalize Lambda
+  kl_l = kl_l_in / kl(kl_wgt,kl_wgt,N1d)
+end subroutine
+
+
+subroutine calc_kl_wgt(I1d,kl_wgt,N1d)
+  implicit none
+
+  integer,  intent(in)  :: N1d       ! Number of Pixels
+  real(dp), intent(in)  :: I1d(N1d)  ! input image
+  real(dp), intent(out) :: kl_wgt(N1d) ! prior image
+
+  integer   :: ipix
+
+  do ipix=1, N1d
+    kl_wgt(ipix) = smabs(I1d(ipix))
+  end do
+end subroutine
+
+! compute the Kullback-Leibler divergence
+real(dp) function kl(I1d,kl_wgt,N1d)
+  implicit none
+
+  integer,  intent(in) :: N1d        ! Number of Pixels
+  real(dp), intent(in) :: I1d(N1d)   ! input Image
+  real(dp), intent(in) :: kl_wgt(N1d)  ! prior Image
+
+  integer   :: ipix
+
+  ! compute weights
+  kl = 0d0
+  do ipix=1, N1d
+    kl = kl + kl_e(I1d(ipix),kl_wgt(ipix))
+  end do
+end function
+
+real(dp) function kl_e(I, P)
+  ! when I = P, the total sum will be |P|_1/e
+  implicit none
+  real(dp),intent(in) :: I, P  ! P must be positive
   real(dp) :: absI
-  !
-  !if (abs(I) > zeroeps) then
-  !  mem_e = abs(I)*log(abs(I))
-  !else
-  !  mem_e = 0d0
-  !end if
-  !
-  ! differentiable MEM
-  absI = l1_e(I)
-  mem_e = absI * log(absI)
+
+  absI = smabs(I)
+  kl_e = absI * log(absI/P) + P/e
 end function
-!
-! gradient of MEM
-!
-real(dp) function mem_grade(I)
+
+
+real(dp) function kl_grade(I, P)
   implicit none
-  !
-  real(dp),intent(in) :: I
+  real(dp),intent(in) :: I, P       ! P must be positive
   real(dp) :: absI, gradabsI
 
-  !if (abs(I) > zeroeps) then
-  !  mem_grade = (log(abs(I))+1) * sign(1d0,I)
-  !else
-  !  mem_grade = 0d0
-  !end if
-  !
-  ! differentiable MEM
-  absI = l1_e(I)
-  gradabsI = l1_grade(I)
-  mem_grade = gradabsI * (1+log(absI))
+  absI = smabs(I)
+  gradabsI = smabs_diff(I)
+  kl_grade = gradabsI * (log(absI/P)+1)
+end function
+
+
+!-------------------------------------------------------------------------------
+! Gull & Skilling Entropy
+!   Approximate that it can be differentiable everywhere
+!-------------------------------------------------------------------------------
+! Initialize Prior
+subroutine init_gsreg(gs_prior,gs_wgt,N1d)
+  implicit none
+
+  integer,  intent(in) :: N1d           ! Number of Pixels
+  real(dp), intent(in) :: gs_prior(N1d) ! prior image
+  real(dp), intent(out):: gs_wgt(N1d)   ! weight
+
+  integer   :: ipix
+
+  do ipix=1, N1d
+    gs_wgt(ipix) = smabs(gs_prior(ipix))
+  end do
+end subroutine
+
+! compute the Kullback-Leibler divergence
+real(dp) function gs(I1d,gs_wgt,N1d)
+  implicit none
+
+  integer,  intent(in) :: N1d         ! Number of Pixels
+  real(dp), intent(in) :: I1d(N1d)    ! Input Image
+  real(dp), intent(in) :: gs_wgt(N1d) ! weight
+
+  integer   :: ipix
+
+  ! compute weights
+  gs = 0d0
+  do ipix=1, N1d
+    gs = gs + gs_e(I1d(ipix),gs_wgt(ipix))
+  end do
+end function
+
+real(dp) function gs_e(I, P)
+  implicit none
+  real(dp),intent(in) :: I, P  ! P must be nonnegative
+  real(dp) :: absI
+
+  absI = smabs(I)
+  gs_e = absI * (log(absI/P) - 1) + P
 end function
 !
+!
+real(dp) function gs_grade(I, P)
+  implicit none
+  real(dp),intent(in) :: I, P  ! P must be nonnegative
+  real(dp) :: absI, gradabsI
+
+  absI = smabs(I)
+  gradabsI = smabs_diff(I)
+  gs_grade = gradabsI * log(absI/P)
+end function
+!
+!
+!-------------------------------------------------------------------------------
 ! Isotropic Total Variation
+!   Approximate that it can be differentiable everywhere
+!-------------------------------------------------------------------------------
+! Initialize the total variation
+subroutine init_tvreg(xidx,yidx,Nx,Ny,tv_isflat,tv_prior,tv_wgt,N1d)
+
+  integer,  intent(in)  :: N1d,Nx,Ny ! Number of Pixels
+  integer,  intent(in)  :: xidx(N1d), yidx(N1d)
+  logical,  intent(in)  :: tv_isflat
+  real(dp), intent(in)  :: tv_prior(N1d)
+  real(dp), intent(out) :: tv_wgt(N1d)
+
+  if (tv_isflat .eqv. .True.) then
+    ! Flat prior
+    tv_wgt(:) = 1/(zeroeps + sum(tv_prior))/N1d
+  else
+    ! (re-)weighted TV
+    call calc_tv_wgt(tv_prior,xidx,yidx,Nx,Ny,tv_wgt,N1d)
+  end if
+end subroutine
+
+
+! derive the weights
+subroutine calc_tv_wgt(I1d,xidx,yidx,Nx,Ny,tv_wgt,N1d)
+  implicit none
+
+  integer,  intent(in) :: N1d,Nx,Ny ! Number of Pixels
+  real(dp), intent(in) :: I1d(N1d)  ! Input Image
+  integer,  intent(in) :: xidx(N1d), yidx(N1d)
+  real(dp), intent(out):: tv_wgt(N1d) ! weight
+
+  integer   :: ipix
+  real(dp)  :: I2d(Nx,Ny)
+
+  ! copy the array to the 2d image
+  I2d = 0d0
+  call I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
+
+  ! compute weights
+  do ipix=1, N1d
+    tv_wgt(ipix) = 1/tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
+  end do
+
+  ! Normalize weights
+  tv_wgt = tv_wgt/tv(I1d,xidx,yidx,Nx,Ny,tv_wgt,N1d)
+end subroutine
+
+
+! compute the Total Variation
+real(dp) function tv(I1d,xidx,yidx,Nx,Ny,tv_wgt,N1d)
+  implicit none
+
+  integer,  intent(in) :: N1d,Nx,Ny ! Number of Pixels
+  real(dp), intent(in) :: I1d(N1d)  ! Input Image
+  integer, intent(in) :: xidx(1:N1d), yidx(1:N1d)
+  real(dp), intent(in) :: tv_wgt(N1d) ! weight
+
+  integer   :: ipix
+  real(dp)  :: I2d(Nx,Ny)
+
+  ! copy the array to the 2d image
+  I2d = 0d0
+  call I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
+
+  ! compute weights
+  tv = 0d0
+  do ipix=1, N1d
+    tv = tv + tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny) * tv_wgt(ipix)
+  end do
+end function
+!
 !
 real(dp) function tv_e(xidx,yidx,I2d,Nx,Ny)
   implicit none
@@ -294,15 +459,12 @@ real(dp) function tv_e(xidx,yidx,I2d,Nx,Ny)
     dIy = I2d(i1,j2) - I2d(i1,j1)
   end if
   !
-  ! Literal TV
-  !tv_e = sqrt(dIx*dIx+dIy*dIy)
-  !
   ! smooth TV
   tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
 end function
 !
-! Gradient of Isotropic Total Variation
 !
+! Gradient of Isotropic Total Variation
 real(dp) function tv_grade(xidx,yidx,I2d,Nx,Ny)
   implicit none
   !
@@ -401,8 +563,70 @@ real(dp) function tv_grade(xidx,yidx,I2d,Nx,Ny)
   !
 end function
 !
-! Total Squared Variation
 !
+!-------------------------------------------------------------------------------
+! Total Squared Variation
+!   Approximate that it can be differentiable everywhere
+!-------------------------------------------------------------------------------
+! Initialize the total squared variation
+subroutine init_tsvreg(xidx,yidx,Nx,Ny,tsv_isflat,tsv_prior,tsv_wgt,N1d)
+  integer,  intent(in)  :: N1d, Nx, Ny
+  integer,  intent(in)  :: xidx(1:N1d), yidx(1:N1d)  ! pixel coordinate
+  logical,  intent(in)  :: tsv_isflat
+  real(dp), intent(in)  :: tsv_prior(N1d)
+  real(dp), intent(out) :: tsv_wgt(N1d)
+
+  if (tsv_isflat .eqv. .True.) then
+    ! flat prior
+    tsv_wgt(:) = 1/(zeroeps + sum(tsv_prior)**2/N1d)/N1d
+  else
+    ! (re)weighted TSV
+    call calc_tsv_wgt(tsv_prior,xidx,yidx,Nx,Ny,tsv_wgt,N1d)
+  end if
+end subroutine
+
+
+! derive the weights
+subroutine calc_tsv_wgt(I1d,xidx,yidx,Nx,Ny,tsv_wgt,N1d)
+  implicit none
+
+  integer,  intent(in) :: N1d,Nx, Ny    ! Number of Pixels,
+  integer,  intent(in) :: xidx(1:N1d), yidx(1:N1d)  ! pixel coordinate
+  real(dp), intent(in) :: I1d(N1d)      ! Input Image
+  real(dp), intent(out):: tsv_wgt(N1d)  ! weight
+
+  ! compute weights
+  tsv_wgt = 1/(I1d**2+zeroeps)
+
+  ! Normalize weights
+  tsv_wgt = tsv_wgt/tsv(I1d,xidx,yidx,Nx,Ny,tsv_wgt,N1d)
+end subroutine
+
+
+! compute the Total Variation
+real(dp) function tsv(I1d,xidx,yidx,Nx,Ny,tsv_wgt,N1d)
+  implicit none
+
+  integer,  intent(in) :: N1d,Nx,Ny                 ! Number of Pixels
+  real(dp), intent(in) :: I1d(N1d)                  ! Input Image
+  integer,  intent(in) :: xidx(1:N1d), yidx(1:N1d)  ! pixel coordinate
+  real(dp), intent(in) :: tsv_wgt(N1d)              ! weight
+
+  integer   :: ipix
+  real(dp)  :: I2d(Nx,Ny)
+
+  ! copy the array to the 2d image
+  I2d = 0d0
+  call I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
+
+  ! compute weights
+  tsv = 0d0
+  do ipix=1, N1d
+    tsv = tsv + tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny) * tsv_wgt(ipix)
+  end do
+end function
+
+
 real(dp) function tsv_e(xidx,yidx,I2d,Nx,Ny)
   implicit none
   !
@@ -435,9 +659,9 @@ real(dp) function tsv_e(xidx,yidx,I2d,Nx,Ny)
   !
   tsv_e = dIx*dIx+dIy*dIy
 end function
-!
+
+
 ! Gradient of Total Squared Variation
-!
 real(dp) function tsv_grade(xidx,yidx,I2d,Nx,Ny)
   implicit none
   !
@@ -480,384 +704,209 @@ real(dp) function tsv_grade(xidx,yidx,I2d,Nx,Ny)
   end if
   !
 end function
-!
-! Centoroid Regularization
-!
-subroutine comreg(xidx,yidx,Nxref,Nyref,alpha,I1d,cost,gradcost,Npix)
+
+
+!-------------------------------------------------------------------------------
+! Total Flux Regularization
+!-------------------------------------------------------------------------------
+subroutine init_tfdreg(tfd_l_in, tfd_tgtfd, tfd_tgter, tfd_l)
   implicit none
   !
-  integer, intent(in) :: Npix
-  integer, intent(in) :: xidx(1:Npix), yidx(1:Npix)
-  real(dp),intent(in) :: alpha
-  real(dp),intent(in) :: Nxref, Nyref
-  real(dp),intent(in) :: I1d(1:Npix)
-  real(dp),intent(inout) :: cost
-  real(dp),intent(inout) :: gradcost(1:Npix)
+  real(dp),intent(in)  :: tfd_l_in   ! input Lambda value for this regularization
+  real(dp),intent(in)  :: tfd_tgtfd  ! Target total flux density
+  real(dp),intent(in)  :: tfd_tgter  ! Target fractional error
+  real(dp),intent(out) :: tfd_l      ! Normalized Lambda
+
+  ! normalize lambda with the target total flux density and fractional error
+  tfd_l = tfd_l_in / (tfd_tgtfd * tfd_tgter)**2
+end subroutine
+
+
+subroutine calc_tfdreg(I1d,tgtfd,cost,gradcost,N1d)
+  implicit none
   !
-  real(dp) :: dix, diy, Ip
-  real(dp) :: sumx, sumy, sumI
-  real(dp) :: gradsumx, gradsumy, gradsumI
-  real(dp) :: reg
+  integer, intent(in) :: N1d      ! number of data sets
+  real(dp),intent(in) :: I1d(N1d) ! input image
+  real(dp),intent(in) :: tgtfd    ! target total flux
+  real(dp),intent(out):: cost     ! cost function
+  real(dp),intent(out):: gradcost ! gradient is constant,
+                                  ! so this is just 1 real value
+  real(dp) :: resid
+
+  resid = sum(I1d)-tgtfd   ! take the total flux and residual
+  cost = resid**2
+  gradcost = 2*resid
+end subroutine
+
+
+!-------------------------------------------------------------------------------
+! Centoroid regularization
+!-------------------------------------------------------------------------------
+subroutine init_cenreg(cen_l_in, cen_prior, cen_alpha, cen_l, N1d)
+  implicit none
   !
+  integer,intent(in)   :: N1d            ! the number of the pixel in the image
+  real(dp),intent(in)  :: cen_l_in        ! input Lambda value for this regularization
+  real(dp),intent(in)  :: cen_prior(N1d) ! Prior Image
+  real(dp),intent(in)  :: cen_alpha       ! power
+  real(dp),intent(out) :: cen_l           ! Normalized Lambda
+
+  integer :: ipix
+  real(dp) :: Ip, sumI
+
+  ! taking the sum of the intensity
+  sumI = 0
+  do ipix=1,N1d
+    if (abs(cen_alpha-1)<zeroeps) then
+      Ip = smabs(cen_prior(ipix))
+    else
+      Ip = smabs(cen_prior(ipix))**cen_alpha
+    end if
+    sumI = sumI + Ip
+  end do
+
+  ! normalize lambda with the total intensity
+  cen_l = cen_l_in / (zeroeps + sumI)
+end subroutine
+
+
+subroutine calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,alpha,cost,gradcost,N1d)
+  implicit none
+  !
+  integer, intent(in)  :: N1d
+  real(dp),intent(in)  :: I1d(1:N1d)
+  integer, intent(in)  :: xidx(1:N1d), yidx(1:N1d)
+  real(dp),intent(in)  :: alpha
+  real(dp),intent(in)  :: Nxref, Nyref
+  real(dp),intent(out) :: cost
+  real(dp),intent(out) :: gradcost(1:N1d)
+  !
+  real(dp) :: dix, diy, Ip, gradIp
+  real(dp) :: sumx, sumy
+
   integer :: ipix
 
+  ! initialize
   sumx = 0d0
   sumy = 0d0
-  sumI = 0d0
 
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,Npix) &
+  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,N1d) &
   !$OMP   PRIVATE(ipix, dix, diy, Ip) &
-  !$OMP   REDUCTION(+: sumx, sumy, sumI)
-  do ipix=1, Npix
+  !$OMP   REDUCTION(+: sumx, sumy)
+  do ipix=1, N1d
     ! pixel from the reference pixel
     dix = xidx(ipix) - Nxref
     diy = yidx(ipix) - Nyref
 
     ! take a alpha
     if (abs(alpha-1)<zeroeps) then
-      Ip = l1_e(I1d(ipix))
+      Ip = smabs(I1d(ipix))
     else
-      Ip = l1_e(I1d(ipix))**alpha
+      Ip = smabs(I1d(ipix))**alpha
     end if
 
     ! calculate sum
     sumx = sumx + Ip * dix
     sumy = sumy + Ip * diy
-    sumI = sumI + Ip
   end do
   !$OMP END PARALLEL DO
 
-  ! Smooth Version
-  !
-  ! calculate cost function
-  !   need zeroeps for smoothing sqrt,
-  sumI = sumI + zeroeps
-  reg = sqrt((sumx/(sumI))**2+(sumy/(sumI))**2+zeroeps)
-  cost = cost + reg
-
+  ! cost function
+  cost = sqrt(sumx**2+sumy**2+zeroeps)
   ! calculate gradient of cost function
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,Npix,sumx,sumy,sumI,reg) &
-  !$OMP   PRIVATE(ipix,dix,diy,gradsumI,gradsumx,gradsumy) &
+  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,N1d,sumx,sumy,cost) &
+  !$OMP   PRIVATE(ipix,dix,diy,gradIp) &
   !$OMP   REDUCTION(+:gradcost)
-  do ipix=1, Npix
+  do ipix=1, N1d
     ! pixel from the reference pixel
     dix = xidx(ipix) - Nxref
     diy = yidx(ipix) - Nyref
 
     ! gradient of sum
     if (abs(alpha-1)<zeroeps) then
-      gradsumI = l1_grade(I1d(ipix))
+      gradIp = smabs_diff(I1d(ipix))
     else
-      gradsumI = alpha*l1_e(I1d(ipix))**(alpha-1)*l1_grade(I1d(ipix))
+      gradIp = smabs_diff(I1d(ipix)) * alpha*smabs(I1d(ipix))**(alpha-1)
     end if
-
-    gradsumx = gradsumI*dix
-    gradsumy = gradsumI*diy
-
-    ! gradient of sumx/sumI or sumy/sumI
-    gradsumx = (sumI*gradsumx - gradsumI*sumx)/sumI**2
-    gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
 
     ! calculate gradint of cost function
-    gradcost(ipix) = gradcost(ipix) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
+    gradcost(ipix) = (dix*sumx+diy*sumy)/cost*gradIp
   end do
   !$OMP END PARALLEL DO
 end subroutine
-!
-!
-!-------------------------------------------------------------------------------!
-subroutine comreg3d(xidx,yidx,Nxref,Nyref,alpha,Iin,cost,gradcost,Npix,Nz)
-  implicit none
-  !
-  integer, intent(in) :: Npix,Nz
-  integer, intent(in) :: xidx(1:Npix), yidx(1:Npix)
-  real(dp),intent(in) :: alpha
-  real(dp),intent(in) :: Nxref, Nyref
-  real(dp),intent(in) :: Iin(Npix,Nz)
-  real(dp),intent(inout) :: cost
-  real(dp),intent(inout) :: gradcost(Npix,Nz)
-  !
-  real(dp) :: dix, diy, Ip, Isum(Npix)
-  real(dp) :: sumx, sumy, sumI
-  real(dp) :: gradsumx, gradsumy, gradsumI
-  real(dp) :: reg
-  !
-  integer  :: ipix,iz
 
-  sumx = 0d0
-  sumy = 0d0
-  sumI = 0d0
-
-  ! Take summation
-  Isum = sum(Iin,2)
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix,Nz) &
-  !$OMP   PRIVATE(ipix, dix, diy, Ip) &
-  !$OMP   REDUCTION(+: sumx, sumy, sumI)
-  do ipix=1, Npix
-    ! pixel from the reference pixel
-    dix = xidx(ipix) - Nxref
-    diy = yidx(ipix) - Nyref
-
-    ! take a alpha
-    if (abs(alpha-1)<zeroeps) then
-      Ip = l1_e(Isum(ipix))
-    else
-      Ip = l1_e(Isum(ipix))**alpha
-    end if
-
-    ! calculate sum
-    sumx = sumx + Ip * dix
-    sumy = sumy + Ip * diy
-    sumI = sumI + Ip
-  end do
-  !$OMP END PARALLEL DO
-
-  ! Smooth Version
-  !
-  ! calculate cost function
-  !   need zeroeps for smoothing sqrt,
-  sumI = sumI + zeroeps
-  reg = sqrt((sumx/(sumI))**2+(sumy/(sumI))**2+zeroeps)
-  cost = cost + reg
-
-
-  ! calculate gradient of cost function
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,Isum,Npix,sumx,sumy,sumI,reg) &
-  !$OMP   PRIVATE(ipix,dix,diy,gradsumI,gradsumx,gradsumy) &
-  !$OMP   REDUCTION(+:gradcost)
-  do ipix=1, Npix
-    do iz=1,Nz
-      ! pixel from the reference pixel
-      dix = xidx(ipix) - Nxref
-      diy = yidx(ipix) - Nyref
-
-      ! gradient of sum
-      if (abs(alpha-1)<zeroeps) then
-        gradsumI = l1_grade(Iin(ipix,iz))
-      else
-        gradsumI = alpha*l1_e(Isum(ipix))**(alpha-1)*l1_grade(Iin(ipix,iz))   ! <----
-      end if
-
-      gradsumx = gradsumI*dix
-      gradsumy = gradsumI*diy
-
-      ! gradient of sumx/sumI or sumy/sumI
-      gradsumx = (sumI*gradsumx - gradsumI*sumx)/sumI**2
-      gradsumy = (sumI*gradsumy - gradsumI*sumy)/sumI**2
-
-      ! calculate gradint of cost function
-      gradcost(ipix,iz) = gradcost(ipix,iz) + (sumx/sumI*gradsumx+sumy/sumI*gradsumy)/reg
-    end do
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
 
 !-------------------------------------------------------------------------------
-! A convinient function to compute regularization functions
-! for python interfaces
+! Absolute apporoximater
 !-------------------------------------------------------------------------------
-subroutine I2d_l1(I2d,cost,costmap,gradmap,Nx,Ny)
+! Smoothed absolute opperator
+!   |x| ~ sqrt(x^2 + e)
+real(dp) function smabs(x)
   implicit none
+  real(dp),intent(in) :: x
+  smabs = sqrt(x**2+zeroeps)
+end function
 
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
 
-  integer :: ixy,ix,iy
+!   d|x|/dx ~ x/sqrt(x^2 + e)
+real(dp) function smabs_diff(x)
+  implicit none
+  real(dp),intent(in) :: x
+  smabs_diff = x/smabs(x)
+end function
 
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
+
+!-------------------------------------------------------------------------------
+! Copy 1D image vector from/to 2D image vector
+!-------------------------------------------------------------------------------
+!
+! I1d --> I2d
+!
+subroutine I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
+  !
+  !
+  implicit none
+  !
+  integer, intent(in) :: N1d,Nx,Ny
+  integer, intent(in) :: xidx(N1d), yidx(N1d)
+  real(dp),intent(in) :: I1d(N1d)
+  real(dp),intent(inout) :: I2d(Nx,Ny)
+  !
+  integer :: i
+  !
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = l1_e(I2d(ix,iy))
-    gradmap(ix,iy) = l1_grade(I2d(ix,iy))
-    cost = cost + costmap(ix,iy)
+  !$OMP   FIRSTPRIVATE(N1d,I1d,xidx,yidx) &
+  !$OMP   PRIVATE(i)
+  do i=1,N1d
+    I2d(xidx(i),yidx(i))=I1d(i)
   end do
   !$OMP END PARALLEL DO
 end subroutine
 !
+! I1d <-- I2d
 !
-subroutine I2d_mem(I2d,cost,costmap,gradmap,Nx,Ny)
+subroutine I1d_I2d_inv(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
   implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
+  !
+  integer, intent(in) :: N1d,Nx,Ny
+  integer, intent(in) :: xidx(N1d), yidx(N1d)
+  real(dp),intent(inout) :: I1d(N1d)
+  real(dp),intent(in) :: I2d(Nx,Ny)
+  !
+  integer :: i
+  !
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = mem_e(I2d(ix,iy))
-    gradmap(ix,iy) = mem_grade(I2d(ix,iy))
-    cost = cost+costmap(ix,iy)
+  !$OMP   FIRSTPRIVATE(N1d,I2d,xidx,yidx) &
+  !$OMP   PRIVATE(i)
+  do i=1,N1d
+    I1d(i)=I2d(xidx(i),yidx(i))
   end do
   !$OMP END PARALLEL DO
 end subroutine
-!
-!
-subroutine I2d_tv(I2d,cost,costmap,gradmap,Nx,Ny)
-  implicit none
 
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
 
-  integer :: ixy,ix,iy
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = tv_e(ix,iy,I2d,Nx,Ny)
-    gradmap(ix,iy) = tv_grade(ix,iy,I2d,Nx,Ny)
-    cost = cost+costmap(ix,iy)
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine I2d_tsv(I2d,cost,costmap,gradmap,Nx,Ny)
-  implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny)
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,I2d) &
-  !$OMP   PRIVATE(ixy,ix,iy) &
-  !$OMP   REDUCTION(+:cost,costmap,gradmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-    costmap(ix,iy) = tsv_e(ix,iy,I2d,Nx,Ny)
-    gradmap(ix,iy) = tsv_grade(ix,iy,I2d,Nx,Ny)
-    cost = cost+costmap(ix,iy)
-  end do
-  !$OMP END PARALLEL DO
-end subroutine
-!
-!
-subroutine I2d_com(I2d,Nxref,Nyref,alpha,cost,costmap,gradmap,Nx,Ny)
-  implicit none
-
-  integer, intent(in)  :: Nx,Ny
-  real(dp), intent(in) :: I2d(Nx,Ny),Nxref,Nyref,alpha
-  real(dp), intent(out):: cost,costmap(Nx,Ny),gradmap(Nx,Ny)
-
-  integer :: ixy,ix,iy
-  real(dp) :: dix,diy, sumx, sumy, sumI, gradsumI, gradsumx, gradsumy,Ip
-
-  ! initialize output
-  cost = 0d0
-  costmap(:,:) = 0d0
-  gradmap(:,:) = 0d0
-
-  ! initialize sums
-  sumx = 0d0
-  sumy = 0d0
-  sumI = 0d0
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,Nxref,Nyref,I2d,alpha) &
-  !$OMP   PRIVATE(ixy,ix,iy,dix,diy,Ip) &
-  !$OMP   REDUCTION(+:sumx,sumy,sumI,costmap)
-  do ixy=1, Nx*Ny
-    call ixy2ixiy(ixy,ix,iy,Nx)
-
-    ! pixel from the reference pixel
-    dix = ix - Nxref
-    diy = iy - Nyref
-
-    ! take a alpha
-    if (abs(I2d(ix,iy)) > zeroeps) then
-      Ip = abs(I2d(ix,iy))**alpha
-    else
-      Ip = 0
-    end if
-
-    ! calculate sum
-    costmap(ix,iy) = sqrt((Ip*dix)**2 +(Ip*diy)**2)
-    sumx = sumx + Ip * dix
-    sumy = sumy + Ip * diy
-    sumI = sumI + Ip
-  end do
-  !$OMP END PARALLEL DO
-
-  if (abs(sumI) > zeroeps) then
-    ! calculate cost function
-    cost = sqrt(sumx*sumx+sumy*sumy)/sumI
-
-    ! calculate gradient of cost function
-    !$OMP PARALLEL DO DEFAULT(SHARED) &
-    !$OMP   FIRSTPRIVATE(Nx,Ny,Nxref,Nyref,alpha,I2d,sumx,sumy,sumI,cost) &
-    !$OMP   PRIVATE(ixy,ix,iy,dix,diy,gradsumI,gradsumx,gradsumy) &
-    !$OMP   REDUCTION(+:gradmap)
-    do ixy=1, Nx*Ny
-      call ixy2ixiy(ixy,ix,iy,Nx)
-      costmap(ix,iy) = costmap(ix,iy)/sumI
-
-      ! pixel from the reference pixel
-      dix = ix - Nxref
-      diy = iy - Nyref
-
-      ! gradient of sums
-      if (abs(I2d(ix,iy)) > zeroeps) then
-        if (abs(alpha) - 1 < zeroeps) then
-          gradsumI = sign(1d0,I2d(ix,iy))
-        else
-          gradsumI = alpha*abs(I2d(ix,iy))**(alpha-1)*sign(1d0,I2d(ix,iy))
-        end if
-      else
-        gradsumI = 0
-      end if
-      gradsumx = gradsumI*dix
-      gradsumy = gradsumI*diy
-
-      ! calculate gradint of cost function
-      gradmap(ix,iy) = gradmap(ix,iy) + cost*gradsumI/sumI
-      gradmap(ix,iy) = gradmap(ix,iy) + (sumx*gradsumx+sumy*gradsumy)/(cost*sumI**3)
-    end do
-    !$OMP END PARALLEL DO
-  else
-    costmap(:,:) = 0d0
-  end if
-end subroutine
-!
-!
 !-------------------------------------------------------------------------------
 ! A convinient function to compute regularization functions
 ! for python interfaces
@@ -872,8 +921,8 @@ subroutine ixy2ixiy(ixy,ix,iy,Nx)
   ix = mod(ixy-1,Nx)+1
   iy = (ixy-1)/Nx+1
 end subroutine
-
-
+!
+!
 subroutine ixiy2ixy(ix,iy,ixy,Nx)
   implicit none
 

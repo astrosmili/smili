@@ -1,28 +1,38 @@
 =========
-Smili
+SMILI
 =========
 **Sparse Modeling Imaging Library for Interferometry**
 
-Smili is a library for interferometric imaging using sparse sampling
-techniques, mainly designed for radio interferometers.
+This website is the documentation for `SMILI <https://github.com/astrosmili/smili>`_.
+SMILI is a python-interfaced library for interferometric imaging using sparse
+sampling techniques. SMILI is mainly designed for very long baseline interferometry,
+and has been under the active development primarily for the
+`Event Horizon Telescope <https://eventhorizontelescope.org>`_.
 
-This website is a documentation for the new version of
-`Smili <https://github.com/astrosmili/smili>`_,
-which is still under development and in experimental phases.
+This documentation describes its basic usage with some example data sets.
+However, SMILI has yet been actively and dynamically developed for many new topics
+and challenges of the EHT. The documentation is not perfect and
+sometimes outdated due to dynamical changes in the data structure.
 
-Please contact to `Kazu Akiyama at MIT Haystack Observatory <http://kazuakiyama.github.io/>`_
-if you would like to try the library.
+Please contact to `Kazu Akiyama at NRAO/MIT Haystack Observatory <http://kazuakiyama.github.io/>`_
+if you have any questions about this library. You may contact with following
+other core developers, too.
 
-Manuals
-=======
+- `Kazu Akiyama (The Main Developer) <http://kazuakiyama.github.io>`_ at NRAO/MIT Haystack Observatory
+- `Fumie Tazaki (Developer) <https://ftazaki.github.io/webpage>`_ (Japanese Only) at NAOJ
+- `Shiro Ikeda (Developer) <https://www.ism.ac.jp/~shiro>`_  at the Institute of Statistical Mathematics
+- Kotaro Moriyama (Developer) at NAOJ/MIT Haystack Observatory
+
+Table of Contents
+=================
 .. toctree::
   :maxdepth: 1
   :numbered:
 
   _static/install
   _examples/index
-
-Link
-====
-
-- Smili Github Repository: <https://github.com/astrosmili/smili>
+  _static/license
+  _static/references
+  _static/link
+  _static/acknowledgement
+  _autodoc/smili

@@ -77,7 +77,7 @@ subroutine NUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
   !   Sign of the exponent in the forward Fourier Transformation
   !     0: positive (the standard in Radio Astronomy)
   !     1: negative (the textbook standard; e.g. TMS)
-  integer,  parameter :: iflag=0
+  integer,  parameter  :: iflag=0
   !   numerical Accuracy required for FINUFFT
   real(dp),  parameter :: eps=ffteps
   !   error log
@@ -290,7 +290,141 @@ end subroutine
 !-------------------------------------------------------------------------------
 ! Functions to compute chisquares and also residual vectors
 !-------------------------------------------------------------------------------
-subroutine chisq_fcv(Vcmp,&
+subroutine calc_chisq(&
+  Iin,xidx,yidx,Nx,Ny,&
+  u,v,&
+  isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
+  isamp,uvidxamp,Vamp,Varamp,wamp,&
+  iscp,uvidxcp,CP,Varcp,wcp,&
+  isca,uvidxca,CA,Varca,wca,&
+  chisq, gradchisq, chisqfcv, chisqamp, chisqcp, chisqca,&
+  Npix,Nuv,Nfcv,Namp,Ncp,Nca&
+)
+  implicit none
+
+  ! Image
+  integer,  intent(in) :: Npix, Nx, Ny
+  real(dp), intent(in) :: Iin(Npix)
+  integer,  intent(in) :: xidx(Npix), yidx(Npix)
+
+  ! uv coordinate
+  integer,  intent(in) :: Nuv
+  real(dp), intent(in) :: u(Nuv), v(Nuv)
+
+  ! Parameters related to full complex visibilities
+  logical,      intent(in) :: isfcv           ! is data?
+  integer,      intent(in) :: Nfcv            ! number of data
+  integer,      intent(in) :: uvidxfcv(Nfcv)  ! uvidx
+  complex(dpc), intent(in) :: Vfcv(Nfcv)      ! data
+  real(dp),     intent(in) :: Varfcv(Nfcv)    ! variance
+  real(dp),     intent(in) :: wfcv            ! data weights
+
+  ! Parameters related to amplitude
+  logical,  intent(in) :: isamp           ! is amplitudes?
+  integer,  intent(in) :: Namp            ! Number of data
+  integer,  intent(in) :: uvidxamp(Namp)  ! uvidx
+  real(dp), intent(in) :: Vamp(Namp)      ! data
+  real(dp), intent(in) :: Varamp(Namp)    ! variance
+  real(dp), intent(in) :: wamp            ! data weights
+
+  ! Parameters related to the closure phase
+  logical,  intent(in) :: iscp            ! is closure phases?
+  integer,  intent(in) :: Ncp             ! Number of data
+  integer,  intent(in) :: uvidxcp(3,Ncp)  ! uvidx
+  real(dp), intent(in) :: CP(Ncp)         ! data
+  real(dp), intent(in) :: Varcp(Ncp)      ! variance
+  real(dp), intent(in) :: wcp             ! data weights
+
+  ! Parameters related to the closure amplitude
+  logical,  intent(in) :: isca            ! is closure amplitudes?
+  integer,  intent(in) :: Nca             ! Number of data
+  integer,  intent(in) :: uvidxca(4,Nca)  ! uvidx
+  real(dp), intent(in) :: CA(Nca)         ! data
+  real(dp), intent(in) :: Varca(Nca)      ! variance
+  real(dp), intent(in) :: wca             ! data weights
+
+  ! Chi-square and its gradient
+  real(dp), intent(out) :: chisq           ! weighted sum of chisquares
+  real(dp), intent(out) :: chisqfcv        ! chisquare of full complex visibilities
+  real(dp), intent(out) :: chisqamp        ! chisquare of amplitudes
+  real(dp), intent(out) :: chisqcp         ! chisquare of closure phases
+  real(dp), intent(out) :: chisqca         ! chisquare of closure amplitudes
+  real(dp), intent(out) :: gradchisq(Npix) ! costfunction and its gradient
+
+  ! allocatable arrays
+  real(dp),     allocatable :: I2d(:,:)
+  real(dp),     allocatable :: gradchisq2d(:,:)
+  real(dp),     allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vcmp(:)
+
+  ! Initialize the chisquare and its gradient
+  chisq        = 0d0
+  gradchisq(:) = 0d0
+
+  ! Copy 1d image to 2d image
+  allocate(I2d(Nx,Ny))
+  I2d(:,:)=0d0
+  call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
+
+  ! Forward Non-unifrom Fast Fourier Transform
+  allocate(Vcmp(Nuv))
+  Vcmp(:) = dcmplx(0d0,0d0)
+  call NUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
+  deallocate(I2d)
+
+  ! allocate residual vectors
+  allocate(Vresre(Nuv),Vresim(Nuv))
+  Vresre(:) = 0d0
+  Vresim(:) = 0d0
+
+  ! Full complex visibility
+  chisqfcv=0d0
+  if (isfcv .eqv. .True.) then
+    call calc_chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,wfcv,chisqfcv,Vresre,Vresim,Nuv,Nfcv)
+    chisq = chisq + chisqfcv
+    chisqfcv = chisqfcv / wfcv / (2*Nfcv)
+  end if
+
+  ! Amplitudes
+  chisqamp=0d0
+  if (isamp .eqv. .True.) then
+    call calc_chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,wamp,chisqamp,Vresre,Vresim,Nuv,Namp)
+    chisq = chisq + chisqamp
+    chisqamp = chisqamp / wamp / Namp
+  end if
+
+  ! Log closure amplitudes
+  chisqca=0d0
+  if (isca .eqv. .True.) then
+    call calc_chisq_ca(Vcmp,uvidxca,CA,Varca,wca,chisqca,Vresre,Vresim,Nuv,Nca)
+    chisq = chisq + chisqca
+    chisqca = chisqca / wca / Nca
+  end if
+
+  ! Closure phases
+  chisqcp=0d0
+  if (iscp .eqv. .True.) then
+    call calc_chisq_cp(Vcmp,uvidxcp,CP,Varcp,wcp,chisqcp,Vresre,Vresim,Nuv,Ncp)
+    chisq = chisq + chisqcp
+    chisqcp = chisqcp / wcp / Ncp
+  end if
+
+  ! comupute the total chisquare
+  deallocate(Vcmp)
+
+  ! Adjoint Non-unifrom Fast Fourier Transform
+  !  this will provide gradient of chisquare functions
+  allocate(gradchisq2d(Nx,Ny))
+  gradchisq2d(:,:) = 0d0
+  call NUFFT_adj_resid(u,v,Vresre,Vresim,gradchisq2d(:,:),Nx,Ny,Nuv)
+  deallocate(Vresre,Vresim)
+
+  ! copy the gradient of chisquare into that of cost functions
+  call I1d_I2d_inv(xidx,yidx,gradchisq,gradchisq2d,Npix,Nx,Ny)
+  deallocate(gradchisq2d)
+end subroutine
+
+subroutine calc_chisq_fcv(Vcmp,&
                      uvidxfcv,Vfcv,Varfcv,&
                      fnorm,&
                      chisq,Vresre,Vresim,&
@@ -302,18 +436,18 @@ subroutine chisq_fcv(Vcmp,&
   implicit none
 
   ! NuFFT-ed visibilities
-  integer,      intent(in):: Nuv
-  complex(dpc), intent(in):: Vcmp(Nuv)
+  integer,      intent(in) :: Nuv
+  complex(dpc), intent(in) :: Vcmp(Nuv)
   ! Data
-  integer,  intent(in):: Nfcv             ! Number of data
-  integer,  intent(in):: uvidxfcv(Nfcv)   ! UV Index of FCV data
-  complex(dpc), intent(in):: Vfcv(Nfcv)   ! Full complex visibility (FCV) data
-  real(dp), intent(in):: Varfcv(Nfcv)     ! variances of FCV data
+  integer,  intent(in)     :: Nfcv             ! Number of data
+  integer,  intent(in)     :: uvidxfcv(Nfcv)   ! UV Index of FCV data
+  complex(dpc), intent(in) :: Vfcv(Nfcv)       ! Full complex visibility (FCV) data
+  real(dp), intent(in)     :: Varfcv(Nfcv)     ! variances of FCV data
   ! Normalization Factor of Chisquare
-  real(dp), intent(in):: fnorm
+  real(dp), intent(in)     :: fnorm
   ! Outputs
-  real(dp), intent(inout):: chisq           ! chisquare
-  real(dp), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
+  real(dp), intent(inout)  :: chisq                    ! chisquare
+  real(dp), intent(inout)  :: Vresre(Nuv), Vresim(Nuv) ! residual vector
                                             !   its adjoint FT provides
                                             !   the gradient of chisquare)
 
@@ -337,18 +471,18 @@ subroutine chisq_fcv(Vcmp,&
     end if
 
     ! compute chisquare
-    chisq = chisq + abs(resid)**2/Varfcv(i)/fnorm
+    chisq = chisq + abs(resid)**2/Varfcv(i)*fnorm
 
     ! compute residual vector
-    factor = -2/Varfcv(i)/fnorm
+    factor = -2/Varfcv(i)*fnorm
     Vresre(uvidx) = Vresre(uvidx) + factor*dreal(resid)
     Vresim(uvidx) = Vresim(uvidx) + factor*dimag(resid)*sign(1,uvidxfcv(i))
   end do
   !$OMP END PARALLEL DO
 end subroutine
-!
-!
-subroutine chisq_amp(Vcmp,&
+
+
+subroutine calc_chisq_amp(Vcmp,&
                      uvidxamp,Vamp,Varamp,&
                      fnorm,&
                      chisq,Vresre,Vresim,&
@@ -391,18 +525,18 @@ subroutine chisq_amp(Vcmp,&
     resid = Vamp(i) - model
 
     ! compute chisquare
-    chisq = chisq + resid**2/Varamp(i)/fnorm
+    chisq = chisq + resid**2/Varamp(i)*fnorm
 
     ! compute residual vector
-    factor = -2*resid/Varamp(i)/model/fnorm
+    factor = -2*resid/Varamp(i)/model*fnorm
     Vresre(uvidx) = Vresre(uvidx) + factor * dreal(Vcmp(uvidx))
     Vresim(uvidx) = Vresim(uvidx) + factor * dimag(Vcmp(uvidx))
   end do
   !$OMP END PARALLEL DO
 end subroutine
-!
-!
-subroutine chisq_ca(Vcmp,&
+
+
+subroutine calc_chisq_ca(Vcmp,&
                     uvidxca,CA,Varca,&
                     fnorm,&
                     chisq,Vresre,Vresim,&
@@ -463,10 +597,10 @@ subroutine chisq_ca(Vcmp,&
     resid = CA(i) - model
 
     ! compute chisquare
-    chisq = chisq + resid**2/Varca(i)/fnorm
+    chisq = chisq + resid**2/Varca(i)*fnorm
 
     ! compute residual vectors
-    factor = -2*resid/Varca(i)/fnorm
+    factor = -2*resid/Varca(i)*fnorm
     ! re
     Vresre(uvidx1) = Vresre(uvidx1) + factor / Vamp1**2 * dreal(Vcmp1)
     Vresre(uvidx2) = Vresre(uvidx2) + factor / Vamp2**2 * dreal(Vcmp2)
@@ -480,9 +614,9 @@ subroutine chisq_ca(Vcmp,&
   end do
   !$OMP END PARALLEL DO
 end subroutine
-!
-!
-subroutine chisq_cp(Vcmp,&
+
+
+subroutine calc_chisq_cp(Vcmp,&
                     uvidxcp,CP,Varcp,&
                     fnorm,&
                     chisq,Vresre,Vresim,&
@@ -548,10 +682,10 @@ subroutine chisq_cp(Vcmp,&
     resid = atan2(sin(resid),cos(resid))
 
     ! compute chisquare
-    chisq = chisq + resid**2/Varcp(i)/fnorm
+    chisq = chisq + resid**2/Varcp(i)*fnorm
 
     ! compute residual vectors
-    factor = -2*resid/Varcp(i)/fnorm
+    factor = -2*resid/Varcp(i)*fnorm
 
     Vresre(uvidx1) = Vresre(uvidx1) - factor/Vampsq1*dimag(Vcmp1)*sign1
     Vresre(uvidx2) = Vresre(uvidx2) - factor/Vampsq2*dimag(Vcmp2)*sign2
@@ -563,8 +697,8 @@ subroutine chisq_cp(Vcmp,&
   end do
   !$OMP END PARALLEL DO
 end subroutine
-!
-!
+
+
 !-------------------------------------------------------------------------------
 ! Functions to compute chisquares and also residual vectors
 !-------------------------------------------------------------------------------
@@ -972,15 +1106,15 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   integer,  intent(in) :: Nuv
   real(dp), intent(in) :: u(Nuv), v(Nuv)  ! uv coordinates mutiplied by 2*pi*dx, 2*pi*dy
   ! Data
-  integer,  intent(in):: Ncp            ! Number of data
-  integer,  intent(in):: uvidxcp(3,Ncp) ! UV Index of cp data
-  real(dp), intent(in):: CP(Ncp)        ! Closure Phase data
-  real(dp), intent(in):: Varcp(Ncp)     ! variances of ca data
+  integer,  intent(in) :: Ncp            ! Number of data
+  integer,  intent(in) :: uvidxcp(3,Ncp) ! UV Index of cp data
+  real(dp), intent(in) :: CP(Ncp)        ! Closure Phase data
+  real(dp), intent(in) :: Varcp(Ncp)     ! variances of ca data
   ! Outputs
-  real(dp), intent(out):: chisq           ! chisquare
-  real(dp), intent(out):: model(Ncp)      ! Model Vector
-  real(dp), intent(out):: resid(Ncp)      ! Residual Vector
-  real(dp), intent(out):: gradchisq(Npix) ! its adjoint FT provides
+  real(dp), intent(out) :: chisq           ! chisquare
+  real(dp), intent(out) :: model(Ncp)      ! Model Vector
+  real(dp), intent(out) :: resid(Ncp)      ! Residual Vector
+  real(dp), intent(out) :: gradchisq(Npix) ! its adjoint FT provides
                                           ! the gradient of chisquare
 
   ! allocatable arrays
