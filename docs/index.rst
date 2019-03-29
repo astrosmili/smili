@@ -33,6 +33,6 @@ Table of Contents
   _examples/index
   _static/license
   _static/references
+  _autodoc/smili
   _static/link
   _static/acknowledgement
-  _autodoc/smili
