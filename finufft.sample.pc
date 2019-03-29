@@ -1,5 +1,5 @@
 # This is an example pkg-config file. Here is an brief instruction.
-# (1) Please change finufft dir depending on your install directory.
+# (1) Please change finufftdir depending on your install directory.
 # (2) please change its filename to finufft.sample.pc and
 #     copy to a directory specified in $PKG_CONFIG_PATH
 finufftdir=$(HOME)/local/finufft
