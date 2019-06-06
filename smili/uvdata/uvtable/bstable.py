@@ -674,15 +674,15 @@ class BSTable(UVTable):
             stndict = self.station_dic(id2name=True)
             stidict = self.station_dic(id2name=False)
             # make dictionary of stations
-            if isinstance(triangle[0], basestring):
+            if isinstance(triangle[0], str):
                 st1 = stidict[triangle[0]]
             else:
                 st1 = int(triangle[0])
-            if isinstance(triangle[1], basestring):
+            if isinstance(triangle[1], str):
                 st2 = stidict[triangle[1]]
             else:
                 st2 = int(triangle[1])
-            if isinstance(triangle[2], basestring):
+            if isinstance(triangle[2], str):
                 st3 = stidict[triangle[2]]
             else:
                 st3 = int(triangle[2])

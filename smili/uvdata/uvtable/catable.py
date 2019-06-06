@@ -649,19 +649,19 @@ class CATable(UVTable):
             stndict = self.station_dic(id2name=True)
             stidict = self.station_dic(id2name=False)
             # make dictionary of stations
-            if isinstance(quadrature[0], basestring):
+            if isinstance(quadrature[0], str):
                 st1 = stidict[quadrature[0]]
             else:
                 st1 = int(quadrature[0])
-            if isinstance(quadrature[1], basestring):
+            if isinstance(quadrature[1], str):
                 st2 = stidict[quadrature[1]]
             else:
                 st2 = int(quadrature[1])
-            if isinstance(quadrature[2], basestring):
+            if isinstance(quadrature[2], str):
                 st3 = stidict[quadrature[2]]
             else:
                 st3 = int(quadrature[2])
-            if isinstance(quadrature[3], basestring):
+            if isinstance(quadrature[3], str):
                 st4 = stidict[quadrature[3]]
             else:
                 st4 = int(quadrature[3])

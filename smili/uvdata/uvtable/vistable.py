@@ -654,7 +654,7 @@ class VisTable(UVTable):
             for i in range(len(redundant)):
                 stationids = []
                 for stid in redundant[i]:
-                    if isinstance(stid,basestring):
+                    if isinstance(stid,str):
                         if stid in stdict2.keys():
                             stationids.append(stdict2[stid])
                     else:
@@ -881,7 +881,7 @@ class VisTable(UVTable):
             for i in range(len(redundant)):
                 stationids = []
                 for stid in range(len(redundant[i])):
-                    if isinstance(stid,basestring):
+                    if isinstance(stid,str):
                         stationids.append(stdict2[stid])
                     else:
                         stationids.append(stid)
@@ -1455,11 +1455,11 @@ class VisTable(UVTable):
             stndict = self.station_dic(id2name=True)
             stidict = self.station_dic(id2name=False)
             # make dictionary of stations
-            if isinstance(baseline[0], basestring):
+            if isinstance(baseline[0], str):
                 st1 = stidict[baseline[0]]
             else:
                 st1 = int(baseline[0])
-            if isinstance(baseline[1], basestring):
+            if isinstance(baseline[1], str):
                 st2 = stidict[baseline[1]]
             else:
                 st2 = int(baseline[1])
