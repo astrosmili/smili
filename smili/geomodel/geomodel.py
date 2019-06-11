@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-
-
-
 '''
 This is a submodule of smili.geomodel, containing functions to
 calculate visibilities and images of some geometric models.

@@ -1,14 +1,22 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-
-
-
 '''
-This module wrap up functions for imaging using various optimizers.
+This is a submodule to handle Fourier Tranformation between images and visibilities.
 '''
 __author__ = "Smili Developer Team"
 
+
+# ------------------------------------------------------------------------------
+# Modules
+# ------------------------------------------------------------------------------
+# numerical packages
+import numpy as np
+from pynfft.nfft import NFFT
+
+
+# ------------------------------------------------------------------------------
+# Class for the Fourier Transformation
+# ------------------------------------------------------------------------------
 class FT_Image(object):
     def __init__(self,u,v,dx,dy,Nx,Ny):
         '''
@@ -36,8 +44,9 @@ class FT_Image(object):
         Nuv = u.size
 
         # scale u, v coordinates
-        #     the negative factor is coming from the fact that the NFFT's fourier exponent sign is opposite to the radio astronomy convension.
-        #     see NFFT's documentation.
+        #   the negative factor is coming from the fact that the NFFT's Fourier
+        #   exponent sign is opposite to the radio astronomy convension.
+        #   see NFFT's documentation.
         u_nfft = u * dx * -1
         v_nfft = v * dy * -1
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 '''
 This is a submodule of smili. This module is a wrapper of C library of
 MFISTA in src/mfista

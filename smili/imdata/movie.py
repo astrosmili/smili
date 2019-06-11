@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 '''
 This is a sub-module of sparselab handling dynamical imaging.
 '''

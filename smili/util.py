@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 '''
 This is a submodule of smili. This module saves some common functions,
 variables, and data types in the smili module.

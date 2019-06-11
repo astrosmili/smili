@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-
-
-
 '''
 This module wrap up functions for imaging using various optimizers.
 '''
