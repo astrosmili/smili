@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+
 '''
 This is a sub-module of smili handling image fits data.
 '''
@@ -59,7 +59,7 @@ class IMRegion(pd.DataFrame):
         Initialize region table (empty table with column names).
         '''
 
-        if len(self.keys())==0:
+        if len(list(self.keys()))==0:
             for i in range(len(IMRegion.imreg_columns)):
                 column = IMRegion.imreg_columns[i]
                 self[column] = []
@@ -301,7 +301,7 @@ class IMRegion(pd.DataFrame):
                               'maja','mina','angle','angunit'])
 
         region = self.copy()
-        if len(region.keys())==0:
+        if len(list(region.keys()))==0:
             region.initialize()
         else:
             pass
@@ -338,7 +338,7 @@ class IMRegion(pd.DataFrame):
                               'maja','mina','angle','angunit'])
 
         region = self.copy()
-        if len(region.keys())==0:
+        if len(list(region.keys()))==0:
             region.initialize()
         else:
             pass
@@ -379,7 +379,7 @@ class IMRegion(pd.DataFrame):
                               'maja','mina','angle','angunit'])
 
         region = self.copy()
-        if len(region.keys())==0:
+        if len(list(region.keys()))==0:
             region.initialize()
         else:
             pass
@@ -841,12 +841,12 @@ def ds9reg_to_reg(ds9reg,image,angunit="mas"):
     region.initialize()
     for reg in ds9reg:
         if reg[0:3] == "box":
-            list = map(np.float64,reg[4:-1].split(","))
-            x = list[0]
-            y = list[1]
-            width = list[2]
-            height = list[3]
-            angle = list[4]
+            lists = list(map(np.float64,reg[4:-1].split(",")))
+            x = lists[0]
+            y = lists[1]
+            width = lists[2]
+            height = lists[3]
+            angle = lists[4]
             width *= (-dx)
             height *= dy
             xc = (x - nxref) * dx
@@ -856,10 +856,10 @@ def ds9reg_to_reg(ds9reg,image,angunit="mas"):
                                  angunit=angunit)
 
         if reg[0:6] == "circle":
-            list = map(np.float64,reg[7:-1].split(","))
-            x = list[0]
-            y = list[1]
-            r = list[2]
+            lists = list(map(np.float64,reg[7:-1].split(",")))
+            x = lists[0]
+            y = lists[1]
+            r = lists[2]
             radius = r * (-dx)
             xc = (x - nxref) * dx
             yc = (y - nyref) * dy
@@ -867,12 +867,12 @@ def ds9reg_to_reg(ds9reg,image,angunit="mas"):
                                           radius=radius,angunit=angunit)
 
         if reg[0:7] == "ellipse":
-            list = map(np.float64,reg[8:-1].split(","))
-            x = list[0]
-            y = list[1]
-            a = list[2]
-            b = list[3]
-            angle = list[4]-90.0
+            lists = list(map(np.float64,reg[8:-1].split(",")))
+            x = lists[0]
+            y = lists[1]
+            a = lists[2]
+            b = lists[3]
+            angle = lists[4]-90.0
             maja = a * 2.0 * dy
             mina = b * 2.0 * (-dx)
             xc = (x - nxref) * dx
