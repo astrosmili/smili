@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+
 '''
 This is a submodule of smili handling various types of Visibility data sets.
 '''
@@ -54,7 +54,7 @@ stokesDict = {
     -8: "YX"
 }
 stokesDictinv = {}
-for key in stokesDict.keys():
+for key in list(stokesDict.keys()):
     val = stokesDict[key]
     stokesDictinv[val] = key
 
@@ -112,7 +112,7 @@ class UVFITS(object):
                 subarrid = np.int64(hdulist[ihdu].header.get("EXTVER"))
                 if subarrid == -1:
                     subarrid = 1
-                if subarrid in ANtabs.keys():
+                if subarrid in list(ANtabs.keys()):
                     prt("[WARNING] There are duplicated subarrays with subarray ID=%d."%(subarrid),indent)
                     pri("          The later one will be adopted.", indent)
                 else:
@@ -120,7 +120,7 @@ class UVFITS(object):
                 ANtabs[subarrid] = hdulist[ihdu]
             if hduname == "AIPS SU":
                 suid = np.int64(hdulist[ihdu].header.get("FREQID"))
-                if suid in SUtabs.keys():
+                if suid in list(SUtabs.keys()):
                     prt("[WARNING] There are more than two SU tables for the same Frequency setup frqselid=%d."%(suid),indent)
                     prt("          The later one will be adopted.",indent)
                 else:
@@ -191,7 +191,7 @@ class UVFITS(object):
 
     def _read_arraydata(self, ANtabs):
         subarrays = {}
-        subarrids = ANtabs.keys()
+        subarrids = list(ANtabs.keys())
         for subarrid in subarrids:
             # Create Array data
             arrdata = ArrayData()
@@ -200,8 +200,8 @@ class UVFITS(object):
             ANtab = ANtabs[subarrid]
 
             # Read AN Table Header
-            ANheadkeys = ANtab.header.keys()
-            headkeys = arrdata.header.keys()
+            ANheadkeys = list(ANtab.header.keys())
+            headkeys = list(arrdata.header.keys())
             for key in ANheadkeys:
                 if key in headkeys:
                     arrdata.header[key] = ANtab.header.get(key)
@@ -279,9 +279,9 @@ class UVFITS(object):
         srcdata.sutable["qual"] = np.asarray([0], dtype=np.int64)
         srcdata.sutable["calcode"] = np.asarray([""])
         srcdata.sutable["bandwidth"] = np.asarray([ghdu.header.get("CDELT4")], dtype=np.float64)
-        if "EQUINOX" in ghdu.header.keys():
+        if "EQUINOX" in list(ghdu.header.keys()):
             equinox = ghdu.header.get("EQUINOX")
-        elif "EPOCH" in ghdu.header.keys():
+        elif "EPOCH" in list(ghdu.header.keys()):
             equinox = ghdu.header.get("EPOCH")
         else:
             equinox = 2000.0
@@ -318,7 +318,7 @@ class UVFITS(object):
     def _read_srcdata_multi(self, SUtabs):
         sources = {}
         srclist = []
-        frqselids = SUtabs.keys()
+        frqselids = list(SUtabs.keys())
         for frqselid in frqselids:
             # Create Array data
             srcdata = SourceData()
@@ -327,8 +327,8 @@ class UVFITS(object):
             SUtab = SUtabs[frqselid]
 
             # Read Header
-            SUheadkeys = SUtab.header.keys()
-            headkeys = srcdata.header.keys()
+            SUheadkeys = list(SUtab.header.keys())
+            headkeys = list(srcdata.header.keys())
             for key in SUheadkeys:
                 if key in headkeys:
                     srcdata.header[key] = SUtab.header.get(key)
@@ -687,7 +687,7 @@ class UVFITS(object):
         Generate AN Table
         '''
         hdus = []
-        subarrids = self.subarrays.keys()
+        subarrids = list(self.subarrays.keys())
         for subarrid in subarrids:
             arraydata = self.subarrays[subarrid]
             Nant = arraydata.antable["name"].shape[0]
@@ -830,7 +830,7 @@ class UVFITS(object):
         Generate SU Table
         '''
         hdus = []
-        subarrids = self.subarrays.keys()
+        subarrids = list(self.subarrays.keys())
         for subarrid in subarrids:
             arraydata = self.subarrays[subarrid]
             Nant = arraydata.antable["name"].shape[0]
@@ -907,7 +907,7 @@ class UVFITS(object):
           key of the dictionary is (subarrayid, antenna id)
         '''
         Nsubarr = len(self.subarrays)
-        subarrs = self.subarrays.keys()
+        subarrs = list(self.subarrays.keys())
         outdic = {}
         for subarr in subarrs:
             antable=self.subarrays[subarr].antable
@@ -932,14 +932,14 @@ class UVFITS(object):
         '''
         Nif = self.visdata.data.shape[3]
         Nch = self.visdata.data.shape[4]
-        subarrs = self.subarrays.keys()
+        subarrs = list(self.subarrays.keys())
         frqsels = self.fqsetup.frqsels
 
         outdic = {}
         for frqsel,subarr in itertools.product(frqsels,subarrs):
             fqtable = self.fqsetup.fqtables[frqsel]
             reffreq = self.subarrays[subarr].header["FREQ"]
-            for iif,ich in itertools.product(range(Nif),range(Nch)):
+            for iif,ich in itertools.product(list(range(Nif)),list(range(Nch))):
                 chbw = fqtable.loc[iif, "ch_bandwidth"]
                 fqof = fqtable.loc[iif, "if_freq_offset"]
                 sideband = fqtable.loc[iif, "sideband"]
@@ -971,7 +971,7 @@ class UVFITS(object):
         outdic = {}
         for frqsel in frqsels:
             fqtable = self.fqsetup.fqtables[frqsel]
-            for iif,ich in itertools.product(range(Nif),range(Nch)):
+            for iif,ich in itertools.product(list(range(Nif)),list(range(Nch))):
                 chbw = fqtable.loc[iif, "ch_bandwidth"]
                 fqof = fqtable.loc[iif, "if_freq_offset"]
                 if center:
@@ -1029,7 +1029,7 @@ class UVFITS(object):
         freqdic =self.get_freq()
 
         # calculate UVW=(u, v, w, uvdistance)
-        for i,j in itertools.product(range(Nif),range (Nch)): #0<=i<Nif, 0<=j<Nch
+        for i,j in itertools.product(list(range(Nif)),list(range(Nch))): #0<=i<Nif, 0<=j<Nch
             freq = [freqdic[subarray[k],freqsel[k],i+1,j+1] for k in range(Ndata)] # 0<=k<Ndata
             uvw[j,i,:,0] = freq[:]*usec
             uvw[j,i,:,1] = freq[:]*vsec
@@ -1073,7 +1073,7 @@ class UVFITS(object):
         del UVW
 
         # compute visibilities
-        iterator = itertools.product(range(Nif),range(Nch))
+        iterator = itertools.product(list(range(Nif)),list(range(Nch)))
         for iif, ich in tqdm.tqdm(iterator):
             print("Compute Model Visibilities for IF=%d, CH=%d"%(iif+1,ich+1))
 
@@ -1194,7 +1194,7 @@ class UVFITS(object):
         utc = np.datetime_as_string(self.visdata.coord["utc"])
 
         # Run selfcal for each subarray
-        subarrids = self.subarrays.keys()
+        subarrids = list(self.subarrays.keys())
         for subarrid in subarrids:
             print("Subarray %d"%(subarrid))
             # data index of the current subarray
@@ -1205,7 +1205,7 @@ class UVFITS(object):
 
             # get utc information
             utcset = cltable.gaintabs[subarrid]["utc"]
-            for itime,iif,ich,istokes in tqdm.tqdm(itertools.product(range(Ntime),range(Nif),range(Nch),range(Nstokes))):
+            for itime,iif,ich,istokes in tqdm.tqdm(itertools.product(list(range(Ntime)),list(range(Nif)),list(range(Nch)),list(range(Nstokes)))):
                 # data index of the current time
                 idx_utc = utc == utcset[itime]
                 idx_utc &= idx_subarr
@@ -1281,7 +1281,7 @@ class UVFITS(object):
     def apply_cltable(self,cltable):
 
         #def get_vis_correction(self,imfits,cltable):
-        subarrids = self.subarrays.keys()
+        subarrids = list(self.subarrays.keys())
 
         # make uvfits for corrected visibility
         outfits = copy.deepcopy(self)
@@ -1313,7 +1313,7 @@ class UVFITS(object):
             gain = cltable.gaintabs[subarrid]["gain"]
             antset = outfits.subarrays[subarrid].antable.id.values
 
-            for itime, istokes, iant in itertools.product(range(Ntime),range(Nstokes),range(Nant)):
+            for itime, istokes, iant in itertools.product(list(range(Ntime)),list(range(Nstokes)),list(range(Nant))):
                 # data index of the current time and antenna
                 idx = set(tuple(utcgroup.groups[utcset[itime]]))
 
@@ -1383,13 +1383,13 @@ class UVFITS(object):
         print("(2/5) Check Number of Baselines")
         # pick up combinations
         select = outfits.visdata.coord.drop_duplicates(subset=["subarray","ant1","ant2","source","freqsel"])
-        combset = zip(
+        combset = list(zip(
             select.subarray.values,
             select.ant1.values,
             select.ant2.values,
             select.source.values,
             select.freqsel.values
-        )
+        ))
         stlst = np.asarray(select.index.tolist(), dtype=np.int32)+1
         edlst = np.asarray(select.index.tolist()+[Ndata], dtype=np.int32)[1:]
         Nidx = len(stlst)
@@ -1502,7 +1502,7 @@ class UVFITS(object):
                 outfits.fqsetup.fqtables[frqsel] = newtable
 
         # update antenna Tables
-        for arrid in outfits.subarrays.keys():
+        for arrid in list(outfits.subarrays.keys()):
             outfits.subarrays[arrid].avspc(dofreq=dofreq)
 
         return outfits
@@ -1924,11 +1924,11 @@ class UVFITS(object):
 
         # Create Tables
         outdata = VisTable()
-        for idec, ira, iif, ich, istokes in itertools.product(range(Ndec),
-                                                             range(Nra),
-                                                             range(Nif),
-                                                             range(Nch),
-                                                             range(Nstokes)):
+        for idec, ira, iif, ich, istokes in itertools.product(list(range(Ndec)),
+                                                             list(range(Nra)),
+                                                             list(range(Nif)),
+                                                             list(range(Nch)),
+                                                             list(range(Nstokes))):
             tmpdata = VisTable()
 
             # Time

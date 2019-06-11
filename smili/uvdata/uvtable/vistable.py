@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+
+
+
+
 '''
 This module describes uv data table for full complex visibilities.
 '''
@@ -223,11 +223,11 @@ class VisTable(UVTable):
         st1table = self.drop_duplicates(subset='st1')
         st2table = self.drop_duplicates(subset='st2')
         if id2name:
-            outdict = dict(zip(st1table.st1.values, st1table.st1name.values))
-            outdict.update(dict(zip(st2table.st2.values, st2table.st2name.values)))
+            outdict = dict(list(zip(st1table.st1.values, st1table.st1name.values)))
+            outdict.update(dict(list(zip(st2table.st2.values, st2table.st2name.values))))
         else:
-            outdict = dict(zip(st1table.st1name.values,st1table.st1.values))
-            outdict.update(dict(zip(st2table.st2name.values,st2table.st2.values)))
+            outdict = dict(list(zip(st1table.st1name.values,st1table.st1.values)))
+            outdict.update(dict(list(zip(st2table.st2name.values,st2table.st2.values))))
         return outdict
 
     def baseline_list(self, id=False):
@@ -237,10 +237,10 @@ class VisTable(UVTable):
         '''
         if id:
             table = self.drop_duplicates(subset=['st1','st2'])
-            return zip(table.st1.values,table.st2.values)
+            return list(zip(table.st1.values,table.st2.values))
         else:
             table = self.drop_duplicates(subset=['st1name','st2name'])
-            return zip(table.st1name.values,table.st2name.values)
+            return list(zip(table.st1name.values,table.st2name.values))
 
     def comp(self):
         '''
@@ -372,7 +372,7 @@ class VisTable(UVTable):
                 Iin.append(np.float64(im.data[istokes, ifreq]))
                 image = movie.images[0]
         else:
-            print("[Error] imfits=%s is not IMFITS nor MOVIE object" % (imfits))
+            print(("[Error] imfits=%s is not IMFITS nor MOVIE object" % (imfits)))
             return -1
 
         Nx = image.header["nx"]
@@ -655,7 +655,7 @@ class VisTable(UVTable):
                 stationids = []
                 for stid in redundant[i]:
                     if isinstance(stid,str):
-                        if stid in stdict2.keys():
+                        if stid in list(stdict2.keys()):
                             stationids.append(stdict2[stid])
                     else:
                         stationids.append(stid)
@@ -668,7 +668,7 @@ class VisTable(UVTable):
 
         print("(2/5) Tagging data")
         vistable["tag"] = np.zeros(Ndata, dtype=np.int64)
-        for idata in tqdm.tqdm(range(1,Ndata)):
+        for idata in tqdm.tqdm(list(range(1,Ndata))):
             flag = vistable.loc[idata, "utc"] == vistable.loc[idata-1, "utc"]
             flag&= vistable.loc[idata, "stokesid"] == vistable.loc[idata-1, "stokesid"]
             flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
@@ -677,7 +677,7 @@ class VisTable(UVTable):
             else:
                 vistable.loc[idata,"tag"] = vistable.loc[idata-1,"tag"]+1
         Ntag = vistable["tag"].max() + 1
-        print("  Number of Tags: %d"%(Ntag))
+        print(("  Number of Tags: %d"%(Ntag)))
 
         print("(3/5) Checking Baseline Combinations")
         blsets = [] # baseline coverages
@@ -686,7 +686,7 @@ class VisTable(UVTable):
         blsetid=0
         bltype = np.zeros(Ntag, dtype=np.int64) # this is an array storing an ID
                                                 # number of cl sets corresponding timetag.
-        for itag in tqdm.tqdm(range(Ntag)):
+        for itag in tqdm.tqdm(list(range(Ntag))):
             tmptab = vistable.loc[vistable["tag"]==itag, :].reset_index(drop=True)
 
             # Check number of baselines
@@ -724,7 +724,7 @@ class VisTable(UVTable):
             rank = 0
             cblset = []
             cstset = []
-            for stid1, stid2, stid3 in itertools.combinations(range(Nst), 3):
+            for stid1, stid2, stid3 in itertools.combinations(list(range(Nst)), 3):
                 Ncomb=0
 
                 # Stations
@@ -762,7 +762,7 @@ class VisTable(UVTable):
             cblsets.append(cblset) # combination to make closure amplitudes
             cstsets.append(cstset) # combination to make closure amplitudes
             bltype[itag] = len(cblsets) - 1
-        print("  Detect %d combinations for Closure Phases"%(len(cblsets)))
+        print(("  Detect %d combinations for Closure Phases"%(len(cblsets))))
 
         print("(4/5) Forming Closure Phases")
         keys = "utc,gsthour,freq,stokesid,ifid,chid,ch,"
@@ -774,7 +774,7 @@ class VisTable(UVTable):
         outtab = {}
         for key in keys:
             outtab[key]=[]
-        for itag in tqdm.tqdm(range(Ntag)):
+        for itag in tqdm.tqdm(list(range(Ntag))):
             # Check ID number for Baseline combinations
             blsetid = bltype[itag]
             if blsetid == -1:
@@ -894,7 +894,7 @@ class VisTable(UVTable):
 
         print("(2/5) Tagging data")
         vistable["tag"] = np.zeros(Ndata, dtype=np.int64)
-        for idata in tqdm.tqdm(range(1,Ndata)):
+        for idata in tqdm.tqdm(list(range(1,Ndata))):
             flag = vistable.loc[idata, "utc"] == vistable.loc[idata-1, "utc"]
             flag&= vistable.loc[idata, "stokesid"] == vistable.loc[idata-1, "stokesid"]
             flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
@@ -903,7 +903,7 @@ class VisTable(UVTable):
             else:
                 vistable.loc[idata,"tag"] = vistable.loc[idata-1,"tag"]+1
         Ntag = vistable["tag"].max() + 1
-        print("  Number of Tags: %d"%(Ntag))
+        print(("  Number of Tags: %d"%(Ntag)))
 
         print("(3/5) Checking Baseline Combinations")
         blsets = [] # baseline coverages
@@ -912,7 +912,7 @@ class VisTable(UVTable):
         blsetid=0
         bltype = np.zeros(Ntag, dtype=np.int64) # this is an array storing an ID
                                                 # number of cl sets corresponding timetag.
-        for itag in tqdm.tqdm(range(Ntag)):
+        for itag in tqdm.tqdm(list(range(Ntag))):
             tmptab = vistable.loc[vistable["tag"]==itag, :].reset_index(drop=True)
 
             # Check number of baselines
@@ -950,7 +950,7 @@ class VisTable(UVTable):
             rank = 0
             cblset = []
             cstset = []
-            for stid1, stid2, stid3, stid4 in itertools.combinations(range(Nst), 4):
+            for stid1, stid2, stid3, stid4 in itertools.combinations(list(range(Nst)), 4):
                 Ncomb=0
 
                 # Stations
@@ -1035,7 +1035,7 @@ class VisTable(UVTable):
             cblsets.append(cblset) # combination to make closure amplitudes
             cstsets.append(cstset) # combination to make closure amplitudes
             bltype[itag] = len(cblsets) - 1
-        print("  Detect %d combinations for Closure Amplitudes"%(len(cblsets)))
+        print(("  Detect %d combinations for Closure Amplitudes"%(len(cblsets))))
 
         print("(4/5) Forming Closure Amplitudes")
         keys = "utc,gsthour,freq,stokesid,ifid,chid,ch,"
@@ -1047,7 +1047,7 @@ class VisTable(UVTable):
         outtab = {}
         for key in keys:
             outtab[key]=[]
-        for itag in tqdm.tqdm(range(Ntag)):
+        for itag in tqdm.tqdm(list(range(Ntag))):
             # Check ID number for Baseline combinations
             blsetid = bltype[itag]
             if blsetid == -1:
@@ -1789,7 +1789,7 @@ class VisTable(UVTable):
         else:
             print("use uniform weighting")
             if image is None:
-                raise(ValueError, "you need to input an image to compute weights with uniform weighting.")
+                raise ValueError
             uvweight[:] = 1./self.uvdensity(image=image, npix=npix)
             uvweight[:] /= uvweight.max()
 

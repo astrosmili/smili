@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+
 '''
 This is a sub-module of smili handling image fits data.
 '''
@@ -143,7 +143,7 @@ class IMFITS(object):
         self.angunit = angunit
 
         # get keys of Args
-        argkeys = args.keys()
+        argkeys = list(args.keys())
 
         # Set header and data
         self.init_header()
@@ -171,7 +171,7 @@ class IMFITS(object):
 
         # read header from Args
         for argkey in argkeys:
-            headerkeys = self.header.keys()
+            headerkeys = list(self.header.keys())
             if argkey in headerkeys:
                 self.header[argkey] = self.header_dtype[argkey](args[argkey])
 
@@ -1524,7 +1524,7 @@ class IMFITS(object):
         coord[0, :] = y.reshape(Nx1 * Ny1)
         coord[1, :] = x.reshape(Nx1 * Ny1)
 
-        for idxs, idxf in itertools.product(range(self.header["ns"]),range(self.header["nf"])):
+        for idxs, idxf in itertools.product(list(range(self.header["ns"])),list(range(self.header["nf"]))):
             outfits.data[idxs, idxf] = sn.map_coordinates(
                 fitsdata.data[idxs, idxf], coord, order=order,
                 mode='constant', cval=0.0, prefilter=True).reshape([Ny1, Nx1]
@@ -1596,7 +1596,7 @@ class IMFITS(object):
 
         # Convolusion (except:gauss is zero array)
         if np.any(gauss != 0):
-            for idxs, idxf in itertools.product(range(outfits.header["ns"]),range(outfits.header["nf"])):
+            for idxs, idxf in itertools.product(list(range(outfits.header["ns"])),list(range(outfits.header["nf"]))):
                 orgimage = outfits.data[idxs, idxf]
                 newimage = convolve_fft(orgimage, gauss, normalize_kernel=True)
                 outfits.data[idxs, idxf] = newimage
@@ -1701,7 +1701,7 @@ class IMFITS(object):
         #sina = np.sin(radangle)
         Nx = outfits.header["nx"]
         Ny = outfits.header["ny"]
-        for istokes, ifreq in itertools.product(range(self.header["ns"]),range(self.header["nf"])):
+        for istokes, ifreq in itertools.product(list(range(self.header["ns"])),list(range(self.header["nf"]))):
             image = outfits.data[istokes, ifreq]
             # rotate data
             newimage = sn.rotate(image, degangle)

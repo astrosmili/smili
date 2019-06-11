@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+
+
+
+
 '''
 This module describes UVTable/UVseries object, which is a basis class of
 table data sets in this library
@@ -101,7 +101,7 @@ class UVTable(pd.DataFrame):
         elif unit1.lower().find("km") == 0:
             conv = 1/(ac.c.si.value / self["freq"] / 1e3)
         else:
-            print("Error: unit1=%s is not supported" % (unit1))
+            print(("Error: unit1=%s is not supported" % (unit1)))
             return -1
 
         # Convert from lambda to unit2
@@ -118,7 +118,7 @@ class UVTable(pd.DataFrame):
         elif unit2.lower().find("km") == 0:
             conv *= ac.c.si.value / self["freq"] / 1e3
         else:
-            print("Error: unit2=%s is not supported" % (unit2))
+            print(("Error: unit2=%s is not supported" % (unit2)))
             return -1
 
         return conv
@@ -152,7 +152,7 @@ class UVTable(pd.DataFrame):
         elif uvunit.lower().find("km") == 0:
             unitlabel = "km"
         else:
-            print("Error: uvunit=%s is not supported" % (unit2))
+            print(("Error: uvunit=%s is not supported" % (unit2)))
             return -1
         return unitlabel
 

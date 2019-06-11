@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+
 '''
 This is a submodule of smili. This module saves some common functions,
 variables, and data types in the smili module.

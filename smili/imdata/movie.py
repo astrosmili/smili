@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+
 '''
 This is a sub-module of sparselab handling dynamical imaging.
 '''
@@ -405,7 +405,7 @@ class MOVIE(object):
         utcbound = utc[:-1]+dutc/2
 
         print("Split uvfits objects to each time frame.")
-        for ifrm in tqdm(range(self.Nt)):
+        for ifrm in tqdm(list(range(self.Nt))):
             # list of uvframe components and iuvfits in a frame
             uvfits_framelist=[]
             uvfits_idlist=[]
@@ -448,7 +448,7 @@ class MOVIE(object):
 
         cltable_list_list = []
         print("Start selfcal")
-        for it in tqdm(range(self.Nt)):
+        for it in tqdm(list(range(self.Nt))):
             if uvfits_framelist_list[it] is None:
                 cltable_list_list.append(None)
                 continue
@@ -629,7 +629,7 @@ def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
     uvfits_con_list = [None for iuvfits in range(Nuvfits)]
 
     print("concatenate uvfits files")
-    for it in tqdm(range(Nt)):
+    for it in tqdm(list(range(Nt))):
         uvfits_idlist = uvfits_idlist_list[it]
         uvfits_framelist = uvfits_framelist_list[it]
 
@@ -657,7 +657,7 @@ def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
         uvfits_con_list.remove(None)
 
     print("sort uvfits files")
-    for iuvfits in tqdm(range(len(uvfits_con_list))):
+    for iuvfits in tqdm(list(range(len(uvfits_con_list)))):
         uvfits_con_list[iuvfits].visdata.sort()
 
     return uvfits_con_list
@@ -675,7 +675,7 @@ def apply_cltable(uvfits_framelist_list,uvfits_idlist_list,cltable_list_list):
 
     uvfitscal_framelist_list=[]
 
-    for it in tqdm(range(Nt)):
+    for it in tqdm(list(range(Nt))):
         if uvfits_framelist_list[it] is None:
             uvfitscal_framelist_list.append(None)
             continue

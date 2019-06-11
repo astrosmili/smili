@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, print_function
+
 '''
 This is a submodule of smili. This module is a wrapper of C library of
 MFISTA in src/mfista

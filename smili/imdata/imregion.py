@@ -247,7 +247,7 @@ class IMRegion(pd.DataFrame):
             f.close()
         else:
             if os.path.isfile(regfile):
-                print("Error: %s already exists. New region file is not produced.\n" % regfile)
+                print(("Error: %s already exists. New region file is not produced.\n" % regfile))
                 pass
             else:
                 f = open(regfile, "a+")
@@ -567,7 +567,7 @@ class IMRegion(pd.DataFrame):
                 angle = row["angle"]
                 tmparea = region_ellipse(X,Y,x0,y0,radius1,radius2,angle)
             else:
-                print("[WARNING] The shape %s is not available." % (row["shape"]))
+                print(("[WARNING] The shape %s is not available." % (row["shape"])))
             area += tmparea
 
         editimage = copy.deepcopy(image)
@@ -617,7 +617,7 @@ class IMRegion(pd.DataFrame):
                 angle = row["angle"]
                 tmparea = region_ellipse(X,Y,x0,y0,radius1,radius2,angle)
             else:
-                print("[WARNING] The shape %s is not available." % (row["shape"]))
+                print(("[WARNING] The shape %s is not available." % (row["shape"])))
             area += tmparea
 
         maskimage = copy.deepcopy(image)
@@ -801,7 +801,7 @@ def reg_to_ds9reg(row,image):
     dy = image.header["dy"]*angconv
     if not round(-dx,9) == round(dy,9):
         print("Warning: image |dx| is not equal to |dy|.")
-        print("|dx| = %f, |dy| = %f" % (round(-dx,9),round(dy,9)))
+        print(("|dx| = %f, |dy| = %f" % (round(-dx,9),round(dy,9))))
     else:
         pass
     x = row["xc"]/dx + nxref
@@ -832,7 +832,7 @@ def ds9reg_to_reg(ds9reg,image,angunit="mas"):
     dy = image.header["dy"]*angconv
     if not round(-dx,9) == round(dy,9):
         print("Warning: image |dx| is not equal to |dy|.")
-        print("|dx| = %f, |dy| = %f" % (round(-dx,9),round(dy,9)))
+        print(("|dx| = %f, |dy| = %f" % (round(-dx,9),round(dy,9))))
     else:
         pass
 

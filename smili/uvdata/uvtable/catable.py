@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+
+
+
+
 '''
 This module describes uv data table for closure amplitudes.
 '''
@@ -103,15 +103,15 @@ class CATable(UVTable):
         st3table = self.drop_duplicates(subset='st3')
         st4table = self.drop_duplicates(subset='st4')
         if id2name:
-            outdict = dict(zip(st1table.st1.values, st1table.st1name.values))
-            outdict.update(dict(zip(st2table.st2.values, st2table.st2name.values)))
-            outdict.update(dict(zip(st3table.st3.values, st3table.st3name.values)))
-            outdict.update(dict(zip(st4table.st4.values, st4table.st4name.values)))
+            outdict = dict(list(zip(st1table.st1.values, st1table.st1name.values)))
+            outdict.update(dict(list(zip(st2table.st2.values, st2table.st2name.values))))
+            outdict.update(dict(list(zip(st3table.st3.values, st3table.st3name.values))))
+            outdict.update(dict(list(zip(st4table.st4.values, st4table.st4name.values))))
         else:
-            outdict = dict(zip(st1table.st1name.values,st1table.st1.values))
-            outdict.update(dict(zip(st2table.st2name.values,st2table.st2.values)))
-            outdict.update(dict(zip(st3table.st3name.values,st3table.st3.values)))
-            outdict.update(dict(zip(st4table.st4name.values,st4table.st4.values)))
+            outdict = dict(list(zip(st1table.st1name.values,st1table.st1.values)))
+            outdict.update(dict(list(zip(st2table.st2name.values,st2table.st2.values))))
+            outdict.update(dict(list(zip(st3table.st3name.values,st3table.st3.values))))
+            outdict.update(dict(list(zip(st4table.st4name.values,st4table.st4.values))))
         return outdict
 
     def quadrature_list(self, id=False):
@@ -121,10 +121,10 @@ class CATable(UVTable):
         '''
         if id:
             table = self.drop_duplicates(subset=['st1','st2','st3','st4'])
-            return zip(table.st1.values,table.st2.values,table.st3.values,table.st4.values)
+            return list(zip(table.st1.values,table.st2.values,table.st3.values,table.st4.values))
         else:
             table = self.drop_duplicates(subset=['st1name','st2name','st3name','st4name'])
-            return zip(table.st1name.values,table.st2name.values,table.st3name.values,table.st4name.values)
+            return list(zip(table.st1name.values,table.st2name.values,table.st3name.values,table.st4name.values))
 
     def snr(self):
         '''
@@ -216,7 +216,7 @@ class CATable(UVTable):
                 Iin.append(np.float64(im.data[istokes, ifreq]))
                 image = movie.images[0]
         else:
-            print("[Error] imfits=%s is not IMFITS nor MOVIE object" % (imfits))
+            print(("[Error] imfits=%s is not IMFITS nor MOVIE object" % (imfits)))
             return -1
 
         Nx = image.header["nx"]
@@ -498,7 +498,7 @@ class CATable(UVTable):
             uvdist = self["uvdistmax"] * conv
             head = "Maximum"
         else:
-            print("[Error] uvdtype=%s is not available." % (uvdtype))
+            print(("[Error] uvdtype=%s is not available." % (uvdtype)))
             return -1
 
         # Label

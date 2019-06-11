@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+
+
+
+
 '''
 This module describes gain calibration table for full complex visibilities.
 '''
@@ -45,7 +45,7 @@ class CLTable(object):
         self.gaintabs = {} #空dictionaryの作成
 
         # make gain table for each subarray
-        subarrids = uvfits.subarrays.keys()
+        subarrids = list(uvfits.subarrays.keys())
         for subarrid in subarrids:
             # make empty dictionary
             self.gaintabs[subarrid] = {}
@@ -85,7 +85,7 @@ class CLTable(object):
         out = copy.deepcopy(self)
 
         # make gain table for each subarray
-        subarrids = self.gaintabs.keys()
+        subarrids = list(self.gaintabs.keys())
         for subarrid in subarrids:
             # get gain amplitude
             greal = self.gaintabs[subarrid]["gain"][:,:,:,:,:,0]
@@ -105,7 +105,7 @@ class CLTable(object):
         out = copy.deepcopy(self)
 
         # make gain table for each subarray
-        subarrids = self.gaintabs.keys()
+        subarrids = list(self.gaintabs.keys())
         for subarrid in subarrids:
             # get gain amplitude
             greal = self.gaintabs[subarrid]["gain"][:,:,:,:,:,0]
@@ -125,19 +125,19 @@ class CLTable(object):
         out = pd.DataFrame()
 
         # make gain table for each subarray
-        subarrids = self.gaintabs.keys()
+        subarrids = list(self.gaintabs.keys())
         for subarrid in subarrids:
 
             # get the number of data along each dimension
             Ntime,Nif,Nch,Nstokes,Nant,Ncomp = self.gaintabs[subarrid]["gain"].shape
-            for iif,ich,istokes in itertools.product(range(Nif),range(Nch),range(Nstokes)):
+            for iif,ich,istokes in itertools.product(list(range(Nif)),list(range(Nch)),list(range(Nstokes))):
 
                 # get complex gain
                 greal = self.gaintabs[subarrid]["gain"][:,iif,ich,istokes,:,0]
                 gimag = self.gaintabs[subarrid]["gain"][:,iif,ich,istokes,:,1]
                 gain = greal + 1j*gimag
                 gain = pd.DataFrame(gain)
-                gain.columns = range(1,Nant+1,1)
+                gain.columns = list(range(1,Nant+1,1))
 
                 # get the number of time stamps
                 Ndata = len(self.gaintabs[subarrid]["utc"])
@@ -163,7 +163,7 @@ class CLTable(object):
         out = copy.deepcopy(self)
 
         # make gain table for each subarray
-        subarrids = self.gaintabs.keys()
+        subarrids = list(self.gaintabs.keys())
         for subarrid in subarrids:
             # get mean amplitude
             greal = self.gaintabs[subarrid]["gain"][:,:,:,:,:,0]
@@ -216,7 +216,7 @@ class CLTable(object):
         stnameall = np.asarray([])
 
         # Antenna Name for Each Subarray
-        subarrids = self.gaintabs.keys()
+        subarrids = list(self.gaintabs.keys())
         for subarrid in subarrids:
             table = plttable[plttable["subarray"]==subarrid]
             namedic = uvfits.get_ant()
@@ -230,7 +230,7 @@ class CLTable(object):
             stnameall = np.r_[stnameall,stname]
             stnameall = np.asarray(sorted(set(stnameall)))
 
-            table = table.rename(columns=dict(zip(st, stname)))
+            table = table.rename(columns=dict(list(zip(st, stname))))
             gaintable = pd.concat([gaintable,table],ignore_index=True)
             gaintable = gaintable.fillna(0)
 
