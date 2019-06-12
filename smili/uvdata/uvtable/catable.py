@@ -1081,7 +1081,7 @@ class CATable(UVTable):
                 pdf.savefig()
                 plt.close()
 
-            del single, model, residual, normresid
+            del single, model, resid, normresid
 
         matplotlib.rcdefaults()
 
