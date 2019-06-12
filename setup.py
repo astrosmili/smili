@@ -13,7 +13,7 @@ if path.isfile(path.join(here, "smili/libmfista.so")):
 
 setup(
     name="smili",
-    version = "0.0.0",
+    version = "0.0.1",
     description = "SMILI: Sparse Modeling Imaging library for Interferometry",
     long_description = long_description,
     url = "https://smili.github.io/smili",
