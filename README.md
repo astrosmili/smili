@@ -3,7 +3,7 @@
 SMILI is a python-interfaced library for interferometric imaging using sparse sampling techniques and other regularization methods. SMILI is mainly designed for very long baseline interferometry, and has been under the active development primarily for the [Event Horizon Telescope (EHT)](https://eventhorizontelescope.org).
 
 ## Documentation and Contact
-Here is [the SMILI documentation](https://astrosmili.github.io/smili). Since SMILI has yet been actively and dynamically developed for many new topics and challenges of the EHT, the documentation is not perfect and sometimes outdated due to dynamical changes in the data structure.
+Here is [the SMILI documentation](https://smili.readthedocs.io/en/latest/). Since SMILI has yet been actively and dynamically developed for many new topics and challenges of the EHT, the documentation is not perfect and sometimes outdated due to dynamical changes in the data structure.
 
 Please contact with Kazu Akiyama at NRAO / MIT Haystack Observatory if you have any questions about this library. You may contact with following other core developers, too.
 - [Kazu Akiyama](http://kazuakiyama.github.io) at NRAO / MIT Haystack Observatory, the Main Developer
@@ -12,7 +12,8 @@ Please contact with Kazu Akiyama at NRAO / MIT Haystack Observatory if you have 
 - Kotaro Moriyama at National Astronomical Observatory of Japan
 
 ## How to install this library?
-Please have a look at [the installation guide](https://astrosmili.github.io/smili/_static/install.html).
+Please have a look at the installation guide of [the SMILI documentation](https://smili.readthedocs.io/en/latest/)
+for the corresponding version of SMILI.
 
 ## What's the reference for this software?
 We are now preparing a software paper (Akiyama et al. in prep.) describing the latest snapshot of some new functions after Kuramochi et al. 2018. Until this paper will come out, please cite the following two papers for SMILI.
