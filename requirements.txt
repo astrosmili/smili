@@ -1,3 +1,16 @@
 sphinx>=1.4
 ipykernel
 nbsphinx
+future
+numpy
+scipy
+matplotlib
+pandas
+xarray
+scikit-image
+astropy
+tqdm
+sympy
+theano
+pymc3
+pyds9
