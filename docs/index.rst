@@ -29,10 +29,11 @@ Table of Contents
   :maxdepth: 1
   :numbered:
 
-  _static/install
-  _examples/index
-  _static/license
-  _static/references
-  _autodoc/smili
-  _static/link
-  _static/acknowledgement
+  install
+  examples
+  license
+  references
+  smili
+  link
+  acknowledgement
+  autodoc/smili
