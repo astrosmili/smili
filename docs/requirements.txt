@@ -12,5 +12,4 @@ astropy
 tqdm
 sympy
 theano
-pymc3
 pyds9
