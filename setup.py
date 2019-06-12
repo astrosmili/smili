@@ -24,6 +24,6 @@ setup(
     packages = find_packages(exclude=["doc*", "test*"]),
     package_data={'smili': ['*.so','imaging/*.so']},
     install_requires = [
-        "future","numpy","scipy","matplotlib","pandas","xarray",
-        "scikit-image","astropy","tqdm","sympy","theano","pymc3","pyds9"]
+        "future","numpy","scipy","matplotlib","pandas",
+        "scikit-image","astropy","tqdm","theano","pyds9"]
 )

@@ -19,6 +19,7 @@ formats: []
 # Optionally set the version of Python and requirements required to build your docs
 python:
   version: 2.7
-  setup_py_install: true
   install:
+    - method: setuptools
+      path: setup.py
     - requirements: docs/requirements.txt
