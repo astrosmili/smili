@@ -38,7 +38,13 @@ from .gvistable import GVisTable, GVisSeries
 from .catable   import CATable, CASeries
 from .bstable   import BSTable, BSSeries
 from .tools import get_uvlist, get_uvlist_loop
-from ... import imdata, fortlib,util
+from ... import imdata, util
+
+try:
+    from ... import fortlib
+except:
+    print("Warning: fortlib was not imported. Please check if it was complied at your installation")
+
 
 # ------------------------------------------------------------------------------
 # Classes

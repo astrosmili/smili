@@ -29,10 +29,17 @@ import astropy.io.fits as pf
 import matplotlib.pyplot as plt
 
 # internal
-from ... import imdata, fortlib
+from ... import imdata
 from ...util import prt
 from ..uvtable import VisTable
 from ..cltable import CLTable
+
+try:
+    from ... import fortlib
+except:
+    print("Warning: fortlib was not imported. Please check if it was complied at your installation")
+
+
 
 indent = "  "
 

@@ -31,8 +31,13 @@ from matplotlib.ticker import NullFormatter
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # internal modules
-from .. import util, imdata, fortlib, uvdata
+from .. import util, imdata, uvdata
 tools = uvdata.uvtable.tools
+
+try:
+    from .. import fortlib
+except:
+    print("Warning: fortlib was not imported. Please check if it was complied at your installation")
 
 #-------------------------------------------------------------------------
 # Default Parameters

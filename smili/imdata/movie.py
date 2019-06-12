@@ -37,8 +37,14 @@ import matplotlib.animation as manimation
 # for lightcurve
 import itertools
 # internal
-from .. import fortlib, util
+from .. import util
 from . import imdata
+
+try:
+    from .. import fortlib
+except:
+    print("Warning: fortlib was not imported. Please check if it was complied at your installation")
+
 #-------------------------------------------------------------------------
 # IMAGEFITS (Manupulating FITS FILES)
 #-------------------------------------------------------------------------

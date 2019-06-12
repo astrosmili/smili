@@ -29,7 +29,13 @@ import astropy.time as at
 # internal
 from .uvtable import UVTable, UVSeries
 from .tools import get_uvlist,get_uvlist_loop
-from ... import fortlib,util,imdata
+from ... import util,imdata
+
+try:
+    from ... import fortlib
+except:
+    print("Warning: fortlib was not imported. Please check if it was complied at your installation")
+
 
 # ------------------------------------------------------------------------------
 # Classes

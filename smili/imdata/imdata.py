@@ -34,8 +34,14 @@ import matplotlib.colors as mcolors
 import itertools
 
 # internal
-from .. import fortlib, util
+from .. import util
 from . import imregion as imr
+
+try:
+    from .. import fortlib
+except:
+    print("Warning: fortlib was not imported. Please check if it was complied at your installation")
+
 
 #-------------------------------------------------------------------------
 # IMAGEFITS (Manupulating FITS FILES)
