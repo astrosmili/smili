@@ -26,13 +26,14 @@ other core developers, too.
 Table of Contents
 =================
 .. toctree::
-  :maxdepth: 1
-  :numbered:
+   :maxdepth: 1
+   :numbered:
+   :glob:
 
-  _static/install
-  _examples/index
-  _static/license
-  _static/references
-  _static/link
-  _static/acknowledgement
-  _autodoc/smili
+   install
+   examples
+   license
+   references
+   link
+   acknowledgement
+   autodoc/smili
