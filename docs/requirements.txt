@@ -2,3 +2,11 @@ sphinx>=1.4
 ipykernel
 nbsphinx
 future
+numpy
+scipy
+matplotlib
+pandas
+astropy
+theano
+astropy
+pyds9

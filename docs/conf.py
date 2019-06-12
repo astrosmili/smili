@@ -18,7 +18,8 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../'))
+sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../smili'))
 
 # -- General configuration ------------------------------------------------
 
@@ -353,8 +354,8 @@ texinfo_documents = [
 #
 # texinfo_no_detailmenu = False
 
-autodoc_mock_imports = [
-    'numpy', 'scipy', 'matplotlib', 'pandas', 'astropy', 'theano', 'pyds9',
-    'astropy'
-]
+#autodoc_mock_imports = [
+#    'numpy', 'scipy', 'matplotlib', 'pandas', 'astropy', 'theano', 'pyds9',
+#    'astropy'
+#]
 # and so on...
