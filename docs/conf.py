@@ -354,5 +354,6 @@ autodoc_mock_imports = [
     'matplotlib',
     'scipy',
     'pyds9',
-    'astropy'
+    'astropy',
+    'fortlib'
 ]
