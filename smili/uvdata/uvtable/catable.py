@@ -184,7 +184,7 @@ class CATable(UVTable):
         return residtable
 
     def chisq_image(self, imfits, mask=None, istokes=0, ifreq=0):
-        # calcurate chisqared and reduced chisqred.
+        # calculate chisqared and reduced chisqred.
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,
                                     istokes=istokes, ifreq=ifreq)
@@ -235,7 +235,7 @@ class CATable(UVTable):
 
         # apply the imaging area
         if mask is None:
-            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
+            print("Imaging Window: Not Specified. We calculate the image on all the pixels.")
 
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
@@ -248,7 +248,7 @@ class CATable(UVTable):
             xidx = xidx.reshape(Nyx)
             yidx = yidx.reshape(Nyx)
         else:
-            print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
+            print("Imaging Window: Specified. Images will be calculated on specified pixels.")
             idx = np.where(mask)
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin[idx]
@@ -968,6 +968,13 @@ class CATable(UVTable):
         # tplot==========================
         quadratures= self.quadrature_list()
         Nqad = len(quadratures)
+        stconcat    = []
+        chiconcat   = []
+        rchiconcat  = []
+        tchiconcat   = []
+        Ndataconcat = []
+        tNdata = len(self["logamp"])
+
         for iqad in range(Nqad):
             st1 = quadratures[iqad][0]
             st2 = quadratures[iqad][1]
@@ -985,6 +992,14 @@ class CATable(UVTable):
             model        = single.eval_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
             resid        = single.residual_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
+            Ndata       = len(single)
+
+            Ndataconcat.append(Ndata)
+            stconcat.append(st1+"-"+st2+"-"+st3+"-"+st4)
+            chiconcat.append(chisq)
+            rchiconcat.append(rchisq)
+            tchiconcat.append(chisq/tNdata)
+
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
             plt.suptitle(st1+"-"+st2+"-"+st3+"-"+st4+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
@@ -1066,38 +1081,12 @@ class CATable(UVTable):
                 pdf.savefig()
                 plt.close()
 
+            del single, model, residual, normresid
+
         matplotlib.rcdefaults()
 
-        # residual of quadratures==========
-        stconcat    = []
-        chiconcat   = []
-        rchiconcat  = []
-        tchiconcat   = []
-        Ndataconcat = []
-        quadratures= self.quadrature_list()
-        Nqad = len(quadratures)
-        tNdata = len(self["logamp"])
-        for iqad in range(Nqad):
-            st1 = quadratures[iqad][0]
-            st2 = quadratures[iqad][1]
-            st3 = quadratures[iqad][2]
-            st4 = quadratures[iqad][3]
 
-            frmid =  self["st1name"] == st1
-            frmid &= self["st2name"] == st2
-            frmid &= self["st3name"] == st3
-            frmid &= self["st4name"] == st4
-            idx = np.where(frmid == True)
-            single = self.loc[idx[0], :]
-            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
-            Ndata       = len(single)
-            Ndataconcat.append(Ndata)
-            stconcat.append(st1+"-"+st2+"-"+st3+"-"+st4)
-            chiconcat.append(chisq)
-            rchiconcat.append(rchisq)
-            tchiconcat.append(chisq/tNdata)
-
-        # plot residual of triangles
+        # plot residual of quadratures
         util.matplotlibrc(ncols=1, nrows=3, width=900, height=500)
         fig, axs = plt.subplots(nrows=3, ncols=1, sharex=False)
         plt.subplots_adjust(hspace=0.4)

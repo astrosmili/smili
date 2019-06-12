@@ -336,7 +336,7 @@ class VisTable(UVTable):
         return residtable
 
     def chisq_image(self, imfits, mask=None, amptable=False, istokes=0, ifreq=0):
-        # calcurate chisqared and reduced chisqred.
+        # calculate chisqared and reduced chisqred.
         if(isinstance(imfits,imdata.IMFITS) or isinstance(imfits,imdata.MOVIE)):
             model = self._call_fftlib(imfits=imfits,mask=mask,amptable=amptable,
                                     istokes=istokes, ifreq=ifreq)
@@ -391,7 +391,7 @@ class VisTable(UVTable):
 
         # apply the imaging area
         if mask is None:
-            print("Imaging Window: Not Specified. We calcurate the image on all the pixels.")
+            print("Imaging Window: Not Specified. We calculate the image on all the pixels.")
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin.reshape(Nyx)
             else:
@@ -403,7 +403,7 @@ class VisTable(UVTable):
             xidx = xidx.reshape(Nyx)
             yidx = yidx.reshape(Nyx)
         else:
-            print("Imaging Window: Specified. Images will be calcurated on specified pixels.")
+            print("Imaging Window: Specified. Images will be calculated on specified pixels.")
             idx = np.where(mask)
             if(isinstance(imfits,imdata.IMFITS)):
                 Iin = Iin[idx]
@@ -2215,9 +2215,19 @@ class VisTable(UVTable):
             plt.close()
 
         matplotlib.rcdefaults()
-        # tplot==========================
-        baselines= self.baseline_list()
+
+        # tplot and residual of baselines
+        baselines= list(self.baseline_list())
         Nbsl = len(baselines)
+        stconcat = []
+        chiconcat = []
+        rchiconcat = []
+        tchiconcat = []
+        Ndataconcat = []
+        baselines= self.baseline_list()
+        Nqua = len(baselines)
+        tNdata = len(self["amp"])
+
         for ibsl in range(Nbsl):
             st1 = baselines[ibsl][0]
             st2 = baselines[ibsl][1]
@@ -2227,10 +2237,20 @@ class VisTable(UVTable):
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
 
+            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
+
             nullfmt = NullFormatter()
             model        = single.eval_image(imfits=outimage,mask=None)
             resid        = single.residual_image(imfits=outimage,mask=None)
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
+
+            Ndata = len(single)
+            Ndataconcat.append(Ndata)
+            stconcat.append(st1+"-"+st2)
+            chiconcat.append(chisq)
+            rchiconcat.append(rchisq)
+            tchiconcat.append(chisq/tNdata)
+
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
             plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
@@ -2330,32 +2350,10 @@ class VisTable(UVTable):
                 pdf.savefig()
                 plt.close()
 
+            del single, model, resid, normresid_real, normresid_imag
+
         matplotlib.rcdefaults()
 
-        # residual of baselines==========
-        stconcat = []
-        chiconcat = []
-        rchiconcat = []
-        tchiconcat = []
-        Ndataconcat = []
-        baselines= self.baseline_list()
-        Nqua = len(baselines)
-        tNdata = len(self["amp"])
-        for iqua in range(Nqua):
-            st1 = baselines[iqua][0]
-            st2 = baselines[iqua][1]
-
-            frmid =  self["st1name"] == st1
-            frmid &= self["st2name"] == st2
-            idx = np.where(frmid == True)
-            single = self.loc[idx[0], :]
-            chisq,rchisq = single.chisq_image(imfits=outimage,mask=None)
-            Ndata = len(single)
-            Ndataconcat.append(Ndata)
-            stconcat.append(st1+"-"+st2)
-            chiconcat.append(chisq)
-            rchiconcat.append(rchisq)
-            tchiconcat.append(chisq/tNdata)
 
         # plot residual of baselines
         util.matplotlibrc(ncols=1, nrows=3, width=700, height=400)
@@ -2411,7 +2409,7 @@ class VisTable(UVTable):
         table["rchisq_total"] = tchiconcat
         table.to_csv(filename+".csv")
 
-
+        del table
 
     def plot_model_amp(self, outimage, filename=None, plotargs={'ms': 1., }):
         '''
@@ -2538,10 +2536,19 @@ class VisTable(UVTable):
             pdf.savefig()
             plt.close()
 
-        # tplot==========================
+        # tplot  and residual of each baseline
         baselines= self.baseline_list()
         Nbsl = len(baselines)
+        stconcat = []
+        chiconcat = []
+        rchiconcat = []
+        tchiconcat = []
+        Ndataconcat = []
+        tNdata = len(self["amp"])
+
         for ibsl in range(Nbsl):
+
+
             st1 = baselines[ibsl][0]
             st2 = baselines[ibsl][1]
 
@@ -2554,6 +2561,14 @@ class VisTable(UVTable):
             model        = single.eval_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
             resid        = single.residual_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
             chisq,rchisq = single.chisq_image(imfits=outimage,mask=None,amptable=True,istokes=0,ifreq=0)
+
+            Ndata = len(single)
+            Ndataconcat.append(Ndata)
+            stconcat.append(st1+"-"+st2)
+            chiconcat.append(chisq)
+            rchiconcat.append(rchisq)
+            tchiconcat.append(chisq/tNdata)
+
             util.matplotlibrc(ncols=2, nrows=2, width=500, height=300)
             fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False)
             plt.suptitle(st1+"-"+st2+": "+r"$\chi ^2$"+"=%04f"%(chisq)+", "+r"$\chi ^2 _{\nu}$"+"=%04f"%(rchisq) ,fontsize=18)
@@ -2633,56 +2648,16 @@ class VisTable(UVTable):
             plt.ylim(ymin,ymax+(ymax-ymin)*0.2)
             plt.locator_params(axis='y',nbins=6)
 
-
-
             matplotlib.rcdefaults()
             if filename is not None:
                 pdf.savefig()
                 plt.close()
 
+            del single, model, resid, normresid
+
         matplotlib.rcdefaults()
 
-        # residual of baselines==========
-        stconcat = []
-        chiconcat = []
-        rchiconcat = []
-        tchiconcat = []
-        Ndataconcat = []
-        baselines= self.baseline_list()
-        Nqua = len(baselines)
-        tNdata = len(self["amp"])
-        for iqua in range(Nqua):
-            st1 = baselines[iqua][0]
-            st2 = baselines[iqua][1]
-
-            frmid =  self["st1name"] == st1
-            frmid &= self["st2name"] == st2
-            idx = np.where(frmid == True)
-            single = self.loc[idx[0], :]
-            chisq,rchisq = single.chisq_image(imfits=outimage,amptable=True,mask=None)
-            Ndata = len(single)
-            Ndataconcat.append(Ndata)
-            stconcat.append(st1+"-"+st2)
-            chiconcat.append(chisq)
-            rchiconcat.append(rchisq)
-            tchiconcat.append(chisq/tNdata)
-
-        stconcat.insert("total")
-        Ndataconcat.insert(np.sum(Ndataconcat))
-        chiconcat.insert(np.sum(chiconcat))
-        rchiconcat.insert(np.sum(rchiconcat))
-        tchiconcat.insert(np.sum(tchiconcat))
-
-        # make csv table
-        table = pd.DataFrame()
-        table["baseline"] = stconcat
-        table["Ndata"] = np.zeros(Ntri+1)
-        table["chisq"] = chiconcat
-        table["rchisq_bl"] = rchiconcat
-        table["rchisq_total"] = tchiconcat
-        table.to_csv(filename+".csv")
-
-        # plot residual of triangles
+        # plot residual of baselines
         util.matplotlibrc(ncols=1, nrows=3, width=700, height=400)
         fig, axs = plt.subplots(nrows=3, ncols=1, sharex=False)
         plt.subplots_adjust(hspace=0.55)
@@ -2722,20 +2697,22 @@ class VisTable(UVTable):
 
         matplotlib.rcdefaults()
 
-        # make csv table
+
         stconcat.insert(0,"total")
         Ndataconcat.insert(0,np.sum(Ndataconcat))
         chiconcat.insert(0,np.sum(chiconcat))
         rchiconcat.insert(0,np.sum(rchiconcat))
         tchiconcat.insert(0,np.sum(tchiconcat))
+
+        # make csv table
         table = pd.DataFrame()
         table["baseline"] = stconcat
-        table["Ndata"] = Ndataconcat
+        table["Ndata"] = np.zeros(Nbsl+1)
         table["chisq"] = chiconcat
         table["rchisq_bl"] = rchiconcat
         table["rchisq_total"] = tchiconcat
         table.to_csv(filename+".csv")
-
+        del table
 
 
 class VisSeries(UVSeries):
