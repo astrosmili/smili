@@ -6,10 +6,5 @@ numpy
 scipy
 matplotlib
 pandas
-xarray
-scikit-image
 astropy
 tqdm
-sympy
-theano
-pyds9
