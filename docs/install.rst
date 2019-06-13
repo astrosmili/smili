@@ -18,7 +18,7 @@ This installation path has been tested for
 
 Python Environments and Packages
 ================================
-**SMILI has been transferred to Python 3 after verion 1.0 after version 1.0**.
+**SMILI has been transferred to Python 3 after verion 0.1.0**.
 This version has been tested and developed in `pyenv`_. In particular, we use
 Python 3.7 environments provided by the `Anaconda`_ package.
 We recommend using pyenv not to affect any system-related python environments.
