@@ -245,7 +245,7 @@ macOS.
 
     # OpenMP with GCC on OSX needs following...
     OMPFLAGS = -fopenmp
-    OMPLIBS = -lomp
+    OMPLIBS = -lgomp
     # since fftw3_omp doesn't work in OSX, you need to uncomment this
     #FFTWOMPSUFFIX=threads
 
