@@ -2,39 +2,112 @@
 Installation
 ============
 
-Requirements
+Introduction
 ===============
 
-SMILI consists of python modules and Fortran/C internal libraries called from python modules.
-Here, we summarize required python packages and external packages for SMILI.
+SMILI consists of python interfaces and Fortran/C internal libraries called from
+python interfaces. Here, we summarize required python packages and external packages
+for SMILI.
+
+This installation path has been tested for
+
+- macOS 10.12/10.13/10.14 with MacPort's GCC 8
+- macOS 10.14 with homebrew's gcc
+- Ubuntu 2016LTS & 2018LTS.
+
+
+Python Environments and Packages
+================================
+**SMILI has been transferred to Python 3 after verion 1.0 after version 1.0**.
+This version has been tested and developed in `pyenv`_. In particular, we use
+Python 3.7 environments provided by the `Anaconda`_ package.
+We recommend using pyenv not to affect any system-related python environments.
+
+.. _pyenv: https://github.com/pyenv/pyenv
+
+.. _Anaconda: https://www.continuum.io/anaconda-overview
+
+All of mandatory python packages will be automatically installed during installation.
+There are some optional packages that may be used for SMILI.
+
+ - ehtim: https://github.com/achael/eht-imaging
+ - ehtplot: https://github.com/chanchikwan/ehtplot
+
+
+Preparation
+===========================================================
+
+
+1) Ubuntu 2016LTS / 2018LTS users
+
+  .. code-block:: Bash
+
+    # Ubuntu users
+    sudo apt-get install build-essential pkg-config git
+
+2) macOS: MacPorts Users
+
+  .. code-block:: Bash
+
+    # macOS: MacPorts users
+    sudo port install gcc8 pkgconfig
+
+    # check the installed gcc
+    port select --list gcc
+
+    # select installed gcc as your default compilers
+    sudo port select --set gcc mp-gcc8
+
+    # please make sure that you can use them.
+    #   If you can't, please make sure that your MacPorts bin directory
+    #   (in default, /opt/local/bin) is set before /usr/bin in $PATH
+    #   by typing "echo $PATH"
+    ls -l `which gcc`
+    ls -l `which g++`
+    ls -l `which gfortran`
+
+3) macOS: Homebrew Users
+
+  .. code-block:: Bash
+
+    # macOS: homebrew
+    brew install pkg-config
+    brew install gcc
+    brew install libomp
+
+    # your homebrew PREFIX directory
+    HBPREFIX="your homebrew PREFIX; in default /usr/local"
+
+    # here I assume that you have installed gcc9
+    #   This usually works very good to pick up all of commands installed with gcc9
+    \ls $HBPREFIX/bin/*g*-9
+
+    #   if the above commands work OK, you can create symbolic links
+    #   of commands without "-9"
+    FILES=`\ls $HBPREFIX/bin/*g*-9`
+    for FILE in $FILES; do ln -s $FILE ${FILE/-9/}; done
+
+    # check if your symbolic links work OK with which command
+    # if everything works OK, you will see that everything is in
+    # the $HBPREFIX/bin directory.
+    which gcc g++ gfortran
+
+    # If it doesn't, please make sure that your homebrew's bin directory
+    # (in default, /usr/local/bin) is set before /usr/bin in $PATH
+    # by typing "echo $PATH"
+
+External Libraries
+===========================================================
+Fortran/C internal libraries of SMILI use following external libraries.
 
 You will also need `ds9`_ for some functions such as setting imaging regions
 (CLEAN box) interatively.
 
 .. _ds9: http://ds9.si.edu/site/Home.html
 
-Python Packages and Modules
-===========================
-SMILI has been tested and developed in Python 2.7 environments provided
-by the `Anaconda`_ package. We recommend using Anaconda for SMILI.
-
-.. _Anaconda: https://www.continuum.io/anaconda-overview
-
-All of mandatory packages will be automatically installed during installation.
-There are some optional packages that can be used for SMILI.
-
- - ehtim: https://github.com/achael/eht-imaging
- - ehtplot: https://github.com/chanchikwan/ehtplot
-
-External Libraries (For MacPort users, Ubuntu/Debian users)
-===========================================================
-
-Fortran/C internal libraries of SMILI use following external libraries.
-This path has been tested for
-
-- Mac OS X 10.012/10.13 with MacPort's gcc 8
-- Ubuntu 2016LTS & 2018LTS.
-
+Please make sure that you have **pkg-config** and gcc in your system.
+You can install them from your OS's package system for LINUX and MacPortsfor
+macOS.
 
 1) OpenBLAS
   We use OpenBLAS, which is the fastest library among publicly-available BLAS implementations.
@@ -51,11 +124,12 @@ This path has been tested for
     git clone https://github.com/xianyi/OpenBLAS
 
     # Compile and install
+    #   macOS MacPorts users may not use USE_OPENMP=1 option, and need to omit it.
     cd OpenBLAS
-    make USE_OPENMP=1
-    make PREFIX="Your install directory; such as /usr/local or $HOME/local" install
+    make USE_OPENMP=1 CC=gcc FC=gfortran
+    make PREFIX="Your prefix, e.g. $HOME/local" install
 
-  Note that for MacOSX, USE_OPENMP=1 option does not work and should be omitted.
+  Note that for macOS MacPorts, USE_OPENMP=1 option does not work and should be omitted.
   You may need superuser to install OpenBLAS (i.e. to run the last command).
 
   SMILI uses **pkg-config** to find appropriate compiler flags for OpenBLAS.
@@ -72,17 +146,9 @@ This path has been tested for
 
   .. code-block:: Bash
 
-    export PKG_CONFIG_PATH="Your prefix for OpenBLAS such as /usr/local"/lib/pkgconfig:$PKG_CONFIG_PATH
+    export PKG_CONFIG_PATH="Your prefix, e.g. $HOME/local"/lib/pkgconfig:$PKG_CONFIG_PATH
 
   Then you can check by ``pkg-config --debug openblas'' if the path is correct.
-
-  Some Other Tips:
-    If you are using Ubuntu, RedHat and its variant, the default OpenBLAS package,
-    which is installable with `apt-get/aptitude` or `yum`, seems compiled **without**
-    this option (USE_OPENMP=1), so we recommend compiling OpenBLAS by yourself.
-
-    If you are using macOS, unfortunately, this option is not available so far.
-    You may use a package available in a popular package system (e.g. MacPort, Fink, Homebrew).
 
 2) FFTW3
   We use FFTW3, which is one of the fastest library among publicly-available FFT library.
@@ -94,13 +160,13 @@ This path has been tested for
 
   .. code-block:: Bash
 
-    # Download the library (in case of version 3.3.7)
-    wget http://www.fftw.org/fftw-3.3.7.tar.gz # you should check the latest version
-    tar xzvf fftw-3.3.7.tar.gz
-    cd fftw-3.3.7
+    # Download the library (in case of version 3.3.X)
+    wget http://www.fftw.org/fftw-3.3.X.tar.gz # you should check the latest version
+    tar xzvf fftw-3.3.X.tar.gz
+    cd fftw-3.3.X
 
     # Compile and install
-    ./configure --prefix="install directory; such as /usr/local, $HOME/local" --enable-openmp --enable-threads --enable-shared
+    ./configure --prefix="Your prefix, e.g. $HOME/local" --enable-openmp --enable-threads --enable-shared
     make
     make install
 
@@ -120,64 +186,97 @@ This path has been tested for
 
   .. code-block:: Bash
 
-    export PKG_CONFIG_PATH="Your prefix such as /usr/local"/lib/pkgconfig:$PKG_CONFIG_PATH
+    export PKG_CONFIG_PATH="Your prefix, e.g. $HOME/local"/lib/pkgconfig:$PKG_CONFIG_PATH
 
   Then you can check by ``pkg-config --debug fftw3'' if the path is correct.
 
-  Some Other Tips:
-    If you are using Ubuntu, the default fftw3 package,
-    which is installable with `apt-get/aptitude` seems compiled **with**
-    the option for Openmp (--enable-openmp). So, you don't need to install it
-    by yourself.
-
-
-External Libraries (for homebrew users in MacOS)
-===========================================================
-1) pyenv and Anaconda installation: Since Anaconda conflicts with Homebrew, it should be installed via pyenv.
+3) FINUFFT
+  Flaton Institue Non-uniform fast Fourier transform library (FINUFFT) is a
+  key library of SMILI.
 
   .. code-block:: Bash
 
-    brew install pyenv
-    export PATH=$HOME/.pyenv/shims:$PATH
+    # Download the directory
+    PREFIX="Your prefix, e.g. $HOME/local"
+    cd $PREFIX
+    git clone https://github.com/flatironinstitute/finufft
+    cd finufft
 
-Then install Anaconda.
 
-  .. code-block:: Bash
+  Then, you need to create a make.inc file. This should be something like this.
+  See also https://finufft.readthedocs.io/en/latest/install.html.
 
-    pyenv install -l | grep anaconda2
-    pyenv install anaconda2-X   # select anaconda 2 version
-    pyenv global anaconda2-X
-    python --version # check versions
-
-2) OPENBLAS installation: It is mostly same to the above one, but you will need to install gcc.
 
   .. code-block:: Bash
 
-    # Clone the current repository
-    git clone https://github.com/xianyi/OpenBLAS
+    # Compilers
+    CXX=g++
+    CC=gcc
+    FC=gfortran
 
-    # Install gcc49
-    brew install gcc49
-    sudo ln -sf /usr/local/bin/gcc-4.9 /usr/bin/gcc
-    sudo ln -sf /usr/local/bin/g++-4.9 /usr/bin/g++
+    # (compile flags for use with GCC are as in linux makefile)
+    CFLAGS +=
 
-    # Install OPENBLAS
-    make USE_OPENMP=1 CC=gcc
-    make PREFIX=/usr/local install
+    # If you're getting warning messages of the form:
+    #    ld: warning: object file (lib-static/libfinufft.a(finufft1d.o)) was built for
+    #    newer OSX version (10.13) than being linked (10.9)
+    # Then you can uncomment the following two lines with the older version number
+    # (in this example -mmacosx-version-min=10.9)
+    #
+    #CFLAGS += "-mmacosx-version-min=<OLDER OSX VERSION NUMBER>"
 
-3) FFTW3 installation: No net change from the above one.
+    # if you are macOS homebrew users, uncomment this.
+    # (assuming that /usr/local is your homebrew's PREFIX)
+    #CFLAGS += -I src -I/usr/local/include
+    #LIBS += -L/usr/local/lib
+
+    # if you are macOS MacPorts users, uncomment this.
+    # (assuming that /opt/local is your MacPorts' PREFIX)
+    #CFLAGS += -I src -I/opt/local/include
+    #LIBS += -L/opt/local/lib
+
+    # Your FFTW3's installation PREFIX
+    CFLAGS += -I$HOME/local/include
+    LIBS += -L$HOME/local/lib
+
+    # You can keep them
+    FFLAGS   = $(CFLAGS)
+    CXXFLAGS = $(CFLAGS) -DNEED_EXTERN_C
+
+    # OpenMP with GCC on OSX needs following...
+    OMPFLAGS = -fopenmp
+    OMPLIBS = -lomp
+    # since fftw3_omp doesn't work in OSX, you need to uncomment this
+    #FFTWOMPSUFFIX=threads
+
+  Once you finished editing the make.inc file, you can compile the library.
 
   .. code-block:: Bash
 
-    # Download the source code
-    wget http://www.fftw.org/fftw-3.X.X.tar.gz
-    tar xzvf fftw-3.X.X.tar.gz
-    cd fftw-3.X.X
+    # compile the library
+    make lib
 
-    # Install
-    ./configure prefix="/usr/local" --enable-openmp --enable-threads --enable-shared
-    make
-    make install
+  In one of your PKG_CONFIG_PATH directory, please put this pkg-config file
+  **finufft.pc** like this
+
+  .. code-block:: Bash
+
+    # This is an example pkg-config file. Here is an brief instruction.
+    # (1) Please change finufftdir depending on your install directory.
+    # (2) please change its filename to finufft.sample.pc and
+    #     copy to a directory specified in $PKG_CONFIG_PATH
+    finufftdir=$(HOME)/local/finufft
+    libdir=${finufftdir}/lib-static
+    includedir=${finufftdir}/src
+
+    Name: FINUFFT
+    Description: Flatiron Institute Nonuniform Fast Fourier Transform libraries
+    Version: github
+    Libs: -L${libdir} -lfinufft
+    Cflags: -I${includedir}
+
+  Once you locate the above finufft.pc file,
+  you can check by ``pkg-config --debug finufft'' if the path is correct.
 
 Downloading SMILI
 =================
@@ -217,6 +316,10 @@ prior to type ./configure
   # Example for FFTW3
   export FFTW3_LIBS="-LYOURPREFIX/lib -lfftw3"
   export FFTW3_CFLAGS="-IYOURPREFIX/include"
+
+  # Example for FINUFFT
+  export FINUFFT_LIBS="-LYOURPREFIX/lib -lfftw3"
+  export FINUFFT_CFLAGS="-IYOURPREFIX/include"
 
 Make and compile the library.
 The internal C/Fortran Library will be compiled into python modules,
