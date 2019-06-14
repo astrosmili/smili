@@ -1660,7 +1660,7 @@ class UVFITS(object):
                 idx1 = stokesorg.index("RR")
                 idx2 = stokesorg.index("LL")
                 outfits.visdata.data = _bindstokes(
-                    self.visdata.data,
+                    self.visdata.data.copy(),
                     stokes1=idx1, stokes2=idx2,
                     factr1=0.5, factr2=0.5)
             elif ("RR" in stokesorg):  # I <- RR
@@ -2067,7 +2067,7 @@ def _bindstokes(data, stokes1, stokes2, factr1, factr2):
     select |= np.isinf(vweig)
     vweig[np.where(select)] = 0.0
 
-    outdata = data[:, :, :, :, :, stokes1, :]
+    outdata = data[:, :, :, :, :, stokes1, :].copy()
     outdata[:, :, :, :, :, 0] = np.real(vcomp)
     outdata[:, :, :, :, :, 1] = np.imag(vcomp)
     outdata[:, :, :, :, :, 2] = vweig
