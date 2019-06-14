@@ -743,24 +743,33 @@ class IMFITS(object):
         derive a conversion factor to convert the unit of the intensity
         to the one using the specified flux and solid angle units.
         '''
-        fluxconv = util.fluxconv("Jy", fluxunit)
+        if fluxunit.lower()!="k":
+            fluxconv = util.fluxconv("Jy", fluxunit)
 
-        if saunit.lower() == "beam":
-            saconv = util.saconv(
-                x1=self.header["dx"],
-                y1=self.header["dy"],
-                angunit1="deg",
-                satype1="pixel",
-                x2=self.header["bmaj"],
-                y2=self.header["bmin"],
-                angunit2="deg",
-                satype2="beam",
-            )
-        elif saunit.lower() == "pixel":
-            saconv = 1
+            if saunit.lower() == "beam":
+                saconv = util.saconv(
+                    x1=self.header["dx"],
+                    y1=self.header["dy"],
+                    angunit1="deg",
+                    satype1="pixel",
+                    x2=self.header["bmaj"],
+                    y2=self.header["bmin"],
+                    angunit2="deg",
+                    satype2="beam",
+                )
+            elif saunit.lower() == "pixel":
+                saconv = 1
+            else:
+                saconv = util.angconv("deg",saunit) ** 2
+            return fluxconv * saconv
         else:
-            saconv = util.angconv("deg",saunit) ** 2
-        return fluxconv * saconv
+            import astropy.constants as ac
+            deg2rad = util.angconv("deg", "rad")
+            nu = self.header["f"]
+            dx = np.abs(self.header["dx"] * deg2rad)
+            dy = np.abs(self.header["dy"] * deg2rad)
+            jy2k = ac.c.si.value ** 2 / (2 * ac.k_B.si.value * nu **2) / dx / dy * 1e-26
+            return jy2k
 
     def get_imarray(self,fluxunit="Jy",saunit="pixel"):
         '''
@@ -1033,6 +1042,8 @@ class IMFITS(object):
             fluxunit="jy",
             saunit="pixel",
             restore=False,
+            axisoff=False,
+            axislabel=True,
             colorbar=False,
             colorbarprm={},
             istokes=0, ifreq=0,
@@ -1057,13 +1068,20 @@ class IMFITS(object):
             If logscale=True, dyrange will be used to set vmin.
           relative (boolean, default=True):
             If True, vmin will be the relative value to the peak or vmax.
+          fluxunit (string):
+            Unit for the flux desity (Jy, mJy, uJy, K, si, cgs)
           saunit (string):
             Angular Unit for the solid angle (pixel, uas, mas, asec or arcsec,
             amin or arcmin, degree, beam). If restore is True, saunit will be
             forced to be "beam".
-          restore (boolean, default=True):
+          restore (boolean, default=False):
             If True, the image will be blurred by a Gaussian specified with
             beam parameters in the header.
+          axisoff (boolean, default=False):
+            If True, plotting without any axis label, ticks, and lines.
+            This option is superior to the axislabel option.
+          axislabel (boolean, default=True):
+            If True, plotting the axislabel.
           colorbar (boolean, default=False):
             If True, the colorbar will be shown.
           colorbarprm (dic, default={}):
@@ -1077,6 +1095,9 @@ class IMFITS(object):
         # Get Image Axis
         angunit = self.angunit
         imextent = self.get_imextent(angunit)
+
+        if fluxunit.lower()=="k":
+            saunit="pixel"
 
         if restore:
             saunit="beam"
@@ -1130,10 +1151,16 @@ class IMFITS(object):
         )
 
         # Axis Label
-        angunitlabel = self.get_angunitlabel(angunit)
-        plt.xlabel("Relative RA (%s)" % (angunitlabel))
-        plt.ylabel("Relative Dec (%s)" % (angunitlabel))
+        if axislabel:
+            angunitlabel = self.get_angunitlabel(angunit)
+            plt.xlabel("Relative RA (%s)" % (angunitlabel))
+            plt.ylabel("Relative Dec (%s)" % (angunitlabel))
 
+        # Axis off
+        if axisoff:
+            plt.axis("off")
+
+        # colorbar
         if colorbar:
             clb = self.colorbar(fluxunit=fluxunit, saunit=saunit, **colorbarprm)
             return im,clb
@@ -1198,9 +1225,12 @@ class IMFITS(object):
         add colorbar
         '''
         clb = plt.colorbar(**colorbarprm)
-        fluxunitlabel = self.get_fluxunitlabel(fluxunit)
-        saunitlabel = self.get_saunitlabel(saunit)
-        clb.set_label("Intensity (%s %s)"%(fluxunitlabel, saunitlabel))
+        if fluxunit.lower()=="k":
+            clb.set_label("Brightness Temperature (K)")
+        else:
+            fluxunitlabel = self.get_fluxunitlabel(fluxunit)
+            saunitlabel = self.get_saunitlabel(saunit)
+            clb.set_label("Intensity (%s %s)"%(fluxunitlabel, saunitlabel))
         return clb
 
     def contour(self, cmul=None, relative=True,
