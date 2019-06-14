@@ -337,6 +337,15 @@ class IMFITS(object):
         self.header["bmin"] = minsize * angconv * scale
         self.header["bpa"] = pa
 
+    def set_frequency(self, freq):
+        '''
+        Set the reference frequency into headers.
+
+        Args:
+            freq (float, default=0): the reference frequency in Hz.
+        '''
+        self.header["f"] = freq
+
     # Read data from an image fits file
     def read_fits_standard(self, imfits):
         '''
@@ -1219,6 +1228,34 @@ class IMFITS(object):
         plt.fill(xe, ye, fc=beamfc, alpha=alpha , zorder=zorder)
         plt.plot(xe, ye, lw, color=beamec, zorder=zorder)
         plt.plot(xb, yb, lw, color=boxec, zorder=zorder)
+
+    def plot_scalebar(self,x,y,length,ha="center",color="white",lw=1,**plotargs):
+        '''
+        Plot a scale bar
+
+        Args:
+            x,y (in the unit of the current plot):
+                x,y coordinates of the scalebar
+            length (in the unit of the current plot):
+                length of the scale bar
+            ha (str, default="center"):
+                The horizontal alignment of the bar.
+                Available options is ["center", "left", "right"]
+            plotars:
+                Arbital arguments for pyplot.plot.
+        '''
+        if ha.lower()=="center":
+            xmin = x-np.abs(length)/2
+            xmax = x+np.abs(length)/2
+        elif ha.lower()=="left":
+            xmin = x - np.abs(length)
+            xmax = x
+        elif ha.lower()=="right":
+            xmin = x
+            xmax = x + np.abs(length)
+        else:
+            raise ValueError("ha must be center, left or right")
+        plt.plot([xmax,xmin],[y,y],color=color,lw=lw,**plotargs)
 
     def colorbar(self, fluxunit="Jy", saunit="pixel", **colorbarprm):
         '''
