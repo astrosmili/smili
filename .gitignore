@@ -17,3 +17,4 @@ aclocal.m4
 autom4te.cache/*
 docs/_examples/*/.ipynb_checkpoints/*
 *.mod
+docs/_build/*
