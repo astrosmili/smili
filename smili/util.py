@@ -26,6 +26,24 @@ def matplotlibrc(nrows=1,ncols=1,width=250,height=250):
     }
     matplotlib.rcParams.update(params)
 
+def reset_matplotlibrc():
+    import matplotlib
+    matplotlib.rcdefaults()
+
+def set_ompnumthreads(numthreads, variable="OMP_NUM_THREADS"):
+    '''
+    Set the number of threads for Open MP
+
+    Args:
+        numthreads (integer, required):
+            The number of threads
+        variable (str, default:"OMP_NUM_THREADS"):
+            The variable name of the number of threads for Open MP.
+    '''
+    import os
+    print("export %s=%d"%(variable,numthreads))
+    os.environ[%s] = '%d'%(numthreads)
+
 def fluxconv(unit1="Jy", unit2="Jy"):
     '''
     convert flux units.

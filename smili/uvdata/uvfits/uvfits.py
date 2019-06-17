@@ -1654,7 +1654,7 @@ class UVFITS(object):
             if ("I" in stokesorg):  # I <- I
                 print("Stokes I data will be copied from the input data")
                 idx = stokesorg.index("I")
-                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
             elif ("RR" in stokesorg) and ("LL" in stokesorg):  # I <- (RR + LL)/2
                 print("Stokes I data will be calculated from input RR and LL data")
                 idx1 = stokesorg.index("RR")
@@ -1666,11 +1666,11 @@ class UVFITS(object):
             elif ("RR" in stokesorg):  # I <- RR
                 print("Stokes I data will be copied from input RR data")
                 idx = stokesorg.index("RR")
-                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
             elif ("LL" in stokesorg):  # I <- LL
                 print("Stokes I data will be copied from input LL data")
                 idx = stokesorg.index("LL")
-                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
             elif ("XX" in stokesorg) and ("YY" in stokesorg):  # I <- (XX + YY)/2
                 print("Stokes I data will be calculated from input XX and YY data")
                 idx1 = stokesorg.index("XX")
@@ -1682,11 +1682,11 @@ class UVFITS(object):
             elif ("XX" in stokesorg):  # I <- XX
                 print("Stokes I data will be copied from input XX data")
                 idx = stokesorg.index("XX")
-                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
             elif ("YY" in stokesorg):  # I <- YY
                 print("Stokes I data will be copied from input YY data")
                 idx = stokesorg.index("YY")
-                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
@@ -1695,7 +1695,7 @@ class UVFITS(object):
             if ("Q" in stokesorg):  # Q <- Q
                 print("Stokes Q data will be copied from the input data")
                 idx = stokesorg.index("Q")
-                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
             elif ("RL" in stokesorg) and ("LR" in stokesorg):  # Q <- (RL + LR)/2
                 print("Stokes Q data will be calculated from input RL and LR data")
                 idx1 = stokesorg.index("RL")
@@ -1720,7 +1720,7 @@ class UVFITS(object):
             if ("U" in stokesorg):  # U <- U
                 print("Stokes U data will be copied from the input data")
                 idx = stokesorg.index("U")
-                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
             elif ("RL" in stokesorg) and ("LR" in stokesorg):  # U <- (RL - LR)/2i = (- RL + LR)i/2
                 print("Stokes U data will be calculated from input RL and LR data")
                 idx1 = stokesorg.index("RL")
@@ -1745,7 +1745,7 @@ class UVFITS(object):
             if ("V" in stokesorg):  # V <- V
                 print("Stokes V data will be copied from the input data")
                 idx = stokesorg.index("V")
-                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
             elif ("RR" in stokesorg) and ("LL" in stokesorg):  # V <- (RR - LL)/2
                 print("Stokes V data will be calculated from input RR and LL data")
                 idx1 = stokesorg.index("RR")
@@ -1770,7 +1770,7 @@ class UVFITS(object):
             if ("RR" in stokesorg):
                 print("Stokes RR data will be copied from the input data")
                 idx = stokesorg.index("RR")
-                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
@@ -1779,7 +1779,7 @@ class UVFITS(object):
             if ("LL" in stokesorg):
                 print("Stokes LL data will be copied from the input data")
                 idx = stokesorg.index("LL")
-                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
@@ -1788,7 +1788,7 @@ class UVFITS(object):
             if ("RL" in stokesorg):
                 print("Stokes RL data will be copied from the input data")
                 idx = stokesorg.index("RL")
-                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
@@ -1797,7 +1797,7 @@ class UVFITS(object):
             if ("LR" in stokesorg):
                 print("Stokes LR data will be copied from the input data")
                 idx = stokesorg.index("LR")
-                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :]
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
@@ -2116,6 +2116,7 @@ class VisibilityData(object):
         self.coord.reset_index(drop=True, inplace=True)
         prt("VisData.sort: Data have been sorted by %s"%(", ".join(by)),indent)
 
+
 class FrequencyData(object):
     def __init__(self):
         # Frequency Setup Number
@@ -2202,6 +2203,7 @@ class ArrayData(object):
         lines.append(prt(self.antable["id,name,x,y,z,mnttype".split(",")],indent*2,output=True))
         return "\n".join(lines)
 
+
 class SourceData(object):
     def __init__(self):
         # Frequency Setup Number
@@ -2238,6 +2240,7 @@ class SourceData(object):
         lines.append(prt(self.sutable["id,source,radec,equinox".split(",")],indent*2,output=True))
         return "\n".join(lines)
 
+
 def _selfcal_error_func(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
     g1 = np.asarray([gain[ant1[i]]+1j*gain[Nant+ant1[i]] for i in range(Ndata)])
     g2 = np.asarray([gain[ant2[i]]-1j*gain[Nant+ant2[i]] for i in range(Ndata)])
@@ -2245,6 +2248,7 @@ def _selfcal_error_func(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
     Pamp = [(np.sqrt(gain[i]**2+gain[i+Nant]**2)-1)/std_amp for i in range(Nant)]
     Ppha = [np.arctan2(gain[i+Nant],gain[i])/std_pha for i in range(Nant)]
     return np.hstack([np.real(dV),np.imag(dV),Pamp,Ppha])
+
 
 def _selfcal_error_dfunc(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
     ddV = np.zeros([Ndata*2+Nant*2,Nant*2])
@@ -2276,6 +2280,7 @@ def _selfcal_error_dfunc(gain,ant1,ant2,w,X,std_amp,std_pha,Nant,Ndata):
         ddV[i+Nant+Ndata*2, i]      = gain[i]/ampsq
         ddV[i+Nant+Ndata*2, i+Nant] =-gain[i+Nant]/ampsq
     return ddV
+
 
 def _eval_image_eachfreq(u, v, image):
     # make a loop for Nif, Nch
