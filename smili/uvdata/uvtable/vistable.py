@@ -1327,7 +1327,7 @@ class VisTable(UVTable):
             plotargs2 = copy.deepcopy(plotargs)
             plotargs2["label"] = ""
             plt.plot(-self["u"] * conv, -self["v"] * conv,
-                     ls=ls, marker=marker, **plotargs)
+                     ls=ls, marker=marker, **plotargs2)
         plt.xlabel(r"Baseline Length $u$ (%s)" % (unitlabel))
         plt.ylabel(r"Baseline Length $v$ (%s)" % (unitlabel))
 
