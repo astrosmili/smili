@@ -42,7 +42,7 @@ def set_ompnumthreads(numthreads, variable="OMP_NUM_THREADS"):
     '''
     import os
     print("export %s=%d"%(variable,numthreads))
-    os.environ[%s] = '%d'%(numthreads)
+    os.environ[variable] = '%d'%(numthreads)
 
 def fluxconv(unit1="Jy", unit2="Jy"):
     '''
