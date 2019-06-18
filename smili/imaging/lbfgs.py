@@ -372,18 +372,7 @@ def imaging(
         cen_l = -1
         cen_alpha = 1
     else:
-        print("  Initialize the Centroid Regularization")
-        if cen_prior is None:
-            cen_priorarr = copy.deepcopy(Iin)
-        else:
-            if imregion is None:
-                cen_priorarr = cen_prior.data[0,0].reshape(Nyx)
-            else:
-                cen_priorarr = cen_prior.data[0,0][winidx]
-        cen_l = fortlib.image.init_cenreg(
-            cen_l_in=np.float64(cen_lambda),
-            cen_prior=np.float64(cen_priorarr),
-            cen_alpha=np.float64(cen_alpha))
+        cen_l = cen_lambda
 
     dammyreal = np.float64(np.asarray([0.]))
 

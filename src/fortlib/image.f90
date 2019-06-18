@@ -3,7 +3,7 @@ module image
   use param, only : dp, dpc, pi, e, i_dpc, deps
   implicit none
   ! Epsiron for Zero judgement
-  real(dp), parameter :: zeroeps = 1d-10
+  real(dp), parameter :: zeroeps = epsilon(1d0)
 contains
 !-------------------------------------------------------------------------------
 ! Calc cost function
@@ -742,34 +742,6 @@ end subroutine
 !-------------------------------------------------------------------------------
 ! Centoroid regularization
 !-------------------------------------------------------------------------------
-subroutine init_cenreg(cen_l_in, cen_prior, cen_alpha, cen_l, N1d)
-  implicit none
-  !
-  integer,intent(in)   :: N1d            ! the number of the pixel in the image
-  real(dp),intent(in)  :: cen_l_in        ! input Lambda value for this regularization
-  real(dp),intent(in)  :: cen_prior(N1d) ! Prior Image
-  real(dp),intent(in)  :: cen_alpha       ! power
-  real(dp),intent(out) :: cen_l           ! Normalized Lambda
-
-  integer :: ipix
-  real(dp) :: Ip, sumI
-
-  ! taking the sum of the intensity
-  sumI = 0
-  do ipix=1,N1d
-    if (abs(cen_alpha-1)<zeroeps) then
-      Ip = smabs(cen_prior(ipix))
-    else
-      Ip = smabs(cen_prior(ipix))**cen_alpha
-    end if
-    sumI = sumI + Ip
-  end do
-
-  ! normalize lambda with the total intensity
-  cen_l = cen_l_in / (zeroeps + sumI)
-end subroutine
-
-
 subroutine calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,alpha,cost,gradcost,N1d)
   implicit none
   !
@@ -782,18 +754,19 @@ subroutine calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,alpha,cost,gradcost,N1d)
   real(dp),intent(out) :: gradcost(1:N1d)
   !
   real(dp) :: dix, diy, Ip, gradIp
-  real(dp) :: sumx, sumy
+  real(dp) :: sumx, sumy, sumIp
 
   integer :: ipix
 
   ! initialize
-  sumx = 0d0
-  sumy = 0d0
+  sumx  = 0d0
+  sumy  = 0d0
+  sumIp = zeroeps
 
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,N1d) &
   !$OMP   PRIVATE(ipix, dix, diy, Ip) &
-  !$OMP   REDUCTION(+: sumx, sumy)
+  !$OMP   REDUCTION(+: sumx, sumy, sumIp)
   do ipix=1, N1d
     ! pixel from the reference pixel
     dix = xidx(ipix) - Nxref
@@ -807,16 +780,20 @@ subroutine calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,alpha,cost,gradcost,N1d)
     end if
 
     ! calculate sum
-    sumx = sumx + Ip * dix
-    sumy = sumy + Ip * diy
+    sumx = sumx  + Ip * dix
+    sumy = sumy  + Ip * diy
+    sumIp= sumIp + Ip
   end do
   !$OMP END PARALLEL DO
 
   ! cost function
-  cost = sqrt(sumx**2+sumy**2+zeroeps)
+  sumx = sumx / sumIp                  ! x coordinate of the com
+  sumy = sumy / sumIp                  ! y coordinate of the com
+  cost = sqrt(sumx**2+sumy**2+zeroeps) ! com offset from the refernece pixel
+
   ! calculate gradient of cost function
   !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,N1d,sumx,sumy,cost) &
+  !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,N1d,sumx,sumy,sumIp,cost) &
   !$OMP   PRIVATE(ipix,dix,diy,gradIp) &
   !$OMP   REDUCTION(+:gradcost)
   do ipix=1, N1d
@@ -824,18 +801,113 @@ subroutine calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,alpha,cost,gradcost,N1d)
     dix = xidx(ipix) - Nxref
     diy = yidx(ipix) - Nyref
 
-    ! gradient of sum
+    ! gradient of powered internsity
     if (abs(alpha-1)<zeroeps) then
       gradIp = smabs_diff(I1d(ipix))
     else
-      gradIp = smabs_diff(I1d(ipix)) * alpha*smabs(I1d(ipix))**(alpha-1)
+      gradIp = smabs_diff(I1d(ipix)) * alpha * smabs(I1d(ipix))**(alpha-1)
     end if
 
     ! calculate gradint of cost function
-    gradcost(ipix) = (dix*sumx+diy*sumy)/cost*gradIp
+    gradcost(ipix) = (sumx*(dix-sumx)+sumy*(diy-sumy))/sumIp/cost*gradIp
   end do
   !$OMP END PARALLEL DO
 end subroutine
+
+! subroutine init_cenreg(cen_l_in, cen_prior, cen_alpha, cen_l, N1d)
+!   implicit none
+!   !
+!   integer,intent(in)   :: N1d            ! the number of the pixel in the image
+!   real(dp),intent(in)  :: cen_l_in        ! input Lambda value for this regularization
+!   real(dp),intent(in)  :: cen_prior(N1d) ! Prior Image
+!   real(dp),intent(in)  :: cen_alpha       ! power
+!   real(dp),intent(out) :: cen_l           ! Normalized Lambda
+!
+!   integer :: ipix
+!   real(dp) :: Ip, sumI
+!
+!   ! taking the sum of the intensity
+!   sumI = 0
+!   do ipix=1,N1d
+!     if (abs(cen_alpha-1)<zeroeps) then
+!       Ip = smabs(cen_prior(ipix))
+!     else
+!       Ip = smabs(cen_prior(ipix))**cen_alpha
+!     end if
+!     sumI = sumI + Ip
+!   end do
+!
+!   ! normalize lambda with the total intensity
+!   cen_l = cen_l_in / (zeroeps + sumI)
+! end subroutine
+!
+!
+! subroutine calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,alpha,cost,gradcost,N1d)
+!   implicit none
+!   !
+!   integer, intent(in)  :: N1d
+!   real(dp),intent(in)  :: I1d(1:N1d)
+!   integer, intent(in)  :: xidx(1:N1d), yidx(1:N1d)
+!   real(dp),intent(in)  :: alpha
+!   real(dp),intent(in)  :: Nxref, Nyref
+!   real(dp),intent(out) :: cost
+!   real(dp),intent(out) :: gradcost(1:N1d)
+!   !
+!   real(dp) :: dix, diy, Ip, gradIp
+!   real(dp) :: sumx, sumy
+!
+!   integer :: ipix
+!
+!   ! initialize
+!   sumx = 0d0
+!   sumy = 0d0
+!
+!   !$OMP PARALLEL DO DEFAULT(SHARED) &
+!   !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,N1d) &
+!   !$OMP   PRIVATE(ipix, dix, diy, Ip) &
+!   !$OMP   REDUCTION(+: sumx, sumy)
+!   do ipix=1, N1d
+!     ! pixel from the reference pixel
+!     dix = xidx(ipix) - Nxref
+!     diy = yidx(ipix) - Nyref
+!
+!     ! take a alpha
+!     if (abs(alpha-1)<zeroeps) then
+!       Ip = smabs(I1d(ipix))
+!     else
+!       Ip = smabs(I1d(ipix))**alpha
+!     end if
+!
+!     ! calculate sum
+!     sumx = sumx + Ip * dix
+!     sumy = sumy + Ip * diy
+!   end do
+!   !$OMP END PARALLEL DO
+!
+!   ! cost function
+!   cost = sqrt(sumx**2+sumy**2+zeroeps)
+!   ! calculate gradient of cost function
+!   !$OMP PARALLEL DO DEFAULT(SHARED) &
+!   !$OMP   FIRSTPRIVATE(xidx,yidx,Nxref,Nyref,alpha,I1d,N1d,sumx,sumy,cost) &
+!   !$OMP   PRIVATE(ipix,dix,diy,gradIp) &
+!   !$OMP   REDUCTION(+:gradcost)
+!   do ipix=1, N1d
+!     ! pixel from the reference pixel
+!     dix = xidx(ipix) - Nxref
+!     diy = yidx(ipix) - Nyref
+!
+!     ! gradient of sum
+!     if (abs(alpha-1)<zeroeps) then
+!       gradIp = smabs_diff(I1d(ipix))
+!     else
+!       gradIp = smabs_diff(I1d(ipix)) * alpha*smabs(I1d(ipix))**(alpha-1)
+!     end if
+!
+!     ! calculate gradint of cost function
+!     gradcost(ipix) = (dix*sumx+diy*sumy)/cost*gradIp
+!   end do
+!   !$OMP END PARALLEL DO
+! end subroutine
 
 
 !-------------------------------------------------------------------------------
