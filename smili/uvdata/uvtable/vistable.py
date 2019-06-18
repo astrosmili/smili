@@ -50,6 +50,8 @@ class VisTable(UVTable):
     class like pandas.DataFrame. The class also has additional methods to edit,
     visualize and convert data.
     '''
+    debiased=False
+
     @property
     def _constructor(self):
         return VisTable
@@ -100,6 +102,24 @@ class VisTable(UVTable):
         outdata = outdata.sort_values(
             by=["utc", "st1", "st2", "stokesid", "ch"])
 
+        return outdata
+
+    def debias_amp(self):
+        '''
+        De-biasing amplitudes.
+        '''
+        if self.debiased:
+            print("[WARNING] Amplitudes in this table were already debiased.")
+
+        outdata = self.copy()
+        outdata.debiased = True
+
+        ratio = np.square(outdata.amp.values/outdata.sigma.values)
+        idx1 = ratio>=2
+        idx2 = ratio<2
+        outdata.loc[idx1, "amp"] = np.sqrt(ratio[np.where(idx1)]-1)
+        outdata.loc[idx2, "amp"] = np.sqrt(ratio[np.where(idx2)])
+        outdata.loc[:, "amp"] *= outdata.sigma
         return outdata
 
     def recalc_uvdist(self):
