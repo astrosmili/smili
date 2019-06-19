@@ -73,8 +73,9 @@ Preparation
     # macOS: homebrew
     brew install pkg-config
     brew install gcc
+    brew link gcc
     brew install libomp
-
+    
     # your homebrew PREFIX directory
     HBPREFIX="your homebrew PREFIX; in default /usr/local"
 
