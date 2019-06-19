@@ -631,6 +631,88 @@ subroutine calc_chisq_cp(Vcmp,&
   complex(dpc), intent(in):: Vcmp(Nuv)
   ! Data
   integer,  intent(in):: Ncp            ! Number of data
+  integer,  intent(in):: uvidxcp(3,Ncp) ! UV Index of CP data
+  real(dp), intent(in):: CP(Ncp)        ! closure phase in radian
+  real(dp), intent(in):: Varcp(Ncp)     ! variance of amplitude-normalize bi-spectra
+  ! Normalization Factor of Chisquare
+  real(dp), intent(in):: fnorm
+  ! Outputs
+  real(dp), intent(inout):: chisq ! chisquare
+  real(dp), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
+                                            !   its adjoint FT provides
+                                            !   the gradient of chisquare)
+
+  real(dp):: resid, factor, model
+  real(dp):: Vampsq1, Vampsq2, Vampsq3
+  complex(dpc):: Vcmp1, Vcmp2, Vcmp3
+  integer:: uvidx1, uvidx2, uvidx3
+  integer:: i
+  integer:: sign1, sign2, sign3
+
+  !$OMP PARALLEL DO DEFAULT(SHARED) &
+  !$OMP   FIRSTPRIVATE(Ncp,fnorm,uvidxcp,Vcmp,CP,Varcp) &
+  !$OMP   PRIVATE(i,model,resid,&
+  !$OMP           uvidx1,uvidx2,uvidx3,&
+  !$OMP           Vcmp1,Vcmp2,Vcmp3,&
+  !$OMP           Vampsq1,Vampsq2,Vampsq3,&
+  !$OMP           sign1,sign2,sign3),&
+  !$OMP   REDUCTION(+:chisq,Vresre,Vresim)
+  do i=1, Ncp
+    ! pick up uv index
+    uvidx1 = abs(uvidxcp(1,i))
+    uvidx2 = abs(uvidxcp(2,i))
+    uvidx3 = abs(uvidxcp(3,i))
+
+    ! pick up full complex visibilities
+    Vcmp1 = Vcmp(uvidx1)
+    Vcmp2 = Vcmp(uvidx2)
+    Vcmp3 = Vcmp(uvidx3)
+    sign1 = sign(1,uvidxcp(1,i))
+    sign2 = sign(1,uvidxcp(2,i))
+    sign3 = sign(1,uvidxcp(3,i))
+    Vampsq1 = abs(Vcmp1)**2
+    Vampsq2 = abs(Vcmp2)**2
+    Vampsq3 = abs(Vcmp3)**2
+
+    ! calculate model closure phases and residual
+    model = atan2(dimag(Vcmp1),dreal(Vcmp1))*sign1
+    model = atan2(dimag(Vcmp2),dreal(Vcmp2))*sign2 + model
+    model = atan2(dimag(Vcmp3),dreal(Vcmp3))*sign3 + model
+    resid = CP(i)-model  ! This is a squared residual
+
+    ! compute chisquare
+    chisq = chisq + 2*(1-cos(resid))/Varcp(i)*fnorm
+
+    ! compute residual vectors
+    factor = -2*sin(resid)/Varcp(i)*fnorm
+
+    Vresre(uvidx1) = Vresre(uvidx1) - factor/Vampsq1*dimag(Vcmp1)*sign1
+    Vresre(uvidx2) = Vresre(uvidx2) - factor/Vampsq2*dimag(Vcmp2)*sign2
+    Vresre(uvidx3) = Vresre(uvidx3) - factor/Vampsq3*dimag(Vcmp3)*sign3
+
+    Vresim(uvidx1) = Vresim(uvidx1) + factor/Vampsq1*dreal(Vcmp1)*sign1
+    Vresim(uvidx2) = Vresim(uvidx2) + factor/Vampsq2*dreal(Vcmp2)*sign2
+    Vresim(uvidx3) = Vresim(uvidx3) + factor/Vampsq3*dreal(Vcmp3)*sign3
+  end do
+  !$OMP END PARALLEL DO
+end subroutine
+
+
+subroutine calc_chisq_cp_old(Vcmp,&
+                    uvidxcp,CP,Varcp,&
+                    fnorm,&
+                    chisq,Vresre,Vresim,&
+                    Nuv,Ncp)
+  implicit none
+  !
+  !  This subroutine will compute chisquare and its analytic gradient
+  !  for closure phase data
+  !
+  ! NuFFT-ed visibilities
+  integer,      intent(in):: Nuv
+  complex(dpc), intent(in):: Vcmp(Nuv)
+  ! Data
+  integer,  intent(in):: Ncp            ! Number of data
   integer,  intent(in):: uvidxcp(3,Ncp) ! UV Index of Amp data
   real(dp), intent(in):: CP(Ncp)        ! Amp data
   real(dp), intent(in):: Varcp(Ncp)     ! variances of Amp data
@@ -1085,6 +1167,136 @@ end subroutine
 
 
 subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
+                     u,v,&
+                     uvidxcp,CP,Varcp,&
+                     chisq,gradchisq,model,resid,&
+                     Npix,Nuv,Ncp)
+  !
+  !  This subroutine will compute model, residual, chisquare and
+  !  its analytic gradient of closure phase data sets
+  !  from input image data
+  !
+  implicit none
+  ! Image
+  integer,  intent(in) :: Npix, Nx, Ny
+  real(dp), intent(in) :: Iin(Npix)
+  real(dp), intent(in) :: Nxref, Nyref  ! x,y reference ppixels
+                                        ! 1 = the leftmost/lowermost pixel
+  integer,  intent(in) :: xidx(Npix), yidx(Npix)  ! x,y pixel number
+
+  ! NuFFT-ed visibilities
+  integer,  intent(in) :: Nuv
+  real(dp), intent(in) :: u(Nuv), v(Nuv)  ! uv coordinates mutiplied by 2*pi*dx, 2*pi*dy
+  ! Data
+  integer,  intent(in) :: Ncp            ! Number of data
+  integer,  intent(in) :: uvidxcp(3,Ncp) ! UV Index of cp data
+  real(dp), intent(in) :: CP(Ncp)        ! Closure Phase in radians
+  real(dp), intent(in) :: Varcp(Ncp)     ! variances of amplitude-normalized bispectra
+  ! Outputs
+  real(dp), intent(out) :: chisq           ! chisquare
+  real(dp), intent(out) :: model(Ncp)      ! Model Vector
+  real(dp), intent(out) :: resid(Ncp)      ! Residual Vector
+  real(dp), intent(out) :: gradchisq(Npix) ! its adjoint FT provides
+                                          ! the gradient of chisquare
+
+  ! allocatable arrays
+  real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
+  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vcmp(:)
+
+  ! other factors
+  real(dp):: factor
+  real(dp):: Vampsq1, Vampsq2, Vampsq3
+  complex(dpc):: Vcmp1, Vcmp2, Vcmp3
+  integer:: uvidx1, uvidx2, uvidx3
+  integer:: sign1, sign2, sign3
+
+  ! loop variables
+  integer :: i
+
+  ! Copy 1d image to 2d image
+  !   allocate array
+  allocate(I2d(Nx,Ny))
+  I2d(:,:)=0d0
+  !   copy image
+  call I1d_I2d_fwd(xidx,yidx,Iin,I2d,Npix,Nx,Ny)
+
+  ! Forward Non-unifrom Fast Fourier Transform
+  !   allocate array
+  allocate(Vcmp(Nuv))
+  Vcmp(:) = dcmplx(0d0,0d0)
+  !   Forward NUFFT
+  call NUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
+  deallocate(I2d)
+
+  ! Compute Chisquare
+  !  allocate array
+  allocate(Vresre(Nuv),Vresim(Nuv))
+  Vresre(:) = 0d0
+  Vresim(:) = 0d0
+  !$OMP PARALLEL DO DEFAULT(SHARED) &
+  !$OMP   FIRSTPRIVATE(Ncp,uvidxcp,Vcmp,CP,Varcp) &
+  !$OMP   PRIVATE(i,&
+  !$OMP           uvidx1,uvidx2,uvidx3,&
+  !$OMP           Vcmp1,Vcmp2,Vcmp3,&
+  !$OMP           Vampsq1,Vampsq2,Vampsq3,&
+  !$OMP           sign1,sign2,sign3),&
+  !$OMP   REDUCTION(+:chisq,Vresre,Vresim,model,resid)
+  do i=1, Ncp
+    ! pick up uv index
+    uvidx1 = abs(uvidxcp(1,i))
+    uvidx2 = abs(uvidxcp(2,i))
+    uvidx3 = abs(uvidxcp(3,i))
+
+    ! pick up full complex visibilities
+    Vcmp1 = Vcmp(uvidx1)
+    Vcmp2 = Vcmp(uvidx2)
+    Vcmp3 = Vcmp(uvidx3)
+    sign1 = sign(1,uvidxcp(1,i))
+    sign2 = sign(1,uvidxcp(2,i))
+    sign3 = sign(1,uvidxcp(3,i))
+    Vampsq1 = abs(Vcmp1)**2
+    Vampsq2 = abs(Vcmp2)**2
+    Vampsq3 = abs(Vcmp3)**2
+
+    ! calculate model closure phases and residual
+    model(i) = atan2(dimag(Vcmp1),dreal(Vcmp1))*sign1
+    model(i) = atan2(dimag(Vcmp2),dreal(Vcmp2))*sign2 + model(i)
+    model(i) = atan2(dimag(Vcmp3),dreal(Vcmp3))*sign3 + model(i)
+    resid(i) = CP(i) - model(i)
+    resid(i) = atan2(sin(resid(i)),cos(resid(i)))
+
+    ! compute chisquare
+    chisq = chisq + 2*(1-cos(resid(i)))/Varcp(i)
+
+    ! compute residual vectors
+    factor = -2*sin(resid(i))/Varcp(i)
+
+    Vresre(uvidx1) = Vresre(uvidx1) - factor/Vampsq1*dimag(Vcmp1)*sign1
+    Vresre(uvidx2) = Vresre(uvidx2) - factor/Vampsq2*dimag(Vcmp2)*sign2
+    Vresre(uvidx3) = Vresre(uvidx3) - factor/Vampsq3*dimag(Vcmp3)*sign3
+
+    Vresim(uvidx1) = Vresim(uvidx1) + factor/Vampsq1*dreal(Vcmp1)*sign1
+    Vresim(uvidx2) = Vresim(uvidx2) + factor/Vampsq2*dreal(Vcmp2)*sign2
+    Vresim(uvidx3) = Vresim(uvidx3) + factor/Vampsq3*dreal(Vcmp3)*sign3
+  end do
+  !$OMP END PARALLEL DO
+  deallocate(Vcmp)
+
+  ! Adjoint Non-unifrom Fast Fourier Transform
+  !  this will provide gradient of chisquare functions
+  allocate(gradchisq2d(Nx,Ny))
+  gradchisq2d(:,:) = 0d0
+  call NUFFT_adj_resid(u,v,Vresre,Vresim,gradchisq2d(:,:),Nx,Ny,Nuv)
+  deallocate(Vresre,Vresim)
+
+  ! copy the gradient of chisquare into that of cost functions
+  call I1d_I2d_inv(xidx,yidx,gradchisq,gradchisq2d,Npix,Nx,Ny)
+  deallocate(gradchisq2d)
+end subroutine
+
+
+subroutine model_cp_old(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
                      u,v,&
                      uvidxcp,CP,Varcp,&
                      chisq,gradchisq,model,resid,&
