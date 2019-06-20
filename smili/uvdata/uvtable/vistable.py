@@ -1733,7 +1733,7 @@ class VisTable(UVTable):
             1-D numpy array contains density functions
         '''
         # compute a grid size of the image in uv-domain.
-        x,y = image.get_xygrid(angunit="rad")
+        x,y = image.get_xygrid(angunit="rad", twodim=True)
         r = np.sqrt(x*x + y*y).max()*2
         du = 1/r
 
