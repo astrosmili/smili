@@ -113,14 +113,14 @@ def imaging(
             Regularization parameter for the KL divergence (relative entropy).
             If negative then, this regularization won't be used.
         kl_prior (IMFITS, default=None):
-            Prior image to be used to compute the weighted TSV term.
+            Prior image to be used to compute the KL divergence.
             If not specified, the flat prior will be used.
             This prior image will be normalized with the total flux estimator.
         gs_lambda (float,default=-1.):
             Regularization parameter for the GS entropy (relative entropy).
             If negative then, this regularization won't be used.
         gs_prior (IMFITS, default=None):
-            Prior image to be used to compute the weighted TSV term.
+            Prior image to be used to compute the  GS entropy.
             If not specified, the flat prior will be used.
             This prior image will be normalized with the total flux estimator.
         tfd_lambda (float,default=-1.):
@@ -137,9 +137,9 @@ def imaging(
             If negative then, this regularization won't be used.
             You should NOT use this regularization if you will use the
             full complex visibilities.
-        cen_power (float, default=3):
+        cen_alpha (float, default=3):
             The power to be used in the centroid regularizaion.
-            cen_power = 1 gives the exact center-of-mass regularization, while
+            cen_alpha = 1 gives the exact center-of-mass regularization, while
             higher value will work as the peak fixing regularization.
         cem_prior (IMFITS, default=None):
             The prior image to be used to compute the normalization factor.
