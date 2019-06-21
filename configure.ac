@@ -18,8 +18,8 @@ AC_PROG_CC
 AC_PROG_FC
 
 # CPP Compiler
-: ${CXXFLAGS=""}
-AC_PROG_CXX
+#: ${CXXFLAGS=""}
+#AC_PROG_CXX
 
 # f2py in numpy
 AC_CHECK_PROGS([F2PY],
