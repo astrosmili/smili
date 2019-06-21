@@ -13,8 +13,130 @@ __author__ = "Smili Developer Team"
 # ------------------------------------------------------------------------------
 import numpy as np
 
+def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None):
+    '''
+    '''
+    if ((fcvtable is None) and (amptable is None) and
+            (bstable is None) and (catable is None)):
+        print("Error: No data are input.")
+        return -1
 
-def get_uvlist(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1e-10):
+    def create_arrays(u,v):
+        sign = np.asarray([1 for i in range(u.size)])
+        idx = np.where(v<0)
+        u[idx] *= -1
+        v[idx] *= -1
+        sign[idx] *= -1
+        del idx
+        return u+1j*v, sign
+
+    # Stack uv coordinates
+    uvstack = None
+    sgstack = None
+    if fcvtable is not None:
+        u = fcvtable.u.values.copy()
+        v = fcvtable.v.values.copy()
+        uvstack, sgstack = create_arrays(u,v)
+        Nfcv = len(u)
+        del u,v
+    else:
+        Nfcv = 0
+
+    if amptable is not None:
+        u = amptable.u.values.copy()
+        v = amptable.v.values.copy()
+        uv, sg = create_arrays(u,v)
+        Namp = len(u)
+        if uvstack is None:
+            uvstack = uv.copy()
+            sgstack = sg.copy()
+        else:
+            uvstack = np.concatenate((uvstack, uv))
+            sgstack = np.concatenate((sgstack, sg))
+        del u,v,uv,sg
+    else:
+        Namp = 0
+
+    if bstable is not None:
+        u1 = bstable.u12.values.copy()
+        v1 = bstable.v12.values.copy()
+        u2 = bstable.u23.values.copy()
+        v2 = bstable.v23.values.copy()
+        u3 = bstable.u31.values.copy()
+        v3 = bstable.v31.values.copy()
+        uv1, sg1 = create_arrays(u1,v1)
+        uv2, sg2 = create_arrays(u2,v2)
+        uv3, sg3 = create_arrays(u3,v3)
+        Ncp = len(u1)
+        if uvstack is None:
+            uvstack = np.concatenate((uv1, uv2, uv3))
+            sgstack = np.concatenate((sg1, sg2, sg3))
+        else:
+            uvstack = np.concatenate((uvstack, uv1, uv2, uv3))
+            sgstack = np.concatenate((sgstack, sg1, sg2, sg3))
+        del u1,u2,u3,v1,v2,v3,uv1,uv2,uv3,sg1,sg2,sg3
+    else:
+        Ncp = 0
+
+    if catable is not None:
+        u1 = catable.u1.values.copy()
+        v1 = catable.v1.values.copy()
+        u2 = catable.u2.values.copy()
+        v2 = catable.v2.values.copy()
+        u3 = catable.u3.values.copy()
+        v3 = catable.v3.values.copy()
+        u4 = catable.u4.values.copy()
+        v4 = catable.v4.values.copy()
+        uv1, sg1 = create_arrays(u1,v1)
+        uv2, sg2 = create_arrays(u2,v2)
+        uv3, sg3 = create_arrays(u3,v3)
+        uv4, sg4 = create_arrays(u4,v4)
+        Nca = len(u1)
+        if uvstack is None:
+            uvstack = np.concatenate((uv1, uv2, uv3, uv4))
+            sgstack = np.concatenate((sg1, sg2, sg3, sg4))
+        else:
+            uvstack = np.concatenate((uvstack, uv1, uv2, uv3, uv4))
+            sgstack = np.concatenate((sgstack, sg1, sg2, sg3, sg4))
+        del u1,u2,u3,u4,v1,v2,v3,v4,uv1,uv2,uv3,uv4,sg1,sg2,sg3,sg4
+    else:
+        Nca = 0
+
+    # make non-redundant u,v lists and index arrays for uv coordinates.
+    Nstack = Nfcv + Namp + 3 * Ncp + 4 * Nca
+
+    outputs = np.unique(uvstack, return_index=True, return_inverse=True, return_counts=True)
+    u = np.real(outputs[0])
+    v = np.imag(outputs[0])
+
+    uvidx = (outputs[2]+1) * sgstack
+
+    # distribute index information into each data
+    if fcvtable is None:
+        uvidxfcv = np.zeros(1, dtype=np.int32)
+    else:
+        uvidxfcv = uvidx[0:Nfcv]
+
+    if amptable is None:
+        uvidxamp = np.zeros(1, dtype=np.int32)
+    else:
+        uvidxamp = uvidx[Nfcv:Nfcv + Namp]
+
+    if bstable is None:
+        uvidxcp = np.zeros([3, 1], dtype=np.int32, order="F")
+    else:
+        uvidxcp = uvidx[Nfcv + Namp:Nfcv + Namp + 3 *
+                        Ncp].reshape([Ncp, 3], order="F").transpose()
+
+    if catable is None:
+        uvidxca = np.zeros([4, 1], dtype=np.int32, order="F")
+    else:
+        uvidxca = uvidx[Nfcv + Namp + 3 * Ncp:Nfcv + Namp + 3 *
+                        Ncp + 4 * Nca].reshape([Nca, 4], order="F").transpose()
+    return (u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca)
+
+
+def get_uvlist_old(fcvtable=None, amptable=None, bstable=None, catable=None, thres=1e-10):
     '''
     '''
     if ((fcvtable is None) and (amptable is None) and
