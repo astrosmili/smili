@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import, division, print_function
 '''
 This is a submodule of sparselab for imaging static images.
 '''
@@ -49,25 +50,152 @@ lbfgsbprms = {
 def imaging3d(
         initmovie,
         imregion=None,
-        vistable=None,amptable=None, bstable=None, catable=None,
-        lambl1=-1.,lambtv=-1.,lambtsv=-1.,lambmem=-1.,lambcom=-1.,
-        lambrt=-1.,lambri=-1.,lambrs=-1,
-        normlambda=True,
+        vistable=None,
+        amptable=None,
+        bstable=None,
+        catable=None,
+        w_vis=1,
+        w_amp=1,
+        w_bs=1,
+        w_ca=1,
+        l1_lambda=-1.,
+        l1_prior=None,
+        sm_lambda=-1,
+        sm_maj=50.,
+        sm_min=50.,
+        sm_phi=0.,
+        tv_lambda=-1.,
+        tv_prior=None,
+        tsv_lambda=-1.,
+        tsv_prior=None,
+        kl_lambda=-1.,
+        kl_prior=None,
+        gs_lambda=-1,
+        gs_prior=None,
+        tfd_lambda=-1,
+        tfd_tgterror=0.01,
+        cen_lambda=-1,
+        cen_alpha=3,
+        rt_lambda=-1.,
+        rt_prior = None,
+        ri_lambda=-1.,
+        ri_prior = None,
+        rs_lambda   =-1,
+        rs_prior = None,
+        rf_lambda   =-1,
+        rf_prior = None,
         niter=1000,
         nonneg=True,
-        transform=None, transprm=None,
-        compower=1.,
-        totalflux=None, fluxconst=False,
+        nprint=500,
+        totalflux=None,
         istokes=0, ifreq=0,
         output='list'):
     '''
+    FFT 3d imaging (movie) with closure quantities.
+
+    Args:
+        initmovie (MOVIE):
+            Initial movie model for fft imaging
+        imregion (IMRegion, default=None)
+            Image region to set image windows.
+        vistable (VisTable, default=None):
+            Visibility table containing full complex visibilities.
+        amptable (VisTable, default=None):
+            Amplitude table.
+        bstable (BSTabke, default=None):
+            Closure phase table.
+        catable (CATable, default=None):
+            Closure amplitude table.
+        l1_lambda (float,default=-1.):
+            Regularization parameter for L1 term.
+            If negative then, this regularization won't be used.
+        l1_prior (IMFITS, default=None):
+            Prior image to be used to compute the weighted l1-norm.
+            If not specified, the flat prior will be used.
+            This prior image will be normalized with the total flux estimator.
+        sm_lambda (float,default=-1):
+            Regularization parameter for second moment.
+            If negative then, this regularization won't be used.
+        sm_maj and sm_min (float):
+            FWHM of major and minor axis for elliptical gaussian
+        sm_phi (float):
+            position angle of the elliptical gaussian
+        tv_lambda (float,default=-1.):
+            Regularization parameter for total variation.
+            If negative then, this regularization won't be used.
+        tv_prior (IMFITS, default=None):
+            Prior image to be used to compute the weighted TV term.
+            If not specified, the flat prior will be used.
+            This prior image will be normalized with the total flux estimator.
+        tsv_lambda (float,default=-1.):
+            Regularization parameter for total squared variation.
+            If negative then, this regularization won't be used.
+        tsv_prior (IMFITS, default=None):
+            Prior image to be used to compute the weighted TSV term.
+            If not specified, the flat prior will be used.
+            This prior image will be normalized with the total flux estimator.
+        kl_lambda (float,default=-1.):
+            Regularization parameter for the KL divergence (relative entropy).
+            If negative then, this regularization won't be used.
+        kl_prior (IMFITS, default=None):
+            Prior image to be used to compute the weighted TSV term.
+            If not specified, the flat prior will be used.
+            This prior image will be normalized with the total flux estimator.
+        gs_lambda (float,default=-1.):
+            Regularization parameter for the GS entropy (relative entropy).
+            If negative then, this regularization won't be used.
+        gs_prior (IMFITS, default=None):
+            Prior image to be used to compute the weighted TSV term.
+            If not specified, the flat prior will be used.
+            This prior image will be normalized with the total flux estimator.
+        tfd_lambda (float,default=-1.):
+            Regularization parameter for the total flux regularization.
+            If negative then, this regularization won't be used.
+            The target flux can be specified with "totalflux". If it is not specified,
+            then it will be guessed from the maximum visibility amplitudes.
+        tfd_tgterror (float, default=0.01):
+            The target accracy of the total flux regulariztion. For instance,
+            tfd_tgterror = 0.01 and tfd_lambda = 1 will give the cost function of
+            unity when the fractional error of the total flux is 0.01.
+        cen_lambda (float,default=-1.):
+            Regularization parameter for the centroid regularization.
+            If negative then, this regularization won't be used.
+            You should NOT use this regularization if you will use the
+            full complex visibilities.
+        cen_power (float, default=3):
+            The power to be used in the centroid regularizaion.
+            cen_power = 1 gives the exact center-of-mass regularization, while
+            higher value will work as the peak fixing regularization.
+        cem_prior (IMFITS, default=None):
+            The prior image to be used to compute the normalization factor.
+            If not specified, then the initial image will be used.
+        niter (int,defalut=100):
+            The number of iterations.
+        nonneg (boolean,default=True):
+            If nonneg=True, the problem is solved with non-negative constrants.
+        totalflux (float, default=None):
+            Total flux of the source.
+        nprint (integer, default=200):
+            The summary of metrics will be printed with an interval specified
+            with this number.
+        istokes (int,default=0):
+            The ordinal number of stokes parameters.
+        ifreq (int,default=0):
+            The ordinal number of frequencies.
+
+    Returns:
+        movie.MOVIE object
     '''
+
+
     # Sanity Check: Data
     if ((vistable is None) and (amptable is None) and
         (bstable is None) and (catable is None)):
-        raise ValueError("No input data")
+        print("Error: No data are input.")
+        return -1
 
-    # Sanity Check: Sort
+
+    # Sort tables
     if vistable is not None:
         vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
     if amptable is not None:
@@ -78,63 +206,37 @@ def imaging3d(
         catable = catable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
 
     # Sanity Check: Total Flux constraint
-    dofluxconst = False
     if ((vistable is None) and (amptable is None) and (totalflux is None)):
         print("Error: No absolute amplitude information in the input data.")
-        print("       You need to set the total flux constraint by totalflux.")
+        print("       You need to set the total flux constraint by totalflux / tfd_lambda")
         return -1
     elif ((vistable is None) and (amptable is None) and
-          (totalflux is not None) and (fluxconst is False)):
+          ((totalflux is None) or (tfd_lambda <= 0))):
         print("Warning: No absolute amplitude information in the input data.")
-        print("         The total flux will be constrained, although you do not set fluxconst=True.")
-        dofluxconst = True
-    elif fluxconst is True:
-        dofluxconst = True
+        print("         The total flux must be constrained")
+        return -1
+    # Guess the Total flux
+    elif totalflux is None:
+        totalflux = []
+        if vistable is not None:
+            totalflux.append(vistable["amp"].max())
+        if amptable is not None:
+            totalflux.append(amptable["amp"].max())
+        totalflux = np.max(totalflux)
+    print("Total flux: %g Jy"%(totalflux))
 
-    # Sanity Check: Transform
-    transform = None
-    transtype = np.int32(0)
-    transprm = np.float64(0)
-    # if transform is None:
-    #     print("No transform will be applied to regularization functions.")
-    #     transtype = np.int32(0)
-    #     transprm = np.float64(0)
-    # elif transform == "log":
-    #     print("log transform will be applied to regularization functions.")
-    #     transtype = np.int32(1)
-    #     if transprm is None:
-    #         transprm = 1e-10
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  threshold of log transform: %g"%(transprm))
-    # elif transform == "gamma":
-    #     print("Gamma transform will be applied to regularization functions.")
-    #     transtype = np.int32(2)
-    #     if transprm is None:
-    #         transprm = 1/2.2
-    #     elif transprm <= 0:
-    #         raise ValueError("transprm must be positive.")
-    #     else:
-    #         transprm = np.float64(transprm)
-    #     print("  Power of Gamma correction: %g"%(transprm))
 
-    # Sanity Check: number of frames
+    # Number of frames
     Nt = initmovie.Nt
-    if Nt<2:
-        ValueError("The number of frame must be larger than 1")
 
-    # get initial images
+    # Get initial movie
     Iin = [initmovie.images[i].data[istokes, ifreq] for i in range(Nt)]
     initimage = initmovie.images[0]
-
-    # size of images
+    #   Size of images
     Nx = initimage.header["nx"]
     Ny = initimage.header["ny"]
     Nyx = Nx * Ny
-
-    # pixel coordinates
+    #   Pixel coordinates
     x, y = initimage.get_xygrid(twodim=True, angunit="rad")
     xidx = np.arange(Nx) + 1
     yidx = np.arange(Ny) + 1
@@ -144,8 +246,8 @@ def imaging3d(
     dx_rad = np.deg2rad(initimage.header["dx"])
     dy_rad = np.deg2rad(initimage.header["dy"])
 
-    # apply the imaging area
 
+    # Get imaging area
     if imregion is None:
         print("Imaging Window: Not Specified. We solve the image on all the pixels.")
         Iin = [Iin[i].reshape(Nyx) for i in range(len(Iin))]
@@ -153,60 +255,217 @@ def imaging3d(
         y = y.reshape(Nyx)
         xidx = xidx.reshape(Nyx)
         yidx = yidx.reshape(Nyx)
+        Npix = len(Iin[0])
     else:
         print("Imaging Window: Specified. Images will be solved on specified pixels.")
-        imagewin = imregion.imagewin(initimage,istokes,ifreq)
-        idx = np.where(imagewin)
-        Iin = [Iin[i][idx] for i in range(len(Iin))]
-        x = x[idx]
-        y = y[idx]
-        xidx = xidx[idx]
-        yidx = yidx[idx]
+        if isinstance(imregion, imdata.IMRegion):
+            imagewin = imregion.imagewin(initimage,istokes,ifreq)
+        elif isinstance(imregion, imdata.IMFITS):
+            imagewin = imregion.data[0,0] > 0.5
+        winidx = np.where(imagewin)
+        Iin = [Iin[i][winidx] for i in range(len(Iin))]
+        x = x[winidx]
+        y = y[winidx]
+        xidx = xidx[winidx]
+        yidx = yidx[winidx]
+        Npix = len(Iin[0])
 
-    # dammy array
+
+    # Setup regularizatin functions
+    #   l1-norm
+    if l1_lambda <= 0:
+        l1_wgt  = np.float64(np.asarray([0]))
+        l1_nwgt = 1
+        l1_l = -1
+    else:
+        print("  Initialize l1 regularization")
+        if l1_prior is None:
+            l1_priorarr = copy.deepcopy(Iin[0])
+            l1_priorarr[:] = totalflux/Npix
+        else:
+            if imregion is None:
+                l1_priorarr = l1_prior.data[0,0].reshape(Nyx)
+            else:
+                l1_priorarr = l1_prior.data[0,0][winidx]
+        l1_priorarr *= totalflux/l1_priorarr.sum()
+        l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
+        l1_nwgt = len(l1_wgt)
+        l1_l = l1_lambda
+        del l1_priorarr
+    #
+    # Second momentum regularization functions
+    if sm_lambda <= 0:
+        sm_l = -1
+    else:
+        print("Debug: set second moment parameters")
+        sm_l = sm_lambda
+        # print("sm_l,sm_maj,sm_min,sm_phi = %3.2g, %3.2g, %3.2g, %3.2g"%(sm_l,sm_maj,sm_min,sm_phi))
+
+        dtheta = np.abs(initimage.angconv("deg",initimage.angunit)*initimage.header["dx"])
+
+        # Normalization of the major and minor size and position angle
+        sm_maj = (sm_maj/dtheta)**2/(8.*np.log(2.)) # FWHM (angunit) -> lambda_maj (pixel^2)
+        sm_min = (sm_min/dtheta)**2/(8.*np.log(2.)) # FWHM (angunit) -> lambda_min (pixel^2)
+        sm_phi = sm_phi/180.*np.pi
+    #
+    #   tv-norm
+    if tv_lambda <= 0:
+        tv_wgt  = np.float64(np.asarray([0]))
+        tv_nwgt = 1
+        tv_l = -1
+    else:
+        print("  Initialize TV regularization")
+        if tv_prior is None:
+            tv_priorarr = copy.deepcopy(Iin[0])
+            tv_priorarr[:] = totalflux/Npix
+            tv_isflat = True
+        else:
+            if imregion is None:
+                tv_priorarr = tv_prior.data[0,0].reshape(Nyx)
+            else:
+                tv_priorarr = tv_prior.data[0,0][winidx]
+            tv_isflat = False
+        tv_priorarr *= totalflux/tv_priorarr.sum()
+        tv_wgt = fortlib.image.init_tvreg(
+            xidx = np.float32(xidx),
+            yidx = np.float32(yidx),
+            nx = np.float32(Nx),
+            ny = np.float32(Ny),
+            tv_isflat=tv_isflat,
+            tv_prior=np.float64(tv_priorarr)
+        )
+        tv_nwgt = len(tv_wgt)
+        tv_l = tv_lambda
+        del tv_priorarr, tv_isflat
+    #
+    #   TSV
+    if tsv_lambda <= 0:
+        tsv_wgt  = np.float64(np.asarray([0]))
+        tsv_nwgt = 1
+        tsv_l = -1
+    else:
+        print("  Initialize TSV regularization")
+        if tsv_prior is None:
+            tsv_priorarr = copy.deepcopy(Iin[0])
+            tsv_priorarr[:] = totalflux/Npix
+            tsv_isflat = True
+        else:
+            if imregion is None:
+                tsv_priorarr = tsv_prior.data[0,0].reshape(Nyx)
+            else:
+                tsv_priorarr = tsv_prior.data[0,0][winidx]
+            tsv_isflat = False
+        tsv_priorarr *= totalflux/tsv_priorarr.sum()
+        tsv_wgt = fortlib.image.init_tsvreg(
+            xidx = np.int32(xidx),
+            yidx = np.int32(yidx),
+            nx = np.float32(Nx),
+            ny = np.float32(Ny),
+            tsv_isflat=tsv_isflat,
+            tsv_prior=np.float64(tsv_priorarr)
+        )
+        tsv_nwgt = len(tsv_wgt)
+        tsv_l = tsv_lambda
+        del tsv_priorarr, tsv_isflat
+    #
+    #   kl divergence
+    if kl_lambda <= 0:
+        kl_wgt  = np.float64(np.asarray([0]))
+        kl_nwgt = np.int32(1)
+        kl_l = -1
+    else:
+        print("  Initialize the KL Divergence.")
+        if kl_prior is None:
+            kl_priorarr = copy.deepcopy(Iin[0])
+            kl_priorarr[:] = totalflux/Npix
+        else:
+            if imregion is None:
+                kl_priorarr = kl_prior.data[0,0].reshape(Nyx)
+            else:
+                kl_priorarr = kl_prior.data[0,0][winidx]
+        kl_priorarr *= totalflux/kl_priorarr.sum()
+        kl_l, kl_wgt = fortlib.image.init_klreg(
+            kl_l_in=np.float64(kl_lambda),
+            kl_prior=np.float64(kl_priorarr)
+        )
+        kl_nwgt = len(kl_wgt)
+        del kl_priorarr
+    #
+    #   gs divergence
+    if gs_lambda <= 0:
+        gs_wgt  = np.float64(np.asarray([0]))
+        gs_nwgt = np.int32(1)
+        gs_l = -1
+    else:
+        print("  Initialize the GS Entropy.")
+        if gs_prior is None:
+            gs_priorarr = copy.deepcopy(Iin[0])
+            gs_priorarr[:] = totalflux/Npix
+        else:
+            if imregion is None:
+                gs_priorarr = gs_prior.data[0,0].reshape(Nyx)
+            else:
+                gs_priorarr = gs_prior.data[0,0][winidx]
+        gs_priorarr *= totalflux/gs_priorarr.sum()
+        gs_wgt = fortlib.image.init_gsreg(
+            gs_prior=np.float64(gs_priorarr)
+        )
+        gs_nwgt = len(gs_wgt)
+        gs_l = gs_lambda
+        del gs_priorarr
+    #
+    #   total flux regularization divergence
+    if tfd_lambda <= 0:
+        tfd_l = -1
+        tfd_tgtfd = 1
+    else:
+        print("  Initialize Total Flux Density regularization")
+        tfd_tgtfd = np.float64(totalflux)
+        tfd_l = fortlib.image.init_tfdreg(
+            tfd_l_in = np.float64(tfd_lambda),
+            tfd_tgtfd = np.float64(tfd_tgtfd),
+            tfd_tgter = np.float64(tfd_tgterror))
+    #
+
+    #   Centroid regularization
+    if cen_lambda <= 0:
+        cen_l = -1
+        cen_alpha = 1
+    else:
+        print("  Initialize the Centroid Regularization")
+        if cen_prior is None:
+            cen_priorarr = copy.deepcopy(Iin[0])
+        else:
+            if imregion is None:
+                cen_priorarr = cen_prior.data[0,0].reshape(Nyx)
+            else:
+                cen_priorarr = cen_prior.data[0,0][winidx]
+        cen_l = fortlib.image.init_cenreg(
+            cen_l_in=np.float64(cen_lambda),
+            cen_prior=np.float64(cen_priorarr),
+            cen_alpha=np.float64(cen_alpha))
+
+    # Rt regularization
+    #lambrt_sim = rt_lambda / (2 * fluxscale**2 * Nyx * Nt)
+    # Ri regularization
+    #lambri_sim = ri_lambda / (fluxscale**2 * Nyx * Nt)
+
+
     dammyreal = np.zeros(1, dtype=np.float64)
 
-    if totalflux is None:
-        totalflux = []
-        if vistable is not None:
-            totalflux.append(vistable["amp"].max())
-        if amptable is not None:
-            totalflux.append(amptable["amp"].max())
-        totalflux = np.max(totalflux)
-
     # Full Complex Visibility
-    Ndata = 0
-    if dofluxconst:
-        print("Total Flux Constraint: set to %g" % (totalflux))
-        totalfluxdata = {
-            'u': [0.],
-            'v': [0.],
-            'amp': [totalflux],
-            'phase': [0.],
-            'sigma': [1.]
-        }
-        totalfluxdata = pd.DataFrame(totalfluxdata)
-        fcvtable = pd.concat([totalfluxdata, vistable], ignore_index=True)
-    else:
-        print("Total Flux Constraint: disabled.")
-        if vistable is None:
-            fcvtable = None
-        else:
-            fcvtable = vistable.copy()
-
-    if fcvtable is None:
+    if vistable is None:
         isfcv = False
         vfcvr = dammyreal
         vfcvi = dammyreal
         varfcv = dammyreal
     else:
         isfcv = True
-        phase = np.deg2rad(np.array(fcvtable["phase"], dtype=np.float64))
-        amp = np.array(fcvtable["amp"], dtype=np.float64)
+        phase = np.deg2rad(np.array(vistable["phase"], dtype=np.float64))
+        amp = np.array(vistable["amp"], dtype=np.float64)
         vfcvr = np.float64(amp*np.cos(phase))
         vfcvi = np.float64(amp*np.sin(phase))
-        varfcv = np.square(np.array(fcvtable["sigma"], dtype=np.float64))
-        Ndata += len(varfcv)
+        varfcv = np.square(np.array(vistable["sigma"], dtype=np.float64))
         del phase, amp
 
     # Visibility Amplitude
@@ -218,7 +477,6 @@ def imaging3d(
         isamp = True
         vamp = np.array(amptable["amp"], dtype=np.float64)
         varamp = np.square(np.array(amptable["sigma"], dtype=np.float64))
-        Ndata += len(vamp)
 
     # Closure Phase
     if bstable is None:
@@ -230,7 +488,6 @@ def imaging3d(
         cp = np.deg2rad(np.array(bstable["phase"], dtype=np.float64))
         varcp = np.square(
             np.array(bstable["sigma"] / bstable["amp"], dtype=np.float64))
-        Ndata += len(cp)
 
     # Closure Amplitude
     if catable is None:
@@ -241,44 +498,18 @@ def imaging3d(
         isca = True
         ca = np.array(catable["logamp"], dtype=np.float64)
         varca = np.square(np.array(catable["logsigma"], dtype=np.float64))
-        Ndata += len(ca)
-
-    # Sigma for the total flux
-    if dofluxconst:
-        varfcv[0] = np.square(fcvtable.loc[0, "amp"] / (Ndata - 1.))
-
-    # Normalize Lambda
-    if normlambda:
-        fluxscale = np.float64(totalflux)
-
-        # convert Flux Scaling Factor
-        fluxscale = np.abs(fluxscale) / Nyx
-        #if   transform=="log":   # log correction
-        #    fluxscale = np.log(fluxscale+transprm)-np.log(transprm)
-        #elif transform=="gamma": # gamma correction
-        #    fluxscale = (fluxscale)**transprm
-
-        lambl1_sim = lambl1 / (fluxscale * Nyx * Nt)
-        lambtv_sim = lambtv / (4 * fluxscale * Nyx * Nt)
-        lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx * Nt)
-        lambrt_sim = lambrt / (2 * fluxscale**2 * Nyx * Nt)
-        lambri_sim = lambri / (fluxscale**2 * Nyx * Nt)
-    else:
-        lambl1_sim = lambl1
-        lambtv_sim = lambtv
-        lambtsv_sim = lambtsv
-        lambrt_sim = lambrt
-        lambri_sim = lambri
-    lambmem_sim = -1
-    lambrs_sim = -1
-
-    # Center of Mass regularization
-    lambcom_sim = lambcom # No normalization for COM regularization
 
     # get uv coordinates and uv indice
-    u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = tools.get_uvlist_loop(
-        Nt=Nt,fcvconcat=fcvtable, ampconcat=amptable, bsconcat=bstable, caconcat=catable
-    )
+    if Nt>1:
+        u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca, Nuvs = tools.get_uvlist_loop(
+            Nt=Nt,fcvconcat=vistable, ampconcat=amptable, bsconcat=bstable, caconcat=catable
+        )
+    else:
+        u, v, uvidxfcv, uvidxamp, uvidxcp, uvidxca = tools.get_uvlist(
+            fcvtable=vistable, amptable=amptable, bstable=bstable, catable=catable
+        )
+        Nuvs = np.zeros(1,dtype=np.float64)
+        Nuvs[0] = len(u)
 
     # normalize u, v coordinates
     u *= 2*np.pi*dx_rad
@@ -288,7 +519,7 @@ def imaging3d(
     Iin = np.concatenate(Iin)
 
     # run imaging
-    Iout = fortlib.fftim3d.imaging(
+    output = fortlib.fftim3d.imaging(
         # Images
         iin=np.float64(Iin),
         xidx=np.int32(xidx),
@@ -303,689 +534,76 @@ def imaging3d(
         u=u,
         v=v,
         nuvs=np.int32(Nuvs),
-        # Regularization Parameters
-        lambl1=np.float64(lambl1_sim),
-        lambtv=np.float64(lambtv_sim),
-        lambtsv=np.float64(lambtsv_sim),
-        lambmem=np.float64(lambmem_sim),
-        lambcom=np.float64(lambcom_sim),
-        lambrt=np.float64(lambrt_sim),
-        lambri=np.float64(lambri_sim),
-        lambrs=np.float64(lambrs_sim),
         # Imaging Parameter
         niter=np.int32(niter),
         nonneg=nonneg,
-        transtype=np.int32(transtype),
-        transprm=np.float64(transprm),
-        pcom=np.float64(compower),
+        nprint=np.int32(nprint),
+        # Regularization Parameters
+        l1_l=np.float64(l1_l),
+        l1_wgt=np.float64(l1_wgt),
+        l1_nwgt=np.int32(l1_nwgt),
+        sm_l=np.float64(sm_l),
+        sm_maj=np.float64(sm_maj),
+        sm_min=np.float64(sm_min),
+        sm_phi=np.float64(sm_phi),
+        tv_l=np.float64(tv_l),
+        tv_wgt=np.float64(tv_wgt),
+        tv_nwgt=np.int32(tv_nwgt),
+        tsv_l=np.float64(tsv_l),
+        tsv_wgt=np.float64(tsv_wgt),
+        tsv_nwgt=np.int32(tsv_nwgt),
+        kl_l=np.float64(kl_l),
+        kl_wgt=np.float64(kl_wgt),
+        kl_nwgt=np.int32(kl_nwgt),
+        gs_l=np.float64(gs_l),
+        gs_wgt=np.float64(gs_wgt),
+        gs_nwgt=np.int32(gs_nwgt),
+        tfd_l=np.float64(tfd_l),
+        tfd_tgtfd=np.float64(tfd_tgtfd),
+        cen_l=np.float64(cen_l),
+        cen_alpha=np.float64(cen_alpha),
+        # Regularization Parameters for dynamical imaging
+        rt_l=np.float64(rt_lambda),
+        ri_l=np.float64(ri_lambda),
+        rs_l=np.float64(rs_lambda),
+        rf_l=np.float64(rf_lambda),
         # Full Complex Visibilities
         isfcv=isfcv,
         uvidxfcv=np.int32(uvidxfcv),
         vfcvr=np.float64(vfcvr),
         vfcvi=np.float64(vfcvi),
         varfcv=np.float64(varfcv),
+        wfcv=np.float64(w_vis),
         # Visibility Ampltiudes
         isamp=isamp,
         uvidxamp=np.int32(uvidxamp),
         vamp=np.float64(vamp),
         varamp=np.float64(varamp),
+        wamp=np.float64(w_amp),
         # Closure Phase
         iscp=iscp,
         uvidxcp=np.int32(uvidxcp),
         cp=np.float64(cp),
         varcp=np.float64(varcp),
+        wcp=np.float64(w_bs),
         # Closure Amplituds
         isca=isca,
         uvidxca=np.int32(uvidxca),
         ca=np.float64(ca),
         varca=np.float64(varca),
+        wca=np.float64(w_ca),
         # Following 3 parameters are for L-BFGS-B
         m=np.int32(lbfgsbprms["m"]), factr=np.float64(lbfgsbprms["factr"]),
         pgtol=np.float64(lbfgsbprms["pgtol"])
     )
-    print("before outimage is done")
-
-
+    Iout = output[0]
     outmovie = copy.deepcopy(initmovie)
-    print("before import outimlist")
-    ipix = 0
     for it in range(Nt):
         for i in range(len(xidx)):
-            outmovie.images[it].data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[ipix+i]
+            outmovie.images[it].data[istokes, ifreq, yidx[i]-1, xidx[i]-1] = Iout[i+it*Npix]
         outmovie.images[it].update_fits()
-        ipix += len(xidx)
+
     return outmovie
-
-
-def statistics(
-        initmovie, imagewin=None,
-        vistable=None, amptable=None, bstable=None, catable=None,
-        # 2D regularizers
-        lambl1=-1., lambtv=-1, lambtsv=-1, lambmem=-1.,lambcom=-1.,
-        # 3D regularizers
-        lambrt=-1.,lambri=-1.,lambrs=-1,
-        normlambda=True,
-        transform=None, transprm=None,
-        compower=1.,
-        totalflux=None, fluxconst=False,
-        istokes=0, ifreq=0, fulloutput=True, **args):
-    '''
-
-    '''
-    # Sanity Check: Initial Image list
-    #if type(initimlist) == list:
-    #    if len(initimlist) != Nt:
-    #        print("Error: The number of initial image list is different with given Nt")
-    #        return -1
-
-    Nt = initmovie.Nt
-    # Sanity Check: Data
-    if ((vistable is None) and (amptable is None) and
-            (bstable is None) and (catable is None)):
-        print("Error: No data are input.")
-        return -1
-
-    # Sanity Check: Sort
-    if vistable is not None:
-        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-    if amptable is not None:
-        amptable = amptable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-
-    # Sanity Check: Total Flux constraint
-    dofluxconst = False
-    if ((vistable is None) and (amptable is None) and (totalflux is None)):
-        print("Error: No absolute amplitude information in the input data.")
-        print("       You need to set the total flux constraint by totalflux.")
-        return -1
-    elif ((totalflux is None) and (fluxconst is True)):
-        print("Error: No total flux is specified, although you set fluxconst=True.")
-        print("       You need to set the total flux constraint by totalflux.")
-        return -1
-    elif ((vistable is None) and (amptable is None) and
-          (totalflux is not None) and (fluxconst is False)):
-        print("Warning: No absolute amplitude information in the input data.")
-        print("         The total flux will be constrained, although you do not set fluxconst=True.")
-        dofluxconst = True
-    elif fluxconst is True:
-        dofluxconst = True
-
-    # Sanity Check: Transform
-    if transform is None:
-        print("No transform will be applied to regularization functions.")
-        transtype = np.int32(0)
-        transprm = np.float64(0)
-    elif transform == "log":
-        print("log transform will be applied to regularization functions.")
-        transtype = np.int32(1)
-        if transprm is None:
-            transprm = 1e-10
-        elif transprm <= 0:
-            raise ValueError("transprm must be positive.")
-        else:
-            transprm = np.float64(transprm)
-        print("  threshold of log transform: %g"%(transprm))
-    elif transform == "gamma":
-        print("Gamma transform will be applied to regularization functions.")
-        transtype = np.int32(2)
-        if transprm is None:
-            transprm = 1/2.2
-        elif transprm <= 0:
-            raise ValueError("transprm must be positive.")
-        else:
-            transprm = np.float64(transprm)
-        print("  Power of Gamma correction: %g"%(transprm))
-
-    # Full Complex Visibility
-    Ndata = 0
-    if vistable is None:
-        isfcv = False
-        chisqfcv = 0.
-        rchisqfcv = 0.
-    else:
-        isfcv = True
-        chisqfcv, rchisqfcv = vistable.chisq_image3d(imfitslist=initmovie.images,
-                                                   mask=imagewin,
-                                                   amptable=False,
-                                                   istokes=istokes,
-                                                   ifreq=ifreq,
-                                                   Nt=Nt)
-        Ndata += len(vistable)*2
-
-    # Visibility Amplitude
-    if amptable is None:
-        isamp = False
-        chisqamp = 0.
-        rchisqamp = 0.
-    else:
-        isamp = True
-        chisqamp, rchisqamp = amptable.chisq_image3d(imfitslist=initmovie.images,
-                                                   mask=imagewin,
-                                                   amptable=True,
-                                                   istokes=istokes,
-                                                   ifreq=ifreq,
-                                                   Nt=Nt)
-        Ndata += len(amptable)
-
-    # Closure Phase
-    if bstable is None:
-        iscp = False
-        chisqcp = 0.
-        rchisqcp = 0.
-    else:
-        iscp = True
-        chisqcp, rchisqcp = bstable.chisq_image3d(imfitslist=initmovie.images,
-                                                mask=imagewin,
-                                                istokes=istokes,
-                                                ifreq=ifreq,
-                                                Nt=Nt)
-        Ndata += len(bstable)
-
-    # Closure Amplitude
-    if catable is None:
-        isca = False
-        chisqca = 0.
-        rchisqca = 0.
-    else:
-        isca = True
-        chisqca, rchisqca = catable.chisq_image3d(imfitslist=initmovie.images,
-                                                mask=imagewin,
-                                                istokes=istokes,
-                                                ifreq=ifreq,
-                                                Nt=Nt)
-        Ndata += len(catable)
-
-    # size of images
-    initimage = initmovie.images[0]
-    Nx = np.int32(initimage.header["nx"])
-    Ny = np.int32(initimage.header["ny"])
-    Nyx = Nx * Ny
-    if imagewin is not None:
-        Nyx = sum(imagewin.reshape(Nyx))
-
-    # Guess Total Flux
-    if totalflux is None:
-        totalflux = []
-        if vistable is not None:
-            totalflux.append(vistable["amp"].max())
-        if amptable is not None:
-            totalflux.append(amptable["amp"].max())
-        totalflux = np.max(totalflux)
-        print("Flux Scaling Factor for lambda: The expected total flux is not given.")
-        print("The scaling factor will be %g" % (totalflux))
-
-    # Normalize Lambda
-    if normlambda:
-        fluxscale = np.float64(totalflux)
-        print("Flux Scaling Factor for lambda: %g" % (fluxscale))
-
-        # convert Flux Scaling Factor
-        fluxscale = np.abs(fluxscale) / Nyx
-        if   transform=="log":   # log correction
-            fluxscale = np.log(fluxscale+transprm)-np.log(transprm)
-        elif transform=="gamma": # gamma correction
-            fluxscale = (fluxscale)**transprm
-
-        lambl1_sim = lambl1 / (fluxscale * Nyx)
-        lambtv_sim = lambtv / (4 * fluxscale * Nyx)
-        lambtsv_sim = lambtsv / (4 *fluxscale**2 * Nyx)
-        lambmem_sim = lambmem / np.abs(fluxscale*np.log(fluxscale) * Nyx)
-    else:
-        lambl1_sim = lambl1
-        lambtv_sim = lambtv
-        lambtsv_sim = lambtsv
-        lambmem_sim = lambmem
-
-    # Center of Mass regularization
-    lambcom_sim = lambcom # No normalization for COM regularization
-
-    # Dynamical Imaging regularization
-    lambrt_sim = lambrt # No normalization for Rt regularization
-    lambri_sim = lambri # No normalization for Ri regularization
-    lambrs_sim = lambrs # No normalization for Rs regularization
-
-    # cost calculation
-    l1, tv, tsv, mem, com = 0, 0, 0, 0, 0
-    rt, ri, rs = 0, 0, 0
-    for im in initmovie.images:
-        l1 += im.imagecost(func="l1",out="cost",istokes=istokes,
-                          ifreq=ifreq)
-        tv += im.imagecost(func="tv",out="cost",istokes=istokes,
-                          ifreq=ifreq)
-        tsv += im.imagecost(func="tsv",out="cost",istokes=istokes,
-                          ifreq=ifreq)
-        mem += im.imagecost(func="mem",out="cost",istokes=istokes,
-                          ifreq=ifreq)
-        com += im.imagecost(func="com",out="cost",istokes=istokes,
-                          ifreq=ifreq, compower=compower)
-        '''
-        rt += im.imagecost(func="rt",out="cost",istokes=istokes,
-                          ifreq=ifreq)
-        ri += im.imagecost(func="ri",out="cost",istokes=istokes,
-                          ifreq=ifreq)
-        rs += im.imagecost(func="rs",out="cost",istokes=istokes,
-                          ifreq=ifreq)
-        '''
-
-    if lambl1 > 0:
-        l1cost = l1 * lambl1_sim
-    else:
-        lambl1 = 0.
-        lambl1_sim = 0.
-        l1cost = 0.
-
-    if lambtv > 0:
-        tvcost = tv * lambtv_sim
-    else:
-        lambtv = 0.
-        lambtv_sim = 0.
-        tvcost = 0.
-
-    if lambtsv > 0:
-        tsvcost = tsv * lambtsv_sim
-    else:
-        lambtsv = 0.
-        lambtsv_sim = 0.
-        tsvcost = 0.
-
-    if lambmem > 0:
-        memcost = mem * lambmem_sim
-    else:
-        lambmem = 0.
-        lambmem_sim = 0.
-        memcost = 0.
-
-    if lambcom > 0:
-        comcost = com * lambcom_sim
-    else:
-        lambcom = 0.
-        lambcom_sim = 0.
-        comcost = 0.
-
-    # Cost and Chisquares
-    stats = collections.OrderedDict()
-    stats["cost"] =  com #l1cost + tvcost + tsvcost + memcost + comcost
-    stats["chisq"] = chisqfcv + chisqamp + chisqcp + chisqca
-    stats["rchisq"] = stats["chisq"] / Ndata
-    stats["isfcv"] = isfcv
-    stats["isamp"] = isamp
-    stats["iscp"] = iscp
-    stats["isca"] = isca
-    stats["chisqfcv"] = chisqfcv
-    stats["chisqamp"] = chisqamp
-    stats["chisqcp"] = chisqcp
-    stats["chisqca"] = chisqca
-    stats["rchisqfcv"] = rchisqfcv
-    stats["rchisqamp"] = rchisqamp
-    stats["rchisqcp"] = rchisqcp
-    stats["rchisqca"] = rchisqca
-
-    # Regularization functions
-    # L1
-    stats["lambl1"] = lambl1
-    stats["lambl1_sim"] = lambl1_sim
-    stats["l1"] = l1
-    stats["l1cost"] = l1cost
-    # TV
-    stats["lambtv"] = lambtv
-    stats["lambtv_sim"] = lambtv_sim
-    stats["tv"] = tv
-    stats["tvcost"] = tvcost
-    # TSV
-    stats["lambtsv"] = lambtsv
-    stats["lambtsv_sim"] = lambtsv_sim
-    stats["tsv"] = tsv
-    stats["tsvcost"] = tsvcost
-    # MEM
-    stats["lambmem"] = lambmem
-    stats["lambmem_sim"] = lambmem_sim
-    stats["mem"] = mem
-    stats["memcost"] = memcost
-    # COM
-    stats["lambcom"] = lambcom
-    stats["lambcom_sim"] = lambcom_sim
-    stats["com"] = com
-    stats["comcost"] = comcost
-
-    return stats
-
-
-def plots(outimage, imageprm={}, filename=None,
-                     angunit="mas", uvunit="ml", plotargs={'ms': 1., }):
-    isinteractive = plt.isinteractive()
-    backend = matplotlib.rcParams["backend"]
-
-    if isinteractive:
-        plt.ioff()
-        matplotlib.use('Agg')
-
-    nullfmt = NullFormatter()
-
-    # Label
-    if uvunit.lower().find("l") == 0:
-        unitlabel = r"$\lambda$"
-    elif uvunit.lower().find("kl") == 0:
-        unitlabel = r"$10^3 \lambda$"
-    elif uvunit.lower().find("ml") == 0:
-        unitlabel = r"$10^6 \lambda$"
-    elif uvunit.lower().find("gl") == 0:
-        unitlabel = r"$10^9 \lambda$"
-    elif uvunit.lower().find("m") == 0:
-        unitlabel = "m"
-    elif uvunit.lower().find("km") == 0:
-        unitlabel = "km"
-    else:
-        print("Error: uvunit=%s is not supported" % (unit2))
-        return -1
-
-    # Get statistics
-    stats = statistics(outimage, **imageprm)
-
-    # Open File
-    if filename is not None:
-        pdf = PdfPages(filename)
-
-    # Save Image
-    if filename is not None:
-        util.matplotlibrc(nrows=1, ncols=1, width=600, height=600)
-    else:
-        matplotlib.rcdefaults()
-
-    plt.figure()
-    outimage.imshow(angunit=angunit)
-    if filename is not None:
-        pdf.savefig()
-        plt.close()
-
-    # Amplitude
-    if stats["isfcv"] == True:
-        table = imageprm["vistable"]
-
-        # Get model data
-        model = table.eval_image(imfits=outimage,
-                                 mask=None,
-                                 amptable=False,
-                                 istokes=0,
-                                 ifreq=0)
-        resid = table.residual_image(imfits=outimage,
-                                     mask=None,
-                                     amptable=False,
-                                     istokes=0,
-                                     ifreq=0)
-
-        if filename is not None:
-            util.matplotlibrc(nrows=3, ncols=1, width=600, height=200)
-        else:
-            matplotlib.rcdefaults()
-
-        fig, axs = plt.subplots(nrows=3, ncols=1, sharex=True)
-        plt.subplots_adjust(hspace=0)
-
-        ax = axs[0]
-        plt.sca(ax)
-        table.radplot(uvunit=uvunit,
-                      datatype="amp",
-                      color="black",
-                      **plotargs)
-        model.radplot(uvunit=uvunit,
-                      datatype="amp",
-                      color="red",
-                      **plotargs)
-        plt.xlabel("")
-
-        ax = axs[1]
-        plt.sca(ax)
-        table.radplot(uvunit=uvunit,
-                      datatype="phase",
-                      color="black",
-                      **plotargs)
-        model.radplot(uvunit=uvunit,
-                      datatype="phase",
-                      color="red",
-                      **plotargs)
-        plt.xlabel("")
-
-        ax = axs[2]
-        plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      datatype="real",
-                      normerror=True,
-                      errorbar=False,
-                      color="blue",
-                      **plotargs)
-        resid.radplot(uvunit=uvunit,
-                      datatype="imag",
-                      normerror=True,
-                      errorbar=False,
-                      color="red",
-                      **plotargs)
-        plt.axhline(0, color="black", ls="--")
-        plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
-        plt.legend(ncol=2)
-
-        divider = make_axes_locatable(ax)  # Histgram
-        cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
-        if filename is not None:
-            pdf.savefig()
-            plt.close()
-
-    if stats["isamp"] == True:
-        table = imageprm["amptable"]
-
-        # Get model data
-        model = table.eval_image(imfits=outimage,
-                                 mask=None,
-                                 amptable=True,
-                                 istokes=0,
-                                 ifreq=0)
-        resid = table.residual_image(imfits=outimage,
-                                     mask=None,
-                                     amptable=True,
-                                     istokes=0,
-                                     ifreq=0)
-
-        if filename is not None:
-            util.matplotlibrc(nrows=2, ncols=1, width=600, height=300)
-        else:
-            matplotlib.rcdefaults()
-
-        fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True)
-        plt.subplots_adjust(hspace=0)
-
-        ax = axs[0]
-        plt.sca(ax)
-        table.radplot(uvunit=uvunit,
-                      datatype="amp",
-                      color="black",
-                      **plotargs)
-        model.radplot(uvunit=uvunit,
-                      datatype="amp",
-                      color="red",
-                      **plotargs)
-        plt.xlabel("")
-
-        ax = axs[1]
-        plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      datatype="amp",
-                      normerror=True,
-                      errorbar=False,
-                      color="black",
-                      **plotargs)
-        plt.axhline(0, color="black", ls="--")
-        ymin = np.min(resid["amp"]/resid["sigma"])*1.1
-        plt.ylim(ymin,)
-        plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
-
-        divider = make_axes_locatable(ax)  # Histgram
-        cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
-        if filename is not None:
-            pdf.savefig()
-            plt.close()
-
-    # Closure Amplitude
-    if stats["isca"] == True:
-        table = imageprm["catable"]
-
-        # Get model data
-        model = table.eval_image(imfits=outimage,
-                                 mask=None,
-                                 istokes=0,
-                                 ifreq=0)
-        resid = table.residual_image(imfits=outimage,
-                                     mask=None,
-                                     istokes=0,
-                                     ifreq=0)
-
-        if filename is not None:
-            util.matplotlibrc(nrows=2, ncols=1, width=600, height=300)
-        else:
-            matplotlib.rcdefaults()
-
-        fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True)
-        plt.subplots_adjust(hspace=0)
-
-        ax = axs[0]
-        plt.sca(ax)
-
-
-        table.radplot(uvunit=uvunit, uvdtype="ave", color="black", log=True,
-                      **plotargs)
-        model.radplot(uvunit=uvunit, uvdtype="ave", color="red", log=True,
-                      **plotargs)
-        plt.xlabel("")
-
-        ax = axs[1]
-        plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      uvdtype="ave",
-                      log=True,
-                      normerror=True,
-                      errorbar=False,
-                      color="black",
-                      **plotargs)
-        plt.axhline(0, color="black", ls="--")
-        plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
-
-        divider = make_axes_locatable(ax)  # Histgram
-        cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
-        if filename is not None:
-            pdf.savefig()
-            plt.close()
-
-    # Closure Phase
-    if stats["iscp"] == True:
-        table = imageprm["bstable"]
-
-        # Get model data
-        model = table.eval_image(imfits=outimage,
-                                 mask=None,
-                                 istokes=0,
-                                 ifreq=0)
-        resid = table.residual_image(imfits=outimage,
-                                     mask=None,
-                                     istokes=0,
-                                     ifreq=0)
-
-        if filename is not None:
-            util.matplotlibrc(nrows=2, ncols=1, width=600, height=300)
-        else:
-            matplotlib.rcdefaults()
-
-        fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True)
-        plt.subplots_adjust(hspace=0)
-
-        ax = axs[0]
-        plt.sca(ax)
-        table.radplot(uvunit=uvunit, uvdtype="ave", color="black",
-                      **plotargs)
-        model.radplot(uvunit=uvunit, uvdtype="ave", color="red",
-                      **plotargs)
-        plt.xlabel("")
-
-        ax = axs[1]
-        plt.sca(ax)
-        resid.radplot(uvunit=uvunit,
-                      uvdtype="ave",
-                      normerror=True,
-                      errorbar=False,
-                      color="black",
-                      **plotargs)
-        plt.axhline(0, color="black", ls="--")
-        residcp = table["phase"] / np.rad2deg(table["sigma"] / table["amp"])
-        ymin = np.min(residcp)*1.1
-        ymax = np.max(residcp)*1.1
-        plt.ylim(ymin,ymax)
-        plt.ylabel("Normalized Residuals")
-        plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
-        del residcp,ymin,ymax
-        divider = make_axes_locatable(ax)  # Histgram
-        cax = divider.append_axes("right", size="10%", pad=0.05)
-#        ymin, ymax = ax.get_ylim()
-#        xmin = np.min(normresid)
-#        xmax = np.max(normresid)
-#        y = np.linspace(ymin, ymax, 1000)
-#        x = 1 / np.sqrt(2 * np.pi) * np.exp(-y * y / 2.)
-#        cax.hist(normresid, bins=np.int(np.sqrt(N)),
-#                 normed=True, orientation='horizontal')
-#        cax.plot(x, y, color="red")
-#        cax.set_ylim(ax.get_ylim())
-#        cax.axhline(0, color="black", ls="--")
-#        cax.yaxis.set_major_formatter(nullfmt)
-#        cax.xaxis.set_major_formatter(nullfmt)
-        if filename is not None:
-            pdf.savefig()
-            plt.close()
-
-    # Close File
-    if filename is not None:
-        pdf.close()
-    else:
-        plt.show()
-
-    if isinteractive:
-        plt.ion()
-        matplotlib.use(backend)
-
-
 
 
 # ------------------------------------------------------------------------------

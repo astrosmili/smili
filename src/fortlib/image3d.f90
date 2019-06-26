@@ -1,23 +1,440 @@
 module image3d
   !$use omp_lib
   use param, only : dp, dpc, pi, i_dpc
-  use fftlib, only: NUFFT_fwd, NUFFT_adj, NUFFT_adj_resid, phashift_r2c,&
-                    chisq_fcv, chisq_amp, chisq_ca, chisq_cp
-  use image, only : ixiy2ixy, ixy2ixiy, comreg, zeroeps,&
+  use fftlib, only: NUFFT_fwd, NUFFT_adj, NUFFT_adj_resid, phashift_r2c
+  use image, only : calc_cost_reg, ixiy2ixy, ixy2ixiy, zeroeps,&
                     I1d_I2d_fwd,I1d_I2d_inv,&
-                    log_fwd, log_grad,&
-                    gamma_fwd, gamma_grad,&
                     l1_e, l1_grade,&
                     tv_e, tv_grade,&
-                    tsv_e, tsv_grade,&
-                    comreg3d
+                    tsv_e, tsv_grade, smabs
   implicit none
 contains
+!-------------------------------------------------------------------------------
+! Calc cost function
+!-------------------------------------------------------------------------------
+subroutine calc_cost_reg3d(&
+    I1d, xidx, yidx, Nxref, Nyref, Nx, Ny, &
+    l1_l, l1_wgt, l1_Nwgt,&
+    sm_l, sm_maj, sm_min, sm_phi,&
+    tv_l, tv_wgt, tv_Nwgt,&
+    tsv_l, tsv_wgt, tsv_Nwgt,&
+    kl_l, kl_wgt, kl_Nwgt,&
+    gs_l, gs_wgt, gs_Nwgt,&
+    tfd_l, tfd_tgtfd,&
+    cen_l, cen_alpha,&
+    rt_l, ri_l, rs_l, rf_l, &
+    l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
+    tfd_cost, cen_cost, &
+    rt_cost, ri_cost, rs_cost, rf_cost, &
+    out_maj, out_min, out_phi,&
+    cost, gradcost, &
+    Npix, Nz)
+  implicit none
+
+  ! Image
+  integer,  intent(in)  :: Npix, Nx, Ny, Nz
+  integer,  intent(in)  :: xidx(Npix), yidx(Npix)
+  real(dp), intent(in)  :: I1d(Npix*Nz)
+  real(dp), intent(in)  :: Nxref, Nyref
+
+  ! parameter for l1
+  real(dp), intent(in)  :: l1_l              ! lambda
+  integer,  intent(in)  :: l1_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: l1_wgt(l1_Nwgt)   ! weight
+
+  ! parameter for second momentum
+  real(dp), intent(in)   :: sm_l              ! lambda
+  real(dp), intent(in)   :: sm_maj,sm_min,sm_phi ! major, minor size and position angle
+
+  ! parameter for total variation
+  real(dp), intent(in)  :: tv_l              ! lambda
+  integer,  intent(in)  :: tv_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: tv_wgt(tv_Nwgt)   ! weight
+
+  ! parameter for total squared variation
+  real(dp), intent(in)  :: tsv_l             ! lambda
+  integer,  intent(in)  :: tsv_Nwgt          ! size of the weight vector
+  real(dp), intent(in)  :: tsv_wgt(tsv_Nwgt) ! weight
+
+  ! parameter for kl divergence
+  real(dp), intent(in)  :: kl_l              ! lambda
+  integer,  intent(in)  :: kl_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: kl_wgt(kl_Nwgt)   ! weight
+
+  ! parameter for Gull & Skilling entropy
+  real(dp), intent(in)  :: gs_l              ! lambda
+  integer,  intent(in)  :: gs_Nwgt           ! size of the weight vector
+  real(dp), intent(in)  :: gs_wgt(gs_Nwgt)   ! weight
+
+  ! parameter for the total flux density regularization
+  real(dp), intent(in)  :: tfd_l             ! lambda (Normalized)
+  real(dp), intent(in)  :: tfd_tgtfd         ! target total flux
+
+  ! parameter for the centoroid regularization
+  real(dp), intent(in)  :: cen_l             ! lambda (Normalized)
+  real(dp), intent(in)  :: cen_alpha         ! alpha
+
+  ! regularization parameters for dynamical imaging
+  real(dp), intent(in) :: rt_l
+  real(dp), intent(in) :: ri_l
+  real(dp), intent(in) :: rs_l
+  real(dp), intent(in) :: rf_l
+
+  ! regularization function
+  real(dp), intent(out) :: l1_cost    ! cost of l1
+  real(dp), intent(out) :: sm_cost    ! cost of second moment
+  real(dp), intent(out) :: tv_cost    ! cost of tv
+  real(dp), intent(out) :: tsv_cost   ! cost of tsv
+  real(dp), intent(out) :: kl_cost    ! cost of KL divergence
+  real(dp), intent(out) :: gs_cost    ! cost of GS entropy
+  real(dp), intent(out) :: tfd_cost   ! cost of total flux regularization
+  real(dp), intent(out) :: cen_cost   ! cost of centoroid regularizaiton
+
+  ! regularizer for dynamical imaging
+  real(dp), intent(out) :: rt_cost, ri_cost, rs_cost, rf_cost
+
+  ! second moment variables
+  real(dp), intent(out) :: out_maj, out_min, out_phi
+
+
+  ! Total Cost function
+  real(dp), intent(out) :: cost                 ! cost function
+  real(dp), intent(out) :: gradcost(1:Npix*Nz)  ! gradient of the cost function
+
+  ! gradcost for dynamical imaging
+  real(dp) :: di_gradcost(Npix*Nz), di_cost
+  ! values for each frame
+  real(dp) :: l1_cost_frm, sm_cost_frm, tv_cost_frm, &
+              tsv_cost_frm, kl_cost_frm, gs_cost_frm, &
+              tfd_cost_frm, cen_cost_frm,&
+              out_maj_frm, out_min_frm, out_phi_frm,&
+              cost_frm
+  real(dp) :: gradcost_frm(Npix)
+
+  integer :: iz
+
+  ! Initialize
+  l1_cost  = 0d0
+  sm_cost  = 0d0
+  tv_cost  = 0d0
+  tsv_cost = 0d0
+  kl_cost  = 0d0
+  gs_cost  = 0d0
+  tfd_cost = 0d0
+  cen_cost = 0d0
+
+  rt_cost = 0d0
+  ri_cost = 0d0
+  rs_cost = 0d0
+  rf_cost = 0d0
+  di_cost = 0d0
+
+  out_maj  = 0d0
+  out_min  = 0d0
+  out_phi  = 0d0
+
+  cost     = 0d0
+  gradcost(:) = 0d0
+  di_gradcost(:) = 0d0
+  do iz=1, Nz
+    call calc_cost_reg(&
+        I1d((iz-1)*Npix+1:iz*Npix), &
+        xidx, yidx, Nxref, Nyref, Nx, Ny,&
+        l1_l, l1_wgt, l1_Nwgt,&
+!        sm_l, sm_maj, sm_min, sm_phi,&
+        tv_l, tv_wgt, tv_Nwgt,&
+        tsv_l, tsv_wgt, tsv_Nwgt,&
+        kl_l, kl_wgt, kl_Nwgt,&
+        gs_l, gs_wgt, gs_Nwgt,&
+        tfd_l, tfd_tgtfd,&
+        cen_l, cen_alpha,&
+        l1_cost_frm, &
+!        sm_cost_frm,&
+        tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
+        tfd_cost_frm, cen_cost_frm,&
+!        out_maj_frm, out_min_frm, out_phi_frm,&
+        cost_frm, gradcost_frm, Npix &
+    )
+
+    l1_cost  = l1_cost + l1_cost_frm / Nz
+    sm_cost  = sm_cost + sm_cost_frm / Nz
+    tv_cost  = tv_cost + tv_cost_frm / Nz
+    tsv_cost = tsv_cost + tsv_cost_frm / Nz
+    kl_cost  = kl_cost + kl_cost_frm / Nz
+    gs_cost  = gs_cost + gs_cost_frm / Nz
+    tfd_cost = tfd_cost + tfd_cost_frm / Nz
+    cen_cost = cen_cost + cen_cost_frm /Nz
+    out_maj  = out_maj + out_maj_frm / Nz
+    out_min  = out_min + out_min_frm / Nz
+    out_phi  = out_phi + out_phi_frm / Nz
+    cost     = cost + cost_frm / Nz
+    gradcost((iz-1)*Npix+1:iz*Npix) = gradcost_frm / Nz
+
+  end do
+
+  ! dynamical imaging regularizers
+  if (rt_l > 0 .or. ri_l > 0 .or. rs_l > 0) then
+    call calc_cost_dynamical(&
+      Npix, Nz, I1d, rt_l, ri_l, rs_l, rf_l, &
+      rt_cost, ri_cost, rs_cost, rf_cost, di_cost, di_gradcost&
+    )
+    cost     = cost + di_cost
+    gradcost(:) = gradcost(:) + di_gradcost(:)
+  end if
+
+end subroutine
 !
 !-------------------------------------------------------------------------------
 ! Regularization Function for Dynamical Imaging
 !-------------------------------------------------------------------------------
-!
+subroutine calc_cost_dynamical(&
+  Npix, Nz, Iin, rt_l, ri_l, rs_l, rf_l, &
+  rt_cost, ri_cost, rs_cost, rf_cost, &
+  cost, gradcost &
+)
+  implicit none
+
+  ! allocatable arrays
+  integer, intent(in) :: Nz, Npix
+  real(dp), intent(in) :: Iin(Npix*Nz)
+  real(dp), intent(in) :: rt_l, ri_l, rs_l, rf_l
+  real(dp), intent(out) :: rt_cost, ri_cost, rs_cost, rf_cost
+  real(dp), intent(out) :: cost, gradcost(Npix*Nz)
+
+  real(dp) :: Iavg(Npix), Iin_frm(Npix), s, su, sl, f, fu, fl, Il, Iu
+
+  integer :: ipix, iz
+  real(dp) :: totalflux, stotal
+  real(dp) :: ri_wgt, rt_wgt, rs_wgt, rf_wgt
+  ! Initialize
+  Iavg(:)   = 0d0
+  totalflux = 0d0
+  stotal    = 0d0
+  rt_cost   = 0d0
+  ri_cost   = 0d0
+  rs_cost   = 0d0
+  rf_cost   = 0d0
+  cost   = 0d0
+
+  ! Calculate averaged intensity map, totalflux and total entropy
+  do iz=1, Nz
+
+    Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
+    Iavg = Iavg + Iin_frm / Nz
+    totalflux  = totalflux + f_e(Iavg, Npix)
+    stotal    = stotal + s_e(Iavg, Npix)
+
+  end do
+
+  ! uniform weight of each dynamical regularizer
+  ri_wgt = 1. / (totalflux * Nz)
+  rt_wgt = 1. / (totalflux * Nz)
+  rs_wgt = 1. / (stotal * Nz)
+  rf_wgt = 1. / (totalflux * Nz)
+
+  do iz=1,Nz
+    Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
+
+    ! For Rs or Rf regularizer
+    if (rs_l > 0 .or. rf_l > 0) then
+      if (iz < Nz-1) then
+        s  = s_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
+        su = s_e(Iin((iz+1)*Npix+1:(iz+2)*Npix),Npix)
+        f  = f_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
+        fu = f_e(Iin((iz+1)*Npix+1:(iz+2)*Npix),Npix)
+        if(iz > 1 .and. iz < Nz-1) then
+          sl = s_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+          fl = f_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+        end if
+      end if
+    end if
+
+
+    do ipix=1,Npix
+
+      ! Ri regularizer
+      if (ri_l > 0) then
+        ri_cost     = ri_cost + ri_l * ri_wgt * ri_e(Iin_frm(ipix), Iavg(ipix))
+        gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                          ri_l * ri_wgt * ri_grade(Iin_frm(ipix), Iavg(ipix))
+      end if
+
+      ! Rt regularizer
+      if (rt_l > 0) then
+        if (iz < Nz-1) then
+          Iu = Iin((iz+1)*Npix+ipix)
+          rt_cost  = rt_cost + rt_l * rt_wgt * rt_e(Iin(ipix), Iu)
+          if(iz > 1) then
+            Il    = Iin((iz-1)*Npix+ipix)
+            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                      rt_l * rt_wgt * rt_grade(Iin_frm(ipix), Il, Iu)
+          end if
+        end if
+      end if
+
+      ! Rs regularizer
+      if (rs_l > 0) then
+        if (iz < Nz-1) then
+          rs_cost  = rs_cost + rs_l * rs_wgt * rs_e(s, su)
+          if(iz > 1 .and. iz < Nz-1) then
+            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                      rs_l * rs_wgt * rs_grade(s, sl, su, Iin_frm(ipix))
+          end if
+        end if
+      end if
+
+      ! Rf regularizer
+      if (rf_l > 0) then
+        if (iz < Nz-1) then
+          rf_cost  = rf_cost + rf_l * rf_wgt * rf_e(f, fu)
+          if(iz > 1 .and. iz < Nz-1) then
+            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                      rf_l * rf_wgt * rf_grade(f, fl, fu, Iin_frm(ipix))
+          end if
+        end if
+      end if
+
+    end do
+
+    ! take summation of all the cost function
+    cost = ri_cost + rt_cost + rs_cost + rf_cost
+
+  end do
+
+end subroutine
+
+!-------------------------------------------------------------------------------
+! Regularization Function for Dynamical Imaging
+!-------------------------------------------------------------------------------
+! Ri regularizer
+!-------------------------------------------------------------------------------
+!ri norm at each pixel and time frame
+real(dp) function ri_e(I, Iavg)
+  implicit none
+  real(dp), intent(in) :: I, Iavg    ! pixel intensity and averaged one
+
+  ri_e = (I - Iavg)**2
+end function
+
+
+! gradient of ri norm at each pixel and time frame
+real(dp) function ri_grade(I, Iavg)
+  implicit none
+  real(dp), intent(in) :: I, Iavg    ! pixel intensity and averaged one
+
+  ri_grade = 2. *  (I - Iavg)
+end function
+
+
+!-------------------------------------------------------------------------------
+! Rt regularizer
+!-------------------------------------------------------------------------------
+! rt norm at each pixel and time frame
+real(dp) function rt_e(I, Iu)
+  implicit none
+  real(dp), intent(in) :: I, Iu      ! pixel intensity of two time frames
+
+  rt_e = (Iu - I)**2
+end function
+
+
+! gradient of rt norm at each pixel and time frame
+real(dp) function rt_grade(I, Il, Iu)
+  implicit none
+  real(dp), intent(in) :: I, Iu, Il  ! pixel intensity of three time frames
+
+  rt_grade = 2. * (2. * I - Il - Iu)
+end function
+
+
+!-------------------------------------------------------------------------------
+! Rs regularizer
+!-------------------------------------------------------------------------------
+! rs norm at each pixel and time frame
+real(dp) function rs_e(s, su)
+  implicit none
+  real(dp), intent(in) :: s, su      ! maximum entropy of two time frames
+  rs_e = (s - su)**2
+end function
+
+
+! calculate maximum entropy
+real(dp) function s_e(I1d, Npix)
+  implicit none
+  integer, intent(in)  :: Npix
+  real(dp), intent(in) :: I1d(Npix) ! pixel intensity of a time frame
+  integer :: ipix
+  real(dp) :: se
+
+  se = 0d0
+
+  do ipix=1, Npix
+    se = se - smabs(I1d(ipix))*log(smabs(I1d(ipix)))
+  end do
+
+  s_e = se
+
+end function
+
+
+! gradient of rs norm at each pixel and time frame
+real(dp) function rs_grade(s, sl, su, I)
+  implicit none
+  real(dp), intent(in) :: s, sl, su  ! maximum entropy of three time frames
+  real(dp), intent(in) :: I          ! pixel intensity of a time frame
+  rs_grade = 2. * (2. * s - sl - su) * s_grade(I)
+end function
+
+
+! gradient of maximum entropy
+real(dp) function s_grade(I)
+  implicit none
+  real(dp), intent(in) :: I          ! pixel intensity of a time frame
+
+  s_grade = -(log(smabs(I))+1.)
+end function
+
+
+!-------------------------------------------------------------------------------
+! Rf regularizer
+!-------------------------------------------------------------------------------
+! rf norm at each pixel and time frame
+real(dp) function rf_e(f, fu)
+  implicit none
+  real(dp), intent(in) :: f, fu      ! maximum entropy of two time frames
+  rf_e = (f - fu)**2
+end function
+
+
+! calculate maximum entropy
+real(dp) function f_e(I1d, Npix)
+  implicit none
+  integer, intent(in)  :: Npix
+  real(dp), intent(in) :: I1d(Npix) ! pixel intensity of a time frame
+  integer :: ipix
+  real(dp) :: fe
+
+  fe = 0d0
+
+  do ipix=1, Npix
+    fe = fe + smabs(I1d(ipix))
+  end do
+
+  f_e = fe
+
+end function
+
+
+! gradient of rs norm at each pixel and time frame
+real(dp) function rf_grade(f, fl, fu, I)
+  implicit none
+  real(dp), intent(in) :: f, fl, fu  ! maximum entropy of three time frames
+  real(dp), intent(in) :: I          ! pixel intensity of a time frame
+
+  rf_grade = 2. * (2. * f - fl - fu)
+end function
+
+
 !-------------------------------------------------------------------------------
 ! Distances
 !-------------------------------------------------------------------------------
@@ -167,499 +584,6 @@ real(dp) function ri_dklgrad(xidx,yidx,I2d,Iavg2d,Itmp2d,Nx,Ny,Nz)
   !
 end function
 !
-!-------------------------------------------------------------------------------
-! calc cost functions
-!-------------------------------------------------------------------------------
-!
-subroutine calc_costs(&
-  Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
-  u,v,Nuvs,Nuvs_sum,&
-  lambl1,lambtv,lambtsv,lambmem,lambcom,&
-  lambrt,lambri,lambrs,&
-  fnorm,transtype,transprm,pcom,&
-  isfcv,uvidxfcv,Vfcv,Varfcv,&
-  isamp,uvidxamp,Vamp,Varamp,&
-  iscp,uvidxcp,CP,Varcp,&
-  isca,uvidxca,CA,Varca,&
-  costs,gradcosts,&
-  Nparm,Npix,Nuv,Nfcv,Namp,Ncp,Nca&
-)
-  !
-  ! Calculate Cost Functions
-  !
-  implicit none
-
-  ! Image
-  integer,  intent(in) :: Nparm, Npix, Nx, Ny, Nz
-  real(dp), intent(in) :: Iin(Nparm), Nxref, Nyref
-  integer,  intent(in) :: xidx(Npix), yidx(Npix)
-
-  ! uv coordinate
-  integer,  intent(in) :: Nuv
-  integer,  intent(in) :: Nuvs_sum(Nz)    ! accumulated number of uv data *before* each frame
-  integer,  intent(in) :: Nuvs(Nz)        ! number of uv data for each frame
-  real(dp), intent(in) :: u(Nuv), v(Nuv)  ! uv coordinates mutiplied by 2*pi*dx, 2*pi*dy
-
-  ! Regularization Parameters
-  real(dp), intent(in) :: lambl1  ! Regularization Parameter for L1-norm
-  real(dp), intent(in) :: lambtv  ! Regularization Parameter for iso-TV
-  real(dp), intent(in) :: lambtsv ! Regularization Parameter for TSV
-  real(dp), intent(in) :: lambmem ! Regularization Parameter for MEM
-  real(dp), intent(in) :: lambcom ! Regularization Parameter for Center of Mass
-  real(dp), intent(in) :: lambrt    ! Regularization Parameter for Dynamical Imaging (delta-t)
-  real(dp), intent(in) :: lambri    ! Regularization Parameter for Dynamical Imaging (delta-I)
-  real(dp), intent(in) :: lambrs    ! Regularization Parameter for Dynamical Imaging (entropy continuity)
-
-  ! Imaging Parameter
-  real(dp), intent(in) :: fnorm     ! normalization factor for chisquare
-  integer,  intent(in) :: transtype ! 0: No transform
-                                    ! 1: log correction
-                                    ! 2: gamma correction
-  real(dp), intent(in) :: transprm  ! transtype=1: theshold for log
-                                    ! transtype=2: power of gamma correction
-  real(dp), intent(in) :: pcom      ! power weight of C.O.M regularization
-
-  ! Parameters related to full complex visibilities
-  logical,      intent(in) :: isfcv           ! is data?
-  integer,      intent(in) :: Nfcv            ! number of data
-  integer,      intent(in) :: uvidxfcv(Nfcv)  ! uvidx
-  complex(dpc), intent(in) :: Vfcv(Nfcv)      ! data
-  real(dp),     intent(in) :: Varfcv(Nfcv)    ! variance
-
-  ! Parameters related to amplitude
-  logical,  intent(in) :: isamp           ! is amplitudes?
-  integer,  intent(in) :: Namp            ! Number of data
-  integer,  intent(in) :: uvidxamp(Namp)  ! uvidx
-  real(dp), intent(in) :: Vamp(Namp)      ! data
-  real(dp), intent(in) :: Varamp(Namp)    ! variance
-
-  ! Parameters related to the closure phase
-  logical,  intent(in) :: iscp            ! is closure phases?
-  integer,  intent(in) :: Ncp             ! Number of data
-  integer,  intent(in) :: uvidxcp(3,Ncp)  ! uvidx
-  real(dp), intent(in) :: CP(Ncp)         ! data
-  real(dp), intent(in) :: Varcp(Ncp)      ! variance
-
-  ! Parameters related to the closure amplitude
-  logical,  intent(in) :: isca            ! is closure amplitudes?
-  integer,  intent(in) :: Nca             ! Number of data
-  integer,  intent(in) :: uvidxca(4,Nca)  ! uvidx
-  real(dp), intent(in) :: CA(Nca)         ! data
-  real(dp), intent(in) :: Varca(Nca)      ! variance
-
-  ! Outputs
-  real(dp), intent(out) :: costs(10)
-  real(dp), intent(out) :: gradcosts(Nparm,10)
-
-  ! integer
-  integer :: ipix, iz, iparm, istart, iend
-
-  ! chisquares, gradients of each term of equations
-  real(dp) :: chisq, reg                 ! chisquare and regularization
-  real(dp) :: rint_s, reg_frm            ! regularization for interpolation
-  real(dp) :: cost,gradcost(Nparm)       ! for costs, and gradcosts
-  ! allocatable arrays
-  real(dp), allocatable :: I2d(:,:),I2dl(:,:),I2du(:,:),Iin_reg(:)
-  real(dp), allocatable :: Iavg(:), Iavg2d(:,:), Ij(:), Itmp(:), Itmp2d(:,:)
-
-  ! modifiy
-  real(dp), allocatable :: Iavgin(:,:)
-  real(dp), allocatable :: gradreg_tmpin(:,:)
-
-  real(dp), allocatable :: gradchisq2d(:,:)
-  real(dp), allocatable :: gradreg(:), gradreg_tmp(:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
-  complex(dpc), allocatable :: Vcmp(:)
-  real(dp), allocatable :: gradreg_frm(:), regset(:), gradregset(:), gradrint_s(:)
-
-  !------------------------------------
-  ! Initialize outputs, and some parameters
-  !------------------------------------
-  ! Initialize the chisquare and its gradient
-  !write(*,*) 'stdftim.calc_cost: initialize cost and gradcost'
-  cost     = 0d0
-  costs(:) = 0d0
-  gradcosts(:,:) = 0d0
-  gradcost(:) = 0d0
-
-  !------------------------------------
-  ! Compute chisquare and its gradient
-  !------------------------------------
-  ! Initialize
-  !   scalars
-  chisq = 0d0
-
-  ! Forward Non-unifrom Fast Fourier Transform
-  !   allocatable arrays
-  allocate(Vcmp(Nuv))
-  Vcmp(:) = dcmplx(0d0,0d0)
-  !
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,Nz,Npix,Nuvs,Nuvs_sum,u,v) &
-  !$OMP   PRIVATE(iz, istart, iend, I2d) &
-  !$OMP   REDUCTION(+:Vcmp)
-
-  !------------------------------------
-  ! Initialize outputs, and some parameters
-  !------------------------------------
-  ! Initialize the chisquare and its gradient
-  !write(*,*) 'stdftim.calc_cost: initialize cost and gradcost'
-  costs(:) = 0d0
-  gradcosts(:,:) = 0d0
-  gradcost(:) = 0d0
-
-
-  do iz=1, Nz
-  ! If there is a data corresponding to this frame
-  if (Nuvs(iz) /= 0) then
-    ! allocate 2D image for imaging
-    allocate(I2d(Nx,Ny))
-    I2d(:,:) = 0d0
-    call I1d_I2d_fwd(xidx,yidx,Iin((iz-1)*Npix+1:iz*Npix),I2d,Npix,Nx,Ny)
-
-    ! Index of data
-    istart = Nuvs_sum(iz) + 1
-    iend   = Nuvs_sum(iz) + Nuvs(iz)
-
-    ! run forward NUFFT
-    call NUFFT_fwd(u(istart:iend),v(istart:iend),I2d,Vcmp(istart:iend),&
-                   Nx,Ny,Nuvs(iz))
-
-    ! deallocate array
-    deallocate(I2d)
-  end if
-  end do
-  !$OMP END PARALLEL DO
-
-  ! allocate arrays for residuals
-  allocate(Vresre(Nuv), Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
-
-  ! Full complex visibility
-  if (isfcv .eqv. .True.) then
-    call chisq_fcv(Vcmp,uvidxfcv,Vfcv,Varfcv,fnorm,chisq,Vresre,Vresim,Nuv,Nfcv)
-  end if
-
-  ! Amplitudes
-  if (isamp .eqv. .True.) then
-    call chisq_amp(Vcmp,uvidxamp,Vamp,Varamp,fnorm,chisq,Vresre,Vresim,Nuv,Namp)
-  end if
-
-  ! Log closure amplitudes
-  if (isca .eqv. .True.) then
-    call chisq_ca(Vcmp,uvidxca,CA,Varca,fnorm,chisq,Vresre,Vresim,Nuv,Nca)
-  end if
-
-  ! Closure phases
-  if (iscp .eqv. .True.) then
-    call chisq_cp(Vcmp,uvidxcp,CP,Varcp,fnorm,chisq,Vresre,Vresim,Nuv,Ncp)
-  end if
-
-  deallocate(Vcmp)
-
-  ! Adjoint Non-unifrom Fast Fourier Transform
-  !  this will provide gradient of chisquare functions
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Nx,Ny,Nz,Npix,Nuvs,Nuvs_sum,u,v,Vresre,Vresim) &
-  !$OMP   PRIVATE(iz, istart, iend, gradchisq2d) &
-  !$OMP   REDUCTION(+:gradcost)
-  do iz=1, Nz
-    ! If there is a data corresponding to this frame
-    if(Nuvs(iz) /= 0) then
-      ! allocate 2D image for imaging
-      allocate(gradchisq2d(Nx,Ny))
-      gradchisq2d(:,:) = 0d0
-
-      ! Index of data
-      istart = Nuvs_sum(iz) + 1
-      iend   = Nuvs_sum(iz) + Nuvs(iz)
-
-      ! run adujoint NUFFT
-      call NUFFT_adj_resid(u(istart:iend),v(istart:iend),&
-                           Vresre(istart:iend),Vresim(istart:iend),&
-                           gradchisq2d,Nx,Ny,Nuvs(iz))
-
-      ! copy the gradient of chisquare into that of cost functions
-      call I1d_I2d_inv(xidx,yidx,gradcost((iz-1)*Npix+1:iz*Npix),&
-                       gradchisq2d,Npix,Nx,Ny)
-
-      ! deallocate array
-      deallocate(gradchisq2d)
-    end if
-  end do
-  !$OMP END PARALLEL DO
-  deallocate(Vresre,Vresim)
-
-  ! copy the chisquare into that of cost functions
-  costs(1) = chisq
-  !write(*,*) "chisq: ", chisq
-
-  if (lambcom > 0) then
-    ! initialize
-    !   scalars
-    reg = 0d0
-
-    !  allocatable arrays (modify)
-    allocate(Iavgin(Npix,Nz))
-    allocate(gradreg_tmpin(Npix,Nz))
-    allocate(gradreg(Nparm))
-    Iavgin(:,:)        = 0d0
-    gradreg_tmpin(:,:) = 0d0
-    gradreg(:) = 0d0
-
-    ! Averaged Image (modify)
-    do iz=1, Nz
-      do ipix=1,Npix
-        Iavgin(ipix,iz)=Iin((iz-1)*Npix+ipix)
-       end do
-    end do
-
-    ! calc cost and its gradient (modify)
-    call comreg3d(xidx,yidx,Nxref,Nyref,pcom,Iavgin,reg,gradreg_tmpin,Npix,Nz)
-
-    costs(2) = costs(2) + lambcom * reg
-    !
-    !$OMP PARALLEL DO DEFAULT(SHARED) &
-    !$OMP   FIRSTPRIVATE(Npix,Nz,gradreg_tmp) &
-    !$OMP   PRIVATE(iz, ipix, istart) &
-    !$OMP   REDUCTION(+: gradreg)
-
-    ! modify
-    do iz=1, Nz
-      istart = (iz-1)*Npix+1
-      !iend = iz*Npix
-      do ipix=1,Npix
-        gradreg(istart+ipix-1) = gradreg_tmpin(ipix,iz)
-      end do
-    end do
-
-    !$OMP END PARALLEL DO
-    call daxpy(Nparm, lambcom, gradreg, 1, gradcost, 1) ! gradcost := lambcom * gradreg + gradcost
-    ! deallocate array
-    !deallocate(gradreg_tmp)
-    !deallocate(gradreg)
-    !deallocate(Iavg)
-
-    ! deallocate array (modify)
-    deallocate(gradreg_tmpin)
-    deallocate(gradreg)
-    deallocate(Iavgin)
-  end if
-
-  !------------------------------------
-  ! 2D & 3D Regularization Functions
-  !------------------------------------
-  ! Initialize
-  !   scalars
-  reg = 0d0
-
-  !   allocatable arrays
-  allocate(gradreg(Nparm),Iin_reg(Nparm))
-  gradreg(:) = 0d0
-  Iin_reg(:) = 0d0
-
-  ! Transform Image
-  if (transtype == 1) then
-    ! Log Forward
-    call log_fwd(transprm,Iin,Iin_reg,Nparm)
-  else if (transtype == 2) then
-    ! Gamma contrast
-    call gamma_fwd(transprm,Iin,Iin_reg,Nparm)
-  else
-    call dcopy(Nparm,Iin,1,Iin_reg,1)
-  end if
-
-  ! 3D regularizers
-  if (lambri > 0) then
-    !   get an 3D averaged image
-    allocate(Iavg(Npix))
-    allocate(Iavg2d(Nx,Ny))
-    Iavg(:) = 0d0
-    Iavg2d(:,:) = 0d0
-    do iz=1, Nz
-      Iavg = Iavg + Iin((iz-1)*Npix+1:iz*Npix)
-    end do
-    do ipix=1,Npix
-      Iavg(ipix) = Iavg(ipix)/Nz
-    end do
-    call I1d_I2d_fwd(xidx,yidx,Iavg,Iavg2d,Npix,Nx,Ny)
-
-    !   temporal I-ratio for the gradient of Ri regularizer
-    allocate(Ij(Npix),Itmp(Npix))
-    allocate(Itmp2d(Nx,Ny))
-    Ij(:) = 0d0
-    Itmp(:) = 0d0
-    Itmp2d(:,:) = 0d0
-    do iz=1, Nz
-      Ij = Iin((iz-1)*Npix+1:iz*Npix)
-      do ipix=1, Npix
-        if (Iavg(ipix) == 0 .or. Ij(ipix) == 0) then
-          Itmp(ipix) = Itmp(ipix)
-        else if (Iavg(ipix) /= 0 .and. Ij(ipix) /= 0) then
-          Itmp(ipix) = Itmp(ipix) + log(Iavg(ipix)/Ij(ipix))
-        end if
-      end do
-    end do
-    call I1d_I2d_fwd(xidx,yidx,Itmp,Itmp2d,Npix,Nx,Ny)
-    deallocate(Ij)
-  end if
-
-  !   scalars
-  rint_s = 0d0
-  !   arrays
-  allocate(regset(Nz),gradregset(Nparm))
-  regset(:) = 0d0
-  gradregset(:) = 0d0
-
-  !$OMP PARALLEL DO DEFAULT(SHARED) &
-  !$OMP   FIRSTPRIVATE(Npix, Nz, lambl1, lambmem, lambtv, lambtsv, lambrt, lambri&
-  !$OMP                Iin_reg, xidx, yidx, regset, gradregset) &
-  !$OMP   PRIVATE(iz, ipix, iparm, I2d, I2dl, I2du, reg_frm, gradreg_frm) &
-  !$OMP   REDUCTION(+: reg, gradreg)
-  do iz=1, Nz
-    ! allocate 2d image if lambtv/tsv/rt > 0
-    if (lambtv > 0 .or. lambtsv > 0 .or. lambrt > 0 .or. lambri > 0) then
-      allocate(I2d(Nx,Ny))
-      allocate(I2dl(Nx,Ny))
-      allocate(I2du(Nx,Ny))
-      I2d(:,:)=0d0
-      I2dl(:,:)=0d0
-      I2du(:,:)=0d0
-
-      call I1d_I2d_fwd(xidx,yidx,Iin_reg((iz-1)*Npix+1:iz*Npix),I2d,Npix,Nx,Ny)
-      ! get a former frame
-      if (iz > 1) then
-        call I1d_I2d_fwd(xidx,yidx,Iin_reg((iz-2)*Npix+1:(iz-1)*Npix),I2dl,Npix,Nx,Ny)
-      end if
-      ! get a latter frame
-      if (iz < Nz) then
-        call I1d_I2d_fwd(xidx,yidx,Iin_reg(iz*Npix+1:(iz+1)*Npix),I2du,Npix,Nx,Ny)
-      end if
-    end if
-
-    reg_frm = 0d0
-    allocate(gradreg_frm(Npix))
-    gradreg_frm(:) = 0d0
-
-    ! compute regularization function
-    do ipix=1, Npix
-      iparm = (iz-1)*Npix + ipix
-      ! L1
-      if (lambl1 > 0) then
-        !reg_frm = reg_frm + l1_e(Iin_reg(iparm))
-        gradreg_frm(ipix) = gradreg_frm(ipix) + l1_grade(Iin_reg(iparm))
-        costs(3) = costs(3) + lambl1 * l1_e(Iin_reg(iparm))
-        gradreg(iparm) = gradreg(iparm) + lambl1 * l1_grade(Iin_reg(iparm))
-      end if
-
-      ! TV
-      if (lambtv > 0) then
-        !reg_frm = reg_frm + tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg_frm(ipix) = gradreg_frm(ipix) + tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        costs(4) = costs(4) + lambtv * tv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg(iparm) = gradreg(iparm) + lambtv * tv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-      end if
-
-      ! TSV
-      if (lambtsv > 0) then
-        !reg_frm = reg_frm + tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg_frm(ipix) = gradreg_frm(ipix) + tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        costs(5) = costs(5) + lambtsv * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-        gradreg(iparm) = gradreg(iparm) + lambtsv * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
-      end if
-
-      ! Dynamical Imaging
-      if (lambrt > 0 .and. iz < Nz) then
-        ! Rt from Dp (p=2) distance
-        costs(6) = costs(6) + lambrt * d2(xidx(ipix),yidx(ipix),I2d,I2du,Nx,Ny)
-        gradreg(iparm) = gradreg(iparm) + lambrt * rt_d2grad(xidx(ipix),yidx(ipix),iz,I2d,I2dl,I2du,Nx,Ny,Nz)
-        ! Rt from Kullback-Leibler divergence
-        !costs(6) = costs(6) + lambrt * dkl(xidx(ipix),yidx(ipix),I2d,I2du,Nx,Ny)
-        !gradreg(iparm) = gradreg(iparm) + lambrt * rt_dklgrad(xidx(ipix),yidx(ipix),iz,I2d,I2dl,I2du,Nx,Ny,Nz)
-      end if
-
-      if (lambri > 0) then
-        ! Ri from Dp (p=2) distance
-        costs(7) = costs(7) + lambri * d2(xidx(ipix),yidx(ipix),I2d,Iavg2d,Nx,Ny)
-        gradreg(iparm) = gradreg(iparm) + lambri * ri_d2grad(xidx(ipix),yidx(ipix),I2d,Iavg2d,Nx,Ny)
-        ! Ri from Kullback-Leibler divergence
-        !costs(7) = costs(7) + lambri * dkl(xidx(ipix),yidx(ipix),I2d,Iavg2d,Nx,Ny)
-        !gradreg(iparm) = gradreg(iparm) + lambri * ri_dklgrad(xidx(ipix),yidx(ipix),I2d,Iavg2d,Itmp2d,Nx,Ny,Nz)
-      end if
-    end do
-
-    regset(iz) = reg_frm
-    gradregset((iz-1)*Npix+1:iz*Npix) = gradreg_frm
-
-    ! deallocate I2d
-    if (lambtv > 0 .or. lambtsv > 0 .or. lambrt > 0 .or. lambri > 0) then
-      deallocate(I2d,I2dl,I2du)
-    end if
-    !
-    deallocate(gradreg_frm)
-  end do
-  !$OMP END PARALLEL DO
-  deallocate(Iin_reg)
-  !
-  if (lambri > 0) then
-    deallocate(Iavg,Iavg2d)
-    deallocate(Itmp,Itmp2d)
-  end if
-
-  !-------------------------------------------------------------------------------
-  ! Constraints for interpolation between frames
-  !-------------------------------------------------------------------------------
-  !
-  if (lambrs > 0) then
-    allocate(gradrint_s(Nparm))
-    gradrint_s(:) = 0d0
-
-    ! continuity of image entropy
-    do iz=1, Nz
-      ! regularizer
-      if (iz < Nz) then
-        rint_s = rint_s + (regset(iz) - regset(iz+1))**2
-      end if
-      ! gradient of regularizer
-      do ipix=1, Npix
-        iparm = (iz-1)*Npix + ipix
-        if (iz > 1) then
-          gradrint_s(iparm) = gradrint_s(iparm) + 2*(regset(iz) - regset(iz-1))
-        end if
-        if (iz < Nz) then
-          gradrint_s(iparm) = gradrint_s(iparm) + (regset(iz) - regset(iz+1))*gradregset(iparm)
-        end if
-      end do
-    end do
-    costs(8) = costs(8) + lambrs * rint_s
-    gradreg = gradreg + lambrs * gradrint_s
-    deallocate(regset,gradregset)
-    deallocate(gradrint_s)
-    !
-    ! continuity of total flux
-    !
-  end if
-  !
-
-  ! multiply variable conversion factor to gradients
-  if (transtype == 1) then
-    ! Log Forward
-    call log_grad(transprm,Iin,gradreg,Nparm)
-  else if (transtype == 2) then
-    ! Gamma contrast
-    call gamma_grad(transprm,Iin,gradreg,Nparm)
-  end if
-
-  ! add regularization function and its gradient to cost function and its gradient.
-  !costs(9) = costs(9)
-  call daxpy(Nparm, 1d0, gradreg, 1, gradcost, 1) ! gradcost := gradreg + gradcos
-
-  ! deallocate arrays
-  deallocate(gradreg)
-
-
-end subroutine
 
 
 end module
