@@ -66,6 +66,7 @@ def imaging(
         tfd_tgterror=0.01,
         cen_lambda=-1,
         cen_alpha=3,
+        pulse_fwhm = -1,
         cen_prior=None,
         niter=1000,
         nonneg=True,
@@ -144,6 +145,8 @@ def imaging(
         cem_prior (IMFITS, default=None):
             The prior image to be used to compute the normalization factor.
             If not specified, then the initial image will be used.
+        pulse_fwhm (float):
+            fwhm of gaussian of a pulse function
         niter (int,defalut=100):
             The number of iterations.
         nonneg (boolean,default=True):
@@ -385,6 +388,8 @@ def imaging(
         varfcv = dammyreal
     else:
         isfcv = True
+        if pulse_fwhm > 0:
+            vistable = deburr_vistable(vistable, pulse_fwhm, initimage.angunit)
         phase = np.deg2rad(np.array(vistable["phase"], dtype=np.float64))
         amp   = np.array(vistable["amp"], dtype=np.float64)
         vfcvr = np.float64(amp*np.cos(phase))
@@ -399,6 +404,8 @@ def imaging(
         varamp = dammyreal
     else:
         isamp = True
+        if pulse_fwhm > 0:
+            amptable = deburr_vistable(amptable, pulse_fwhm, initimage.angunit)
         vamp = np.array(amptable["amp"], dtype=np.float64)
         varamp = np.square(np.array(amptable["sigma"], dtype=np.float64))
 
@@ -409,6 +416,8 @@ def imaging(
         varcp = dammyreal
     else:
         iscp = True
+        if pulse_fwhm > 0:
+            bstable = deburr_bstable(bstable, pulse_fwhm, initimage.angunit)
         cp = np.deg2rad(np.array(bstable["phase"], dtype=np.float64))
         varcp = np.square(
             np.array(bstable["sigma"] / bstable["amp"], dtype=np.float64))
@@ -420,6 +429,8 @@ def imaging(
         varca = dammyreal
     else:
         isca = True
+        if pulse_fwhm > 0:
+            catable = deburr_catable(catable, pulse_fwhm, initimage.angunit)
         ca = np.array(catable["logamp"], dtype=np.float64)
         varca = np.square(np.array(catable["logsigma"], dtype=np.float64))
 
@@ -505,6 +516,10 @@ def imaging(
     for i in np.arange(len(xidx)):
         outimage.data[istokes, ifreq, yidx[i] - 1, xidx[i] - 1] = Iout[i]
     outimage.update_fits()
+    #   Pulse function consideration
+    if pulse_fwhm>0:
+        outimage = copy.deepcopy(outimage.convolve_gauss(pulse_fwhm, angunit = outimage.angunit, save_totalflux=True))
+
     return outimage
 
 def statistics(
@@ -1041,6 +1056,92 @@ def plots(outimage, imageprm={}, filename=None, plotargs={'ms': 1., }):
     if isinteractive:
         plt.ion()
         matplotlib.use(backend)
+
+
+def deburr_vistable(vistable, fwhm=1, angunit=None):
+    '''
+    Deblur visibility values using a gaussian
+
+    Args:
+        vistable (VisTable):
+            Visibility table containing full complex visiblities or amplitude table.
+        fwhm (float):
+            FWHM size of gaussian
+        angunit (string):
+            Angular unit (uas, mas, asec or arcsec, amin or arcmin, degree)
+    Returns:
+        VisTable object
+    '''
+    vistable_d = copy.deepcopy(vistable)
+    fwhm_rad        = util.angconv(angunit,"rad")*fwhm
+    kernel = np.exp(-(np.pi**2 * (fwhm_rad * vistable_d["uvdist"])**2/ (4.*np.log(2))))
+    vistable_d["amp"]  /= kernel
+    vistable_d["sigma"] /= kernel
+    return vistable_d
+
+
+def deburr_bstable(bstable, fwhm=1, angunit=None):
+    '''
+    Deblur closure values using a gaussian
+
+    Args:
+        bstable (BSTable, default=None):
+            Closure phase table.
+        fwhm (float):
+            FWHM size of gaussian
+        angunit (string):
+            Angular unit (uas, mas, asec or arcsec, amin or arcmin, degree)
+    Returns:
+        BSTable object
+    '''
+
+    bstable_d = copy.deepcopy(bstable)
+    fwhm_rad        = util.angconv(angunit,"rad")*fwhm
+    fwhm12   = fwhm_rad * bstable_d["uvdist12"]
+    fwhm23   = fwhm_rad * bstable_d["uvdist23"]
+    fwhm31   = fwhm_rad * bstable_d["uvdist31"]
+    kernel12 = np.exp(-(np.pi**2 * (fwhm12)**2/ (4.*np.log(2))))
+    kernel23 = np.exp(-(np.pi**2 * (fwhm23)**2/ (4.*np.log(2))))
+    kernel31 = np.exp(-(np.pi**2 * (fwhm31)**2/ (4.*np.log(2))))
+
+    bstable_d["amp"]  /= kernel12*kernel23*kernel31
+    bstable_d["sigma"] /= kernel12*kernel23*kernel31
+    return bstable_d
+
+
+def deburr_catable(catable, fwhm=1, angunit=None):
+    '''
+    Deblur closure values using a gaussian
+
+    Args:
+        bstable (CATable, default=None):
+            Closure amplitude table.
+        fwhm (float):
+            FWHM size of gaussian
+        angunit (string):
+            Angular unit (uas, mas, asec or arcsec, amin or arcmin, degree)
+    Returns:
+        CATable object
+    '''
+
+    catable_d = copy.deepcopy(catable)
+    fwhm_rad        = util.angconv(angunit,"rad")*fwhm
+    fwhm1   = fwhm_rad * catable_d["uvdist1"]
+    fwhm2   = fwhm_rad * catable_d["uvdist2"]
+    fwhm3   = fwhm_rad * catable_d["uvdist3"]
+    fwhm4   = fwhm_rad * catable_d["uvdist4"]
+    kernel1 = np.exp(-(np.pi**2 * (fwhm1)**2/ (4.*np.log(2))))
+    kernel2 = np.exp(-(np.pi**2 * (fwhm2)**2/ (4.*np.log(2))))
+    kernel3 = np.exp(-(np.pi**2 * (fwhm3)**2/ (4.*np.log(2))))
+    kernel4 = np.exp(-(np.pi**2 * (fwhm4)**2/ (4.*np.log(2))))
+
+    catable_d["amp"]       /= kernel1*kernel2/kernel3/kernel4
+    catable_d["logamp"]  -= np.log(kernel1*kernel2/kernel3/kernel4)
+    catable_d["sigma"]       /= kernel1*kernel2/kernel3/kernel4
+    return catable_d
+
+
+
 #
 #
 # def pipeline(
