@@ -1432,7 +1432,7 @@ class IMFITS(object):
 
         # threshold
         if threshold is None:
-            thres = np.finfo(np.float32).eps
+            thres = np.finfo(np.float64).eps
         else:
             if relative:
                 thres = self.peak(istokes=istokes, ifreq=ifreq) * threshold
