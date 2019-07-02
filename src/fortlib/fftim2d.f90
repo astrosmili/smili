@@ -19,6 +19,7 @@ subroutine imaging(&
   gs_l, gs_wgt, gs_Nwgt,&
   tfd_l, tfd_tgtfd,&
   cen_l, cen_alpha,&
+  sm_l, sm_maj, sm_min, sm_phi,&
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,wfcv,&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
@@ -26,7 +27,7 @@ subroutine imaging(&
   m,factr,pgtol,&
   Iout,&
   chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-  reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+  reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
   cost, &
   Npix,Nuv,Nfcv,Namp,Ncp,Nca&
 )
@@ -79,6 +80,9 @@ subroutine imaging(&
   !   parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l              ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha          ! alpha
+  !   parameter for second moment
+  real(dp), intent(in)  :: sm_l               ! lambda
+  real(dp), intent(in)  :: sm_maj,sm_min,sm_phi ! major and minor size and position angle
 
   ! Parameters related to full complex visibilities
   logical,  intent(in) :: isfcv           ! is data?
@@ -136,6 +140,7 @@ subroutine imaging(&
   real(dp), intent(out) :: gs_cost  ! cost of GS entropy
   real(dp), intent(out) :: tfd_cost ! cost of total flux regularization
   real(dp), intent(out) :: cen_cost ! cost of centoroid regularizaiton
+  real(dp), intent(out) :: sm_cost  ! cost of second moment
 
   !   Total Cost function
   real(dp), intent(out) :: cost
@@ -242,13 +247,14 @@ subroutine imaging(&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
     cen_l, cen_alpha,&
+    sm_l, sm_maj, sm_min, sm_phi,&
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
     isca,uvidxca,CA,Varca,wca_n,&
     1,&
     chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-    reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+    reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
     cost, gradcost, &
     Npix,Nuv,Nfcv,Namp,Ncp,Nca&
   )
@@ -297,13 +303,14 @@ subroutine imaging(&
         gs_l, gs_wgt, gs_Nwgt,&
         tfd_l, tfd_tgtfd,&
         cen_l, cen_alpha,&
+        sm_l, sm_maj, sm_min, sm_phi,&
         isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
         isamp,uvidxamp,Vamp,Varamp,wamp_n,&
         iscp,uvidxcp,CP,Varcp,wcp_n,&
         isca,uvidxca,CA,Varca,wca_n,&
         -1,&
         chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-        reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+        reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
         cost, gradcost, &
         Npix,Nuv,Nfcv,Namp,Ncp,Nca&
       )
@@ -324,13 +331,14 @@ subroutine imaging(&
           gs_l, gs_wgt, gs_Nwgt,&
           tfd_l, tfd_tgtfd,&
           cen_l, cen_alpha,&
+          sm_l, sm_maj, sm_min, sm_phi,&
           isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
           isamp,uvidxamp,Vamp,Varamp,wamp_n,&
           iscp,uvidxcp,CP,Varcp,wcp_n,&
           isca,uvidxca,CA,Varca,wca_n,&
           1,&
           chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-          reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+          reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
           cost, gradcost, &
           Npix,Nuv,Nfcv,Namp,Ncp,Nca&
         )
@@ -351,13 +359,14 @@ subroutine imaging(&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
     cen_l, cen_alpha,&
+    sm_l, sm_maj, sm_min, sm_phi,&
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
     isca,uvidxca,CA,Varca,wca_n,&
     1,&
     chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-    reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+    reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
     cost, gradcost, &
     Npix,Nuv,Nfcv,Namp,Ncp,Nca&
   )
@@ -381,13 +390,14 @@ subroutine calc_cost(&
   gs_l, gs_wgt, gs_Nwgt,&
   tfd_l, tfd_tgtfd,&
   cen_l, cen_alpha,&
+  sm_l, sm_maj, sm_min, sm_phi,&
   isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
   isca,uvidxca,CA,Varca,wca,&
   doprint,&
   chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-  reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+  reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
   cost, gradcost, &
   Npix,Nuv,Nfcv,Namp,Ncp,Nca&
 )
@@ -432,6 +442,9 @@ subroutine calc_cost(&
   !   parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l              ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha          ! alpha
+  !   parameter for second moment
+  real(dp), intent(in)  :: sm_l               ! lambda
+  real(dp), intent(in)  :: sm_maj,sm_min,sm_phi ! major and minor size and position angle
 
   ! Parameters related to full complex visibilities
   logical,      intent(in) :: isfcv           ! is data?
@@ -485,6 +498,7 @@ subroutine calc_cost(&
   real(dp), intent(out) :: gs_cost  ! cost of GS entropy
   real(dp), intent(out) :: tfd_cost ! cost of total flux regularization
   real(dp), intent(out) :: cen_cost ! cost of centoroid regularizaiton
+  real(dp), intent(out) :: sm_cost  ! cost of second moment
 
   !   Total Cost function
   real(dp), intent(out) :: cost
@@ -492,6 +506,9 @@ subroutine calc_cost(&
 
   ! Gradients of each term
   real(dp) :: gradreg(Npix), gradchisq(Npix)
+
+  ! second moment variables
+  real(dp) :: out_maj, out_min, out_phi, pi
 
   !------------------------------------
   ! Initialize outputs, and some parameters
@@ -521,8 +538,10 @@ subroutine calc_cost(&
       gs_l, gs_wgt, gs_Nwgt,&
       tfd_l, tfd_tgtfd,&
       cen_l, cen_alpha,&
+      sm_l, sm_maj, sm_min, sm_phi,&
       l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
-      tfd_cost, cen_cost,&
+      tfd_cost, cen_cost, sm_cost,&
+      out_maj, out_min, out_phi,&
       reg, gradreg, Npix)
 
   ! Finally take the sum of the cost and gradient functions
@@ -569,6 +588,15 @@ subroutine calc_cost(&
     if (cen_l > 0) then
       print '("    Centoroid Reg.       : ",D13.6)',cen_cost
     endif
+    if (sm_l > 0) then
+      print '("    second momentum      : ",D13.6)',sm_cost
+      out_maj = sqrt(8.*log(2.)*out_maj)
+      out_min = sqrt(8.*log(2.)*out_min)
+      pi = 3.1415926535
+      print '("    input  maj, min, phi : ",D13.6, D13.6, D13.6)', sqrt(8.*log(2.)*sm_maj), sqrt(8.*log(2.)*sm_min), &
+                                                                   - sm_phi * 180./pi
+      print '("    output maj, min, phi : ",D13.6, D13.6, D13.6)', out_maj, out_min, out_phi * 180./pi
+    end if
 
     print '("  Total flux             : ",D13.6)',sum(Iin)
   end if

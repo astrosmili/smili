@@ -3,7 +3,8 @@ module image
   use param, only : dp, dpc, pi, e, i_dpc, deps
   implicit none
   ! Epsiron for Zero judgement
-  real(dp), parameter :: zeroeps = epsilon(1d0)
+  !real(dp), parameter :: zeroeps = epsilon(1d0)
+  real(dp), parameter :: zeroeps = 1d-10
 contains
 !-------------------------------------------------------------------------------
 ! Calc cost function
@@ -17,8 +18,10 @@ subroutine calc_cost_reg(&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
     cen_l, cen_alpha,&
+    sm_l, sm_maj, sm_min, sm_phi,&
     l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
-    tfd_cost, cen_cost,&
+    tfd_cost, cen_cost, sm_cost,&
+    out_maj, out_min, out_phi,&
     cost, gradcost, &
     N1d)
   implicit none
@@ -62,6 +65,10 @@ subroutine calc_cost_reg(&
   real(dp), intent(in)  :: cen_l             ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha         ! alpha
 
+  ! parameter for second momentum
+  real(dp), intent(in)   :: sm_l              ! lambda
+  real(dp), intent(in)   :: sm_maj,sm_min,sm_phi ! major, minor size and position angle
+
   ! regularization function
   real(dp), intent(out) :: l1_cost    ! cost of l1
   real(dp), intent(out) :: tv_cost    ! cost of tv
@@ -70,6 +77,10 @@ subroutine calc_cost_reg(&
   real(dp), intent(out) :: gs_cost    ! cost of GS entropy
   real(dp), intent(out) :: tfd_cost   ! cost of total flux regularization
   real(dp), intent(out) :: cen_cost   ! cost of centoroid regularizaiton
+  real(dp), intent(out) :: sm_cost    ! cost of second moment
+
+  ! second moment variables
+  real(dp), intent(out) :: out_maj, out_min, out_phi
 
   ! Total Cost function
   real(dp), intent(out) :: cost             ! cost function
@@ -82,6 +93,7 @@ subroutine calc_cost_reg(&
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:)
   real(dp), allocatable :: tmp1d(:)
+  real(dp)  :: Isum, xcen, ycen, Sg(3), mom(2)
 
   ! Initialize
   l1_cost     = 0d0
@@ -91,6 +103,7 @@ subroutine calc_cost_reg(&
   kl_cost     = 0d0
   tfd_cost    = 0d0
   cen_cost    = 0d0
+  sm_cost     = 0d0
   cost        = 0d0
   gradcost(:) = 0d0
 
@@ -109,7 +122,6 @@ subroutine calc_cost_reg(&
     gradcost = gradcost + cen_l * tmp1d
     deallocate(tmp1d)
   end if
-
   ! Compute pixel-based regularizations (MEM, l1, tv, tsv)
   !   Allocate two dimensional array if needed
   if (tv_l > 0 .or. tsv_l > 0) then
@@ -124,9 +136,23 @@ subroutine calc_cost_reg(&
   !$OMP                tv_l,  tv_wgt,&
   !$OMP                tsv_l, tsv_wgt,&
   !$OMP                gs_l,  gs_wgt,&
-  !$OMP                kl_l,  kl_wgt) &
+  !$OMP                kl_l,  kl_wgt,&
+  !$OMP                sm_l,  sm_maj, sm_min, sm_phi) &
   !$OMP   PRIVATE(ipix) &
   !$OMP   REDUCTION(+: l1_cost, tv_cost, tsv_cost, gs_cost, kl_cost, gradcost)
+
+  ! second momentum regularizer
+  Isum = totalflux(I1d,N1d)
+  call xy_cen(I1d, xidx, yidx, N1d, xcen, ycen)
+  call Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
+  call one_momentum(I1d, xidx, yidx, N1d, mom)
+  if (sm_l>0) then
+    sm_cost = sm_cost + sm_l * sm_e(Sg, sm_maj, sm_min, sm_phi)
+  end if
+
+  ! check variables of second momentum
+  call check_sm_character(Sg, out_maj, out_min, out_phi)
+
   do ipix=1, N1d
     ! weighted L1
     if (l1_l > 0) then
@@ -157,6 +183,13 @@ subroutine calc_cost_reg(&
       tsv_cost = tsv_cost + tsv_l * tsv_wgt(ipix) * tsv_e(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
       gradcost(ipix) = gradcost(ipix) + tsv_l * tsv_wgt(ipix) * tsv_grade(xidx(ipix),yidx(ipix),I2d,Nx,Ny)
     end if
+
+    ! Gradient of second momentum regularizer
+    if (sm_l>0) then
+      gradcost(ipix) = gradcost(ipix) + sm_l * sm_grade(I1d(ipix), xidx(ipix), &
+                        yidx(ipix), Isum, xcen, ycen, Sg, mom, sm_maj, sm_min, sm_phi)
+    end if
+
   end do
   !$OMP END PARALLEL DO
 
@@ -166,7 +199,7 @@ subroutine calc_cost_reg(&
   end if
 
   ! take summation of all the cost function
-  cost = l1_cost + tv_cost + tsv_cost + kl_cost + gs_cost + tfd_cost + cen_cost
+  cost = l1_cost + tv_cost + tsv_cost + kl_cost + gs_cost + tfd_cost + cen_cost +sm_cost
 end subroutine
 
 
@@ -908,6 +941,184 @@ end subroutine
 !   end do
 !   !$OMP END PARALLEL DO
 ! end subroutine
+
+
+!-------------------------------------------------------------------------------
+! Regularization Function: second moment regularizer
+!-------------------------------------------------------------------------------
+real(dp) function sm_e(Sg, sm_maj, sm_min, sm_phi)
+  implicit none
+  real(dp), intent(in) :: Sg(3), sm_maj, sm_min, sm_phi
+
+  integer  :: idx
+  real(dp) :: Sg_prior(3)
+  call Sigma_prior(sm_maj, sm_min, sm_phi, Sg_prior)
+
+  sm_e = 0d0
+  do idx=1,2
+    sm_e = sm_e + (Sg(idx) - Sg_prior(idx))**2
+  end do
+  sm_e = sm_e + 2. * (Sg(3) - Sg_prior(3))**2
+
+end function
+
+
+real(dp) function sm_grade(I, xidx, yidx, Isum, xcen, ycen, Sg, mom, sm_maj, sm_min, sm_phi)
+  implicit none
+  integer, intent(in)   :: xidx, yidx
+  real(dp), intent(in)  :: I, Isum, xcen, ycen, Sg(3), mom(2)
+  real(dp), intent(in)  :: sm_maj, sm_min, sm_phi
+
+  real(dp) :: Sg_prior(3), Sg_grade(3)
+  call Sigma_prior(sm_maj, sm_min, sm_phi, Sg_prior)
+  call Sigma_grade(I, xidx, yidx, Isum, xcen, ycen, Sg, mom, Sg_grade)
+
+  sm_grade = 2.*(Sg(1)-Sg_prior(1)) * Sg_grade(1) + 2.*(Sg(2)-Sg_prior(2)) * Sg_grade(2)&
+             + 4.*(Sg(3)-Sg_prior(3)) * Sg_grade(3)
+
+end function
+
+
+subroutine Sigma_grade(I, xidx, yidx, Isum, xcen, ycen, Sg, mom, Sg_grade)
+  implicit none
+  integer, intent(in)  :: xidx, yidx
+  real(dp), intent(in)  :: I, Isum, xcen, ycen, Sg(3), mom(2)
+  real(dp), intent(out) :: Sg_grade(3)
+
+  real(dp) :: xcen_grade, ycen_grade
+
+  call xycen_grade(I, xidx, yidx, Isum, xcen, ycen, xcen_grade, ycen_grade)
+
+  Sg_grade(1) = (((xidx - xcen)**2 - 2. * xcen_grade * mom(1)) - Sg(1))/Isum
+  Sg_grade(2) = (((yidx - ycen)**2 - 2. * ycen_grade * mom(2)) - Sg(2))/Isum
+  Sg_grade(3) = ((xidx - xcen) * (yidx - ycen) - xcen_grade * mom(2) &
+                - ycen_grade * mom(1) - Sg(3))/Isum
+
+end subroutine
+
+
+subroutine xycen_grade(I, xidx, yidx, Isum, xcen, ycen, xcen_grade, ycen_grade)
+  implicit none
+  integer, intent(in)  :: xidx, yidx
+  real(dp), intent(in)  :: I, Isum, xcen, ycen
+  real(dp), intent(out) :: xcen_grade, ycen_grade
+
+  xcen_grade = (xidx - xcen)/Isum
+  ycen_grade = (yidx - ycen)/Isum
+
+end subroutine
+
+
+subroutine Sigma_prior(sm_maj,sm_min,sm_phi,Sg_prior)
+  implicit none
+  real(dp), intent(in) :: sm_maj, sm_min, sm_phi
+  real(dp), intent(out) :: Sg_prior(3)
+
+  Sg_prior(1) = sm_min * cos(sm_phi)**2 + sm_maj * sin(sm_phi)**2
+  Sg_prior(2) = sm_min * sin(sm_phi)**2 + sm_maj * cos(sm_phi)**2
+  Sg_prior(3) = (sm_maj - sm_min) * sin(sm_phi) * cos(sm_phi)
+
+end subroutine
+
+
+subroutine Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
+  implicit none
+  integer, intent(in)  :: N1d, xidx(N1d), yidx(N1d)
+  real(dp), intent(in)  :: I1d(N1d), xcen, ycen, Isum
+  real(dp), intent(out) :: Sg(3)
+
+  integer :: ipix
+  Sg(:) = 0d0
+  do ipix=1,N1d
+    Sg(1) = Sg(1) + I1d(ipix) * (xidx(ipix) - xcen)**2/Isum
+    Sg(2) = Sg(2) + I1d(ipix) * (yidx(ipix) - ycen)**2/Isum
+    Sg(3) = Sg(3) + I1d(ipix) * (xidx(ipix) - xcen) * (yidx(ipix) - ycen)/Isum
+  end do
+end subroutine
+
+
+subroutine check_sm_character(Sg,maj,min,phi)
+  implicit none
+  real(dp), intent(in)  :: Sg(3)
+  real(dp), intent(out) :: maj,min,phi
+
+  real(dp) ::  pi
+
+  pi  = 3.1415926535
+  maj = (Sg(1)+Sg(2))/2. + sqrt(4. * (Sg(3)**2) + (Sg(1)-Sg(2))**2)/2.
+  min = (Sg(1)+Sg(2))/2. - sqrt(4. * (Sg(3)**2) + (Sg(1)-Sg(2))**2)/2.
+  phi = asin(2.*Sg(3)/(maj-min))/2.
+
+  if (Sg(1)/Sg(2)>1.) then
+    if (Sg(3)>0.) then
+      phi = 0.5*pi - phi
+    end if
+    if (Sg(3)<0.) then
+      phi = -0.5*pi - phi
+    end if
+  end if
+
+  phi = -phi ! x axis -> ra axis
+
+end subroutine
+
+
+subroutine one_momentum(I1d, x, y, N1d, mom)
+  integer, intent(in)  :: N1d
+  real(dp), intent(in)  :: I1d(N1d)
+  integer, intent(in)   :: x(N1d),y(N1d)
+  real(dp), intent(out) :: mom(2)
+
+  integer  :: ipix
+  real(dp) :: xcen,ycen
+
+  mom(:) = 0d0
+  call xy_cen(I1d, x, y, N1d, xcen, ycen)
+
+  do ipix=1,N1d
+    mom(1) = mom(1) + (x(ipix)-xcen)*I1d(ipix)
+    mom(2) = mom(2) + (y(ipix)-ycen)*I1d(ipix)
+  end do
+
+end subroutine
+
+subroutine xy_cen(I1d, x, y, N1d, xcen, ycen)
+  integer, intent(in)  :: N1d
+  real(dp), intent(in)  :: I1d(N1d)
+  integer, intent(in)   :: x(N1d),y(N1d)
+  real(dp), intent(out) :: xcen,ycen
+
+  integer  :: ipix
+  real(dp) :: Itot
+
+  xcen  = 0d0
+  ycen  = 0d0
+  Itot  = 0d0
+
+  do ipix=1,N1d
+    xcen = xcen + x(ipix)*I1d(ipix)
+    ycen = ycen + y(ipix)*I1d(ipix)
+    Itot = Itot + smabs(I1d(ipix))
+  end do
+
+  xcen = xcen/Itot
+  ycen = ycen/Itot
+
+end subroutine
+
+real(dp) function totalflux(I1d, N1d)
+  implicit none
+  integer, intent(in) :: N1d
+  real(dp), intent(in) :: I1d(N1d)
+  integer ipix
+
+  totalflux = 0d0
+
+  do ipix=1,N1d
+    totalflux = totalflux + smabs(I1d(ipix))
+  end do
+
+end function
 
 
 !-------------------------------------------------------------------------------

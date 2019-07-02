@@ -141,18 +141,18 @@ subroutine calc_cost_reg3d(&
         I1d((iz-1)*Npix+1:iz*Npix), &
         xidx, yidx, Nxref, Nyref, Nx, Ny,&
         l1_l, l1_wgt, l1_Nwgt,&
-!        sm_l, sm_maj, sm_min, sm_phi,&
         tv_l, tv_wgt, tv_Nwgt,&
         tsv_l, tsv_wgt, tsv_Nwgt,&
         kl_l, kl_wgt, kl_Nwgt,&
         gs_l, gs_wgt, gs_Nwgt,&
         tfd_l, tfd_tgtfd,&
         cen_l, cen_alpha,&
+        sm_l, sm_maj, sm_min, sm_phi,&
         l1_cost_frm, &
-!        sm_cost_frm,&
+        sm_cost_frm,&
         tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
         tfd_cost_frm, cen_cost_frm,&
-!        out_maj_frm, out_min_frm, out_phi_frm,&
+        out_maj_frm, out_min_frm, out_phi_frm,&
         cost_frm, gradcost_frm, Npix &
     )
 
