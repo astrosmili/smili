@@ -66,6 +66,10 @@ def imaging(
         tfd_tgterror=0.01,
         cen_lambda=-1,
         cen_alpha=3,
+        sm_lambda=-1,
+        sm_maj=0.,
+        sm_min=0.,
+        sm_phi=0.,
         pulse_fwhm = -1,
         cen_prior=None,
         niter=1000,
@@ -145,6 +149,13 @@ def imaging(
         cem_prior (IMFITS, default=None):
             The prior image to be used to compute the normalization factor.
             If not specified, then the initial image will be used.
+        sm_lambda (float,default=-1):
+            Regularization parameter for second moment.
+            If negative then, this regularization won't be used.
+        sm_maj and sm_min (float):
+            FWHM of major and minor axis for elliptical gaussian
+        sm_phi (float):
+            Angle between ra axis and major axis of elliptical gaussain  ([-90, 90] degree)
         pulse_fwhm (float):
             fwhm of gaussian of a pulse function
         niter (int,defalut=100):
@@ -377,6 +388,21 @@ def imaging(
     else:
         cen_l = cen_lambda
 
+    # Second momentum regularization functions
+    if sm_lambda <= 0:
+        sm_l = -1
+    else:
+        print("Debug: set second moment parameters")
+        sm_l = sm_lambda
+        # print("sm_l,sm_maj,sm_min,sm_phi = %3.2g, %3.2g, %3.2g, %3.2g"%(sm_l,sm_maj,sm_min,sm_phi))
+
+        dtheta = np.abs(initimage.angconv("deg",initimage.angunit)*initimage.header["dx"])
+
+        # Normalization of the major and minor size and position angle
+        sm_maj = (sm_maj/dtheta)**2/(8.*np.log(2.)) # FWHM (angunit) -> lambda_maj (pixel^2)
+        sm_min = (sm_min/dtheta)**2/(8.*np.log(2.)) # FWHM (angunit) -> lambda_min (pixel^2)
+        sm_phi = - sm_phi/180.*np.pi  # ra axis -> x axis
+
     dammyreal = np.float64(np.asarray([0.]))
 
     # Full Complex Visibility
@@ -480,6 +506,11 @@ def imaging(
         tfd_tgtfd=np.float64(tfd_tgtfd),
         cen_l=np.float64(cen_l),
         cen_alpha=np.float64(cen_alpha),
+        # Second momentum parameters
+        sm_l=np.float64(sm_l),
+        sm_maj=np.float64(sm_maj),
+        sm_min=np.float64(sm_min),
+        sm_phi=np.float64(sm_phi),
         # Full Complex Visibilities
         isfcv=isfcv,
         uvidxfcv=np.int32(uvidxfcv),
