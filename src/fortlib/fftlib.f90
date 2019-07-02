@@ -203,14 +203,14 @@ subroutine NUFFT_adj_resid(u,v,Vre,Vim,I2d,Nx,Ny,Nuv)
   integer,  intent(in):: Nx, Ny, Nuv
   real(dp), intent(in):: u(Nuv),v(Nuv)      ! uv coordinates
                                             ! multiplied by 2*pi*dx, 2*pi*dy
-  real(dp), intent(in):: Vre(Nuv),Vim(Nuv)  ! Complex Visibility
+  complex(dpc), intent(in):: Vre(Nuv),Vim(Nuv)  ! Complex Visibility
   real(dp), intent(out):: I2d(Nx,Ny)        ! Two Dimensional Image
 
   complex(dpc):: I2dcmp1(Nx,Ny), I2dcmp2(Nx,Ny)
 
   ! Call adjoint NuFFT
-  call NUFFT_adj(u,v,dcmplx(Vre),I2dcmp1,Nx,Ny,Nuv)
-  call NUFFT_adj(u,v,dcmplx(Vim),I2dcmp2,Nx,Ny,Nuv)
+  call NUFFT_adj(u,v,Vre,I2dcmp1,Nx,Ny,Nuv)
+  call NUFFT_adj(u,v,Vim,I2dcmp2,Nx,Ny,Nuv)
 
   ! Take a sum of real part and imaginary part
   I2d = dreal(I2dcmp1)+dimag(I2dcmp2)
@@ -354,7 +354,7 @@ subroutine calc_chisq(&
   ! allocatable arrays
   real(dp),     allocatable :: I2d(:,:)
   real(dp),     allocatable :: gradchisq2d(:,:)
-  real(dp),     allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! Initialize the chisquare and its gradient
@@ -374,8 +374,8 @@ subroutine calc_chisq(&
 
   ! allocate residual vectors
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
 
   ! Full complex visibility
   chisqfcv=0d0
@@ -447,7 +447,7 @@ subroutine calc_chisq_fcv(Vcmp,&
   real(dp), intent(in)     :: fnorm
   ! Outputs
   real(dp), intent(inout)  :: chisq                    ! chisquare
-  real(dp), intent(inout)  :: Vresre(Nuv), Vresim(Nuv) ! residual vector
+  complex(dpc), intent(inout) :: Vresre(Nuv), Vresim(Nuv) ! residual vector
                                             !   its adjoint FT provides
                                             !   the gradient of chisquare)
 
@@ -505,7 +505,7 @@ subroutine calc_chisq_amp(Vcmp,&
   real(dp), intent(in):: fnorm
   ! Outputs
   real(dp), intent(inout):: chisq           ! chisquare
-  real(dp), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
+  complex(dpc), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
                                             !   its adjoint FT provides
                                             !   the gradient of chisquare)
 
@@ -558,7 +558,7 @@ subroutine calc_chisq_ca(Vcmp,&
   real(dp), intent(in):: fnorm
   ! Outputs
   real(dp), intent(inout):: chisq           ! chisquare
-  real(dp), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
+  complex(dpc), intent(inout)::Vresre(Nuv), Vresim(Nuv) ! residual vector
                                             !   its adjoint FT provides
                                             !   the gradient of chisquare)
 
@@ -638,7 +638,7 @@ subroutine calc_chisq_cp(Vcmp,&
   real(dp), intent(in):: fnorm
   ! Outputs
   real(dp), intent(inout):: chisq ! chisquare
-  real(dp), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
+  complex(dpc), intent(inout) :: Vresre(Nuv), Vresim(Nuv) ! residual vector
                                             !   its adjoint FT provides
                                             !   the gradient of chisquare)
 
@@ -720,7 +720,7 @@ subroutine calc_chisq_cp_old(Vcmp,&
   real(dp), intent(in):: fnorm
   ! Outputs
   real(dp), intent(inout):: chisq ! chisquare
-  real(dp), intent(inout):: Vresre(Nuv), Vresim(Nuv) ! residual vector
+  complex(dpc), intent(inout) :: Vresre(Nuv), Vresim(Nuv) ! residual vector
                                             !   its adjoint FT provides
                                             !   the gradient of chisquare)
 
@@ -820,7 +820,7 @@ subroutine model_fcv(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
   complex(dpc), allocatable :: Vfcv(:),resid(:),model(:)
 
@@ -870,8 +870,8 @@ subroutine model_fcv(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   resid(:) = dcmplx(0d0,0d0)
   model(:) = dcmplx(0d0,0d0)
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Nfcv,uvidxfcv,Vcmp,Vfcv,Varfcv) &
   !$OMP   PRIVATE(i,uvidx,factor),&
@@ -973,7 +973,7 @@ subroutine model_amp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! other factors
@@ -1001,8 +1001,8 @@ subroutine model_amp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   ! Compute Chisquare
   !  allocate array
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Namp,uvidxamp,Vcmp,Vamp,Varamp) &
   !$OMP   PRIVATE(i,uvidx,factor),&
@@ -1074,7 +1074,7 @@ subroutine model_ca(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! other factors
@@ -1104,8 +1104,8 @@ subroutine model_ca(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   ! Compute Chisquare
   !  allocate array
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Nca,uvidxca,Vcmp,CA,Varca) &
   !$OMP   PRIVATE(i,&
@@ -1201,7 +1201,7 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! other factors
@@ -1232,8 +1232,8 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   ! Compute Chisquare
   !  allocate array
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Ncp,uvidxcp,Vcmp,CP,Varcp) &
   !$OMP   PRIVATE(i,&
@@ -1331,7 +1331,7 @@ subroutine model_cp_old(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! other factors
@@ -1362,8 +1362,8 @@ subroutine model_cp_old(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,&
   ! Compute Chisquare
   !  allocate array
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Ncp,uvidxcp,Vcmp,CP,Varcp) &
   !$OMP   PRIVATE(i,&

@@ -2,224 +2,227 @@ module fftlib3d
   !$use omp_lib
   use param, only : dp, dpc, pi, i_dpc
   use image, only: I1d_I2d_fwd, I1d_I2d_inv, zeroeps
-  use fftlib, only: calc_chisq_fcv, calc_chisq_amp, calc_chisq_ca, calc_chisq_cp
+  use fftlib, only: NUFFT_fwd, NUFFT_adj_resid, &
+                    phashift_c2r, phashift_r2c, &
+                    calc_chisq_fcv, calc_chisq_amp, &
+                    calc_chisq_ca, calc_chisq_cp
   implicit none
 
   ! Parameters related to NuFFT
   !   FINUFFT's numerical accracy is around 1d-13
-  real(dp), parameter :: ffteps=1d-12
-
-  interface
-    subroutine finufft2d1_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
-      integer :: nj, iflag, ms, mt, ier
-      real(kind(1.0d0)) :: xj(nj), yj(nj), eps
-      complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
-    end subroutine
-  end interface
-
-  interface
-    subroutine finufft2d2_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
-      integer :: nj, iflag, ms, mt, ier
-      real(kind(1.0d0)) :: xj(nj), yj(nj), eps
-      complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
-    end subroutine
-  end interface
+  ! real(dp), parameter :: ffteps=1d-12
+  !
+  ! interface
+  !   subroutine finufft2d1_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
+  !     integer :: nj, iflag, ms, mt, ier
+  !     real(kind(1.0d0)) :: xj(nj), yj(nj), eps
+  !     complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
+  !   end subroutine
+  ! end interface
+  !
+  ! interface
+  !   subroutine finufft2d2_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
+  !     integer :: nj, iflag, ms, mt, ier
+  !     real(kind(1.0d0)) :: xj(nj), yj(nj), eps
+  !     complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
+  !   end subroutine
+  ! end interface
 contains
 !-------------------------------------------------------------------------------
 ! NuFFT related functions
 !-------------------------------------------------------------------------------
-subroutine NUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
-  !
-  !  Forward Non-uniform Fast Fourier Transform
-  !    This funcion using the FINUFFT library.
-  !
-  implicit none
-
-  integer,  intent(in)  :: Nx, Ny, Nuv
-  real(dp), intent(in)  :: u(Nuv),v(Nuv)  ! uv coordinates
-                                          ! multiplied by 2*pi*dx, 2*pi*dy
-  real(dp), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
-  complex(dpc), intent(out) :: Vcmp(Nuv)  ! Complex Visibility
-
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the forward Fourier Transformation
-  !     0: positive (the standard in Radio Astronomy)
-  !     1: negative (the textbook standard; e.g. TMS)
-  integer,  parameter :: iflag=0
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  !   error log
-  integer :: ier
-
-  ! Call FINUFFT subroutine
-  call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
-
-  ! debug
-  !print *, ' ier = ',ier
-end subroutine
-
-
-subroutine NUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
-  !
-  !  Forward Non-uniform Fast Fourier Transform
-  !    This funcion using the FINUFFT library.
-  !
-  implicit none
-
-  integer,  intent(in)  :: Nx, Ny, Nuv
-  real(dp), intent(in)  :: u(Nuv),v(Nuv)  ! uv coordinates
-                                          ! multiplied by 2*pi*dx, 2*pi*dy
-  real(dp), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
-  real(dp), intent(out) :: Vreal(Nuv), Vimag(Nuv) ! Complex Visibility
-
-  complex(dpc) :: Vcmp(Nuv)
-
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the forward Fourier Transformation
-  !     0: positive (the standard in Radio Astronomy)
-  !     1: negative (the textbook standard; e.g. TMS)
-  integer,  parameter :: iflag=0
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  !   error log
-  integer :: ier
-
-  ! Call FINUFFT subroutine
-  call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
-
-  ! Take real & imaginary parts
-  Vreal = dreal(Vcmp)
-  Vimag = dimag(Vcmp)
-
-  ! debug
-  !print *, ' ier = ',ier
-end subroutine
-
-
-subroutine NUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
-  !
-  !  Adjoint Non-uniform Fast Fourier Transform
-  !    This funcion using the FINUFFT library.
-  !
-  implicit none
-
-  integer,  intent(in) :: Nx, Ny, Nuv
-  real(dp), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
-                                         ! multiplied by 2*pi*dx, 2*pi*dy
-  complex(dpc), intent(in) :: Vcmp(Nuv)  ! Complex Visibility
-  complex(dpc), intent(out):: I2d(Nx,Ny) ! Two Dimensional Image
-
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the adjoint Fourier Transformation
-  !     0: positive (the textbook standard TMS)
-  !     1: negative (the standard in Radio Astronomy)
-  integer, parameter:: iflag=1
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  !   error log
-  integer :: ier
-
-  ! Call FINUFFT subroutine
-  call finufft2d1_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,ier)
-
-  ! debug
-  !print *, ' ier = ',ier
-end subroutine
-
-
-subroutine NUFFT_adj_resid(u,v,Vre,Vim,I2d,Nx,Ny,Nuv)
-  !
-  !  This function takes the adjoint non-uniform Fast Fourier Transform
-  !  of input visibilities and then sum the real and imag parts of
-  !  the transformed image.
-  !
-  implicit none
-
-  integer,  intent(in):: Nx, Ny, Nuv
-  real(dp), intent(in):: u(Nuv),v(Nuv)      ! uv coordinates
-                                            ! multiplied by 2*pi*dx, 2*pi*dy
-  real(dp), intent(in):: Vre(Nuv),Vim(Nuv)  ! Complex Visibility
-  real(dp), intent(out):: I2d(Nx,Ny)        ! Two Dimensional Image
-
-  complex(dpc):: I2dcmp1(Nx,Ny), I2dcmp2(Nx,Ny)
-
-  ! Call adjoint NuFFT
-  call NUFFT_adj(u,v,dcmplx(Vre),I2dcmp1,Nx,Ny,Nuv)
-  call NUFFT_adj(u,v,dcmplx(Vim),I2dcmp2,Nx,Ny,Nuv)
-
-  ! Take a sum of real part and imaginary part
-  I2d = dreal(I2dcmp1)+dimag(I2dcmp2)
-end subroutine
-
-
-subroutine NUFFT_adjrea(u,v,Vcmp,I2d,Nx,Ny,Nuv)
-  !
-  !  This function takes the adjoint non-uniform Fast Fourier Transform
-  !  of input visibilities and then take the real part of the transformed image.
-  !
-  implicit none
-
-  integer,  intent(in):: Nx, Ny, Nuv
-  real(dp), intent(in):: u(Nuv),v(Nuv)  ! uv coordinates
-                                        ! multiplied by 2*pi*dx, 2*pi*dy
-  complex(dpc), intent(in):: Vcmp(Nuv)  ! Complex Visibility
-  real(dp), intent(out):: I2d(Nx,Ny)    ! Two Dimensional Image
-
-  complex(dpc):: I2dcmp(Nx,Ny)
-
-  ! Call adjoint NuFFT
-  call NUFFT_adj(u,v,Vcmp,I2dcmp,Nx,Ny,Nuv)
-
-  ! Take a sum of real part and imaginary part
-  I2d = dreal(I2dcmp)
-end subroutine
-
-
-subroutine phashift_c2r(u,v,Nxref,Nyref,Nx,Ny,Vcmp_in,Vcmp_out)
-  !
-  !  This function shift the tracking center of the input full complex visibilities
-  !  from the image center to the reference pixel
-  !
-  implicit none
-
-  integer,  intent(in):: Nx, Ny
-  real(dp), intent(in):: u,v            ! uv coordinates multiplied by 2*pi*dx, 2*pi*dy
-  real(dp), intent(in):: Nxref, Nyref   ! x,y reference ppixels (1=the leftmost/lowermost pixel)
-  complex(dpc), intent(in)  :: Vcmp_in  ! Complex Visibility
-  complex(dpc), intent(out) :: Vcmp_out ! Complex Visibility
-
-  real(dp) :: dix, diy
-
-  ! pixels to be shifted
-  dix = Nx/2 + 1 - Nxref
-  diy = Ny/2 + 1 - Nyref
-
-  Vcmp_out = Vcmp_in * exp(i_dpc * (u*dix + v*diy))
-end subroutine
-
-
-subroutine phashift_r2c(u,v,Nxref,Nyref,Nx,Ny,Vcmp_in,Vcmp_out)
-  !
-  !  This function shift the tracking center of the input full complex visibilities
-  !  from the reference pixel to the image center
-  !
-  implicit none
-
-  integer,  intent(in):: Nx, Ny
-  real(dp), intent(in):: u,v            ! uv coordinates multiplied by 2*pi*dx, 2*pi*dy
-  real(dp), intent(in):: Nxref, Nyref   ! x,y reference pixels
-                                        ! (1=the leftmost/lowermost pixel)
-  complex(dpc), intent(in)  :: Vcmp_in  ! Complex Visibility
-  complex(dpc), intent(out) :: Vcmp_out ! Complex Visibility
-
-  real(dp) :: dix, diy
-
-  ! pixels to be shifted
-  dix = Nxref - Nx/2 - 1
-  diy = Nyref - Ny/2 - 1
-
-  Vcmp_out = Vcmp_in * exp(i_dpc * (u*dix + v*diy))
-end subroutine
+! subroutine NUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
+!   !
+!   !  Forward Non-uniform Fast Fourier Transform
+!   !    This funcion using the FINUFFT library.
+!   !
+!   implicit none
+!
+!   integer,  intent(in)  :: Nx, Ny, Nuv
+!   real(dp), intent(in)  :: u(Nuv),v(Nuv)  ! uv coordinates
+!                                           ! multiplied by 2*pi*dx, 2*pi*dy
+!   real(dp), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
+!   complex(dpc), intent(out) :: Vcmp(Nuv)  ! Complex Visibility
+!
+!   ! Some Other Parameters for FINUFFT
+!   !   Sign of the exponent in the forward Fourier Transformation
+!   !     0: positive (the standard in Radio Astronomy)
+!   !     1: negative (the textbook standard; e.g. TMS)
+!   integer,  parameter :: iflag=0
+!   !   numerical Accuracy required for FINUFFT
+!   real(dp),  parameter :: eps=ffteps
+!   !   error log
+!   integer :: ier
+!
+!   ! Call FINUFFT subroutine
+!   call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
+!
+!   ! debug
+!   !print *, ' ier = ',ier
+! end subroutine
+!
+!
+! subroutine NUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
+!   !
+!   !  Forward Non-uniform Fast Fourier Transform
+!   !    This funcion using the FINUFFT library.
+!   !
+!   implicit none
+!
+!   integer,  intent(in)  :: Nx, Ny, Nuv
+!   real(dp), intent(in)  :: u(Nuv),v(Nuv)  ! uv coordinates
+!                                           ! multiplied by 2*pi*dx, 2*pi*dy
+!   real(dp), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
+!   real(dp), intent(out) :: Vreal(Nuv), Vimag(Nuv) ! Complex Visibility
+!
+!   complex(dpc) :: Vcmp(Nuv)
+!
+!   ! Some Other Parameters for FINUFFT
+!   !   Sign of the exponent in the forward Fourier Transformation
+!   !     0: positive (the standard in Radio Astronomy)
+!   !     1: negative (the textbook standard; e.g. TMS)
+!   integer,  parameter :: iflag=0
+!   !   numerical Accuracy required for FINUFFT
+!   real(dp),  parameter :: eps=ffteps
+!   !   error log
+!   integer :: ier
+!
+!   ! Call FINUFFT subroutine
+!   call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
+!
+!   ! Take real & imaginary parts
+!   Vreal = dreal(Vcmp)
+!   Vimag = dimag(Vcmp)
+!
+!   ! debug
+!   !print *, ' ier = ',ier
+! end subroutine
+!
+!
+! subroutine NUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
+!   !
+!   !  Adjoint Non-uniform Fast Fourier Transform
+!   !    This funcion using the FINUFFT library.
+!   !
+!   implicit none
+!
+!   integer,  intent(in) :: Nx, Ny, Nuv
+!   real(dp), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
+!                                          ! multiplied by 2*pi*dx, 2*pi*dy
+!   complex(dpc), intent(in) :: Vcmp(Nuv)  ! Complex Visibility
+!   complex(dpc), intent(out):: I2d(Nx,Ny) ! Two Dimensional Image
+!
+!   ! Some Other Parameters for FINUFFT
+!   !   Sign of the exponent in the adjoint Fourier Transformation
+!   !     0: positive (the textbook standard TMS)
+!   !     1: negative (the standard in Radio Astronomy)
+!   integer, parameter:: iflag=1
+!   !   numerical Accuracy required for FINUFFT
+!   real(dp),  parameter :: eps=ffteps
+!   !   error log
+!   integer :: ier
+!
+!   ! Call FINUFFT subroutine
+!   call finufft2d1_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,ier)
+!
+!   ! debug
+!   !print *, ' ier = ',ier
+! end subroutine
+!
+!
+! subroutine NUFFT_adj_resid(u,v,Vre,Vim,I2d,Nx,Ny,Nuv)
+!   !
+!   !  This function takes the adjoint non-uniform Fast Fourier Transform
+!   !  of input visibilities and then sum the real and imag parts of
+!   !  the transformed image.
+!   !
+!   implicit none
+!
+!   integer,  intent(in):: Nx, Ny, Nuv
+!   real(dp), intent(in):: u(Nuv),v(Nuv)      ! uv coordinates
+!                                             ! multiplied by 2*pi*dx, 2*pi*dy
+!   real(dp), intent(in):: Vre(Nuv),Vim(Nuv)  ! Complex Visibility
+!   real(dp), intent(out):: I2d(Nx,Ny)        ! Two Dimensional Image
+!
+!   complex(dpc):: I2dcmp1(Nx,Ny), I2dcmp2(Nx,Ny)
+!
+!   ! Call adjoint NuFFT
+!   call NUFFT_adj(u,v,dcmplx(Vre),I2dcmp1,Nx,Ny,Nuv)
+!   call NUFFT_adj(u,v,dcmplx(Vim),I2dcmp2,Nx,Ny,Nuv)
+!
+!   ! Take a sum of real part and imaginary part
+!   I2d = dreal(I2dcmp1)+dimag(I2dcmp2)
+! end subroutine
+!
+!
+! subroutine NUFFT_adjrea(u,v,Vcmp,I2d,Nx,Ny,Nuv)
+!   !
+!   !  This function takes the adjoint non-uniform Fast Fourier Transform
+!   !  of input visibilities and then take the real part of the transformed image.
+!   !
+!   implicit none
+!
+!   integer,  intent(in):: Nx, Ny, Nuv
+!   real(dp), intent(in):: u(Nuv),v(Nuv)  ! uv coordinates
+!                                         ! multiplied by 2*pi*dx, 2*pi*dy
+!   complex(dpc), intent(in):: Vcmp(Nuv)  ! Complex Visibility
+!   real(dp), intent(out):: I2d(Nx,Ny)    ! Two Dimensional Image
+!
+!   complex(dpc):: I2dcmp(Nx,Ny)
+!
+!   ! Call adjoint NuFFT
+!   call NUFFT_adj(u,v,Vcmp,I2dcmp,Nx,Ny,Nuv)
+!
+!   ! Take a sum of real part and imaginary part
+!   I2d = dreal(I2dcmp)
+! end subroutine
+!
+!
+! subroutine phashift_c2r(u,v,Nxref,Nyref,Nx,Ny,Vcmp_in,Vcmp_out)
+!   !
+!   !  This function shift the tracking center of the input full complex visibilities
+!   !  from the image center to the reference pixel
+!   !
+!   implicit none
+!
+!   integer,  intent(in):: Nx, Ny
+!   real(dp), intent(in):: u,v            ! uv coordinates multiplied by 2*pi*dx, 2*pi*dy
+!   real(dp), intent(in):: Nxref, Nyref   ! x,y reference ppixels (1=the leftmost/lowermost pixel)
+!   complex(dpc), intent(in)  :: Vcmp_in  ! Complex Visibility
+!   complex(dpc), intent(out) :: Vcmp_out ! Complex Visibility
+!
+!   real(dp) :: dix, diy
+!
+!   ! pixels to be shifted
+!   dix = Nx/2 + 1 - Nxref
+!   diy = Ny/2 + 1 - Nyref
+!
+!   Vcmp_out = Vcmp_in * exp(i_dpc * (u*dix + v*diy))
+! end subroutine
+!
+!
+! subroutine phashift_r2c(u,v,Nxref,Nyref,Nx,Ny,Vcmp_in,Vcmp_out)
+!   !
+!   !  This function shift the tracking center of the input full complex visibilities
+!   !  from the reference pixel to the image center
+!   !
+!   implicit none
+!
+!   integer,  intent(in):: Nx, Ny
+!   real(dp), intent(in):: u,v            ! uv coordinates multiplied by 2*pi*dx, 2*pi*dy
+!   real(dp), intent(in):: Nxref, Nyref   ! x,y reference pixels
+!                                         ! (1=the leftmost/lowermost pixel)
+!   complex(dpc), intent(in)  :: Vcmp_in  ! Complex Visibility
+!   complex(dpc), intent(out) :: Vcmp_out ! Complex Visibility
+!
+!   real(dp) :: dix, diy
+!
+!   ! pixels to be shifted
+!   dix = Nxref - Nx/2 - 1
+!   diy = Nyref - Ny/2 - 1
+!
+!   Vcmp_out = Vcmp_in * exp(i_dpc * (u*dix + v*diy))
+! end subroutine
 
 
 !-------------------------------------------------------------------------------
@@ -294,7 +297,7 @@ subroutine calc_chisq3d(&
   ! allocatable arrays
   real(dp),     allocatable :: I2d(:,:)
   real(dp),     allocatable :: gradchisq2d(:,:)
-  real(dp),     allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! index for time frames
@@ -342,8 +345,8 @@ subroutine calc_chisq3d(&
 
   ! allocate arrays for residuals
   allocate(Vresre(Nuv), Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
 
   ! Full complex visibility
   chisqfcv=0d0
@@ -456,7 +459,7 @@ subroutine model_fcv(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
   complex(dpc), allocatable :: Vfcv(:),resid(:),model(:)
 
@@ -534,8 +537,8 @@ subroutine model_fcv(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
   resid(:) = dcmplx(0d0,0d0)
   model(:) = dcmplx(0d0,0d0)
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Nfcv,uvidxfcv,Vcmp,Vfcv,Varfcv) &
   !$OMP   PRIVATE(i,uvidx,factor),&
@@ -660,7 +663,7 @@ subroutine model_amp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! other factors
@@ -717,8 +720,8 @@ subroutine model_amp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
   ! Compute Chisquare
   !  allocate array
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Namp,uvidxamp,Vcmp,Vamp,Varamp) &
   !$OMP   PRIVATE(i,uvidx,factor),&
@@ -813,7 +816,7 @@ subroutine model_ca(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! other factors
@@ -872,8 +875,8 @@ subroutine model_ca(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
   ! Compute Chisquare
   !  allocate array
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Nca,uvidxca,Vcmp,CA,Varca) &
   !$OMP   PRIVATE(i,&
@@ -993,7 +996,7 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
 
   ! allocatable arrays
   real(dp), allocatable :: I2d(:,:),gradchisq2d(:,:)
-  real(dp), allocatable :: Vresre(:),Vresim(:)
+  complex(dpc), allocatable :: Vresre(:),Vresim(:)
   complex(dpc), allocatable :: Vcmp(:)
 
   ! other factors
@@ -1052,8 +1055,8 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
   ! Compute Chisquare
   !  allocate array
   allocate(Vresre(Nuv),Vresim(Nuv))
-  Vresre(:) = 0d0
-  Vresim(:) = 0d0
+  Vresre(:) = dcmplx(0d0,0d0)
+  Vresim(:) = dcmplx(0d0,0d0)
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Ncp,uvidxcp,Vcmp,CP,Varcp) &
   !$OMP   PRIVATE(i,&
