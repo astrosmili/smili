@@ -2972,7 +2972,7 @@ def _radplot_imag(vistable, uvunit, errorbar, ls ,marker, **plotargs):
         plt.ylim(0.,)
     # Label (Plot)
     plt.xlabel(r"Baseline Length (%s)" % (unitlabel))
-    plt.ylabel(r"Real Part of Visibilities (Jy)")
+    plt.ylabel(r"Imag Part of Visibilities (Jy)")
 
 
 def _radplot_fcv(vistable, uvunit, errorbar, ls ,marker, **plotargs):
