@@ -2885,7 +2885,7 @@ def _radplot_phase(vistable, uvunit, errorbar, ls ,marker, **plotargs):
 
     # Plotting data
     if errorbar:
-        pherr = vistable["sigma"] / vistable["sigma"]
+        pherr = vistable["sigma"] / vistable["amp"]
         plt.errorbar(vistable["uvdist"] * conv, vistable["phase"], pherr,
                      ls=ls, marker=marker, **plotargs)
     else:
