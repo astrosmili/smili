@@ -136,6 +136,7 @@ subroutine calc_cost_reg3d(&
   cost     = 0d0
   gradcost(:) = 0d0
   di_gradcost(:) = 0d0
+  !$OMP PARALLEL DO DEFAULT(SHARED) &
   do iz=1, Nz
     call calc_cost_reg(&
         I1d((iz-1)*Npix+1:iz*Npix), &
@@ -149,9 +150,9 @@ subroutine calc_cost_reg3d(&
         cen_l, cen_alpha,&
         sm_l, sm_maj, sm_min, sm_phi,&
         l1_cost_frm, &
-        sm_cost_frm,&
         tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
         tfd_cost_frm, cen_cost_frm,&
+        sm_cost_frm,&
         out_maj_frm, out_min_frm, out_phi_frm,&
         cost_frm, gradcost_frm, Npix &
     )
@@ -171,6 +172,7 @@ subroutine calc_cost_reg3d(&
     gradcost((iz-1)*Npix+1:iz*Npix) = gradcost_frm / Nz
 
   end do
+  !$OMP END PARALLEL DO
 
   ! dynamical imaging regularizers
   if (rt_l > 0 .or. ri_l > 0 .or. rs_l > 0) then
