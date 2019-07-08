@@ -380,6 +380,7 @@ subroutine model_m(&
 
   modelr = dreal(model)
   modeli = dimag(model)
+
   residr = dreal(resid)
   residi = dimag(resid)
 
