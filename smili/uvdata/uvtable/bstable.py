@@ -386,8 +386,8 @@ class BSTable(UVTable):
         v2 = outtable.v23.values
         u3 = outtable.u31.values
         v3 = outtable.v31.values
-        outtable["amp"] = geomodel.Bamp(u1,v1,u2,v2,u3,v3).eval(**evalargs)
-        outtable["phase"] = geomodel.Bphase(u1,v1,u2,v2,u3,v3).eval(**evalargs) * 180./np.pi
+        outtable["amp"] = geomodel.Bamp(u1,v1,u2,v2,u3,v3)
+        outtable["phase"] = geomodel.Bphase(u1,v1,u2,v2,u3,v3) * 180./np.pi
         return outtable
 
     def residual_geomodel(self, geomodel, normed=True, doeval=False, evalargs={}):
@@ -427,6 +427,41 @@ class BSTable(UVTable):
             return residual.eval(**evalargs)
         else:
             return residual
+
+    def burr_bstable(self, geomodel):
+        '''
+        Blur closure values using a gaussian
+
+        Args:
+            geomodel (geomodel.geomodel.GeoModel object)
+                input model
+        Returns:
+            BSTable object
+        '''
+
+        bstable_d = copy.deepcopy(self)
+        kernel = self.eval_geomodel(geomodel)
+        bstable_d["amp"]  *= kernel["amp"]
+        bstable_d["sigma"] *= kernel["amp"]
+        return bstable_d
+
+    def deburr_bstable(self, geomodel):
+        '''
+        Deblur closure values using a gaussian
+
+        Args:
+            geomodel (geomodel.geomodel.GeoModel object)
+                input model
+        Returns:
+            BSTable object
+        '''
+
+        bstable_d = copy.deepcopy(self)
+        kernel = self.eval_geomodel(geomodel)
+        bstable_d["amp"]  /= kernel["amp"]
+        bstable_d["sigma"] /= kernel["amp"]
+        return bstable_d
+
 
     #-------------------------------------------------------------------------
     # Plot Functions
