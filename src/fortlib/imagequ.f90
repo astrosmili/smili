@@ -9,8 +9,9 @@ contains
 !-------------------------------------------------------------------------------
 ! Calc cost function
 !-------------------------------------------------------------------------------
-subroutine calc_cost_reg(&
-    I1d, xidx, yidx, Nxref, Nyref, Nx, Ny, &
+subroutine calc_cost_qu_reg(&
+    I1d, m1d, phi1d, Q1d, U1d,&
+    xidx, yidx, Nxref, Nyref, Nx, Ny, &
     l1_l, l1_wgt, l1_Nwgt,&
     tv_l, tv_wgt, tv_Nwgt,&
     tsv_l, tsv_wgt, tsv_Nwgt,&
@@ -30,6 +31,10 @@ subroutine calc_cost_reg(&
   integer,  intent(in)  :: N1d, Nx, Ny
   integer,  intent(in)  :: xidx(N1d), yidx(N1d)
   real(dp), intent(in)  :: I1d(N1d)
+  real(dp), intent(in)  :: m1d(N1d)
+  real(dp), intent(in)  :: phi1d(N1d)
+  real(dp), intent(in)  :: Q1d(N1d)
+  real(dp), intent(in)  :: U1d(N1d)
   real(dp), intent(in)  :: Nxref, Nyref
 
   ! parameter for l1
@@ -66,8 +71,8 @@ subroutine calc_cost_reg(&
   real(dp), intent(in)  :: cen_alpha         ! alpha
 
   ! parameter for second momentum
-  real(dp), intent(in)   :: sm_l              ! lambda
-  real(dp), intent(in)   :: sm_maj,sm_min,sm_phi ! major, minor size and position angle
+  real(dp), intent(in)  :: sm_l                 ! lambda
+  real(dp), intent(in)  :: sm_maj,sm_min,sm_phi ! major, minor size and position angle
 
   ! regularization function
   real(dp), intent(out) :: l1_cost    ! cost of l1
@@ -89,42 +94,89 @@ subroutine calc_cost_reg(&
   ! integer and real
   integer   :: ipix
   real(dp)  :: tmp
+  logical :: needP1d = .False.
+  logical :: needP2d = .False.
+  logical :: needQU2d = .False.
+  logical :: needm2d = .False.
+  logical :: needmQU2d = .False.
 
   ! allocatable arrays
-  real(dp), allocatable :: I2d(:,:)
-  real(dp), allocatable :: tmp1d(:)
+  real(dp), allocatable :: m2d(:,:),P2d(:,:)
+  real(dp), allocatable :: Q2d(:,:),U2d(:,:)
+  real(dp), allocatable :: mq2d(:,:),mu2d(:,:),m2d(:,:),P2d(:,:),Q2d(:,:)
+  real(dp), allocatable :: tmp1d(:),P1d(:)
   real(dp)  :: Isum, xcen, ycen, Sg(3), mom(2)
 
+  ! Precompute array
+  if ((pl1_l > 0) .or. (ptv_l > 0) .or. (ptsv_l > 0) .or. (pkl_l > 0) .or. &
+      (pgs_l > 0)) then
+      needP1d = .True.
+      allocate(P1d(Npix))
+      P1d = Iin * min
+  end if
+  if ((ptv_l > 0) .or. (ptsv_l > 0)) then
+      needP2d = .True.
+      allocate(P2d(Nx,Ny))
+      P2d = 0d0
+      call I1d_I2d_fwd(xidx,yidx,P1d,P2d,N1d,Nx,Ny)
+  end if
+  if ((pctv_l > 0) .or. (pctsv_l > 0)) then
+      needQU2d = .True.
+      allocate(Q2d(Nx,Ny),U2d(Nx,Ny))
+      Q2d = 0d0
+      U2d = 0d0
+      call I1d_I2d_fwd(xidx,yidx,Q1d,Q2d,N1d,Nx,Ny)
+      call I1d_I2d_fwd(xidx,yidx,U1d,U2d,N1d,Nx,Ny)
+  end if
+  if ((mtv_l > 0) .or. (mtsv_l > 0)) then
+      needm2d = .True.
+      allocate(m2d(Nx,Ny))
+      m2d = 0d0
+      call I1d_I2d_fwd(xidx,yidx,m1d,m2d,N1d,Nx,Ny)
+  end if
+  if ((mctv_l > 0) .or. (mctsv_l > 0)) then
+      needmQU2d = .True.
+      allocate(mq2d(Nx,Ny),mu2d(Nx,Ny))
+      mq2d = 0d0
+      mu2d = 0d0
+      call I1d_I2d_fwd(xidx,yidx,m1d*cos(phi1d),mq2d,N1d,Nx,Ny)
+      call I1d_I2d_fwd(xidx,yidx,m1d*sin(phi1d),mu2d,N1d,Nx,Ny)
+  end if
+
   ! Initialize
-  l1_cost     = 0d0
-  tv_cost     = 0d0
-  tsv_cost    = 0d0
-  gs_cost     = 0d0
+  pl1_cost     = 0d0
+  ptv_cost     = 0d0
+  ptsv_cost    = 0d0
+  pgs_cost     = 0d0
   pkl_cost     = 0d0
-  tfd_cost    = 0d0
-  cen_cost    = 0d0
-  sm_cost     = 0d0
+  pctv_cost     = 0d0
+  pctsv_cost    = 0d0
+  mtv_cost     = 0d0
+  mtsv_cost    = 0d0
+  mctv_cost     = 0d0
+  mctsv_cost    = 0d0
+  qtfd_cost    = 0d0
+  utfd_cost    = 0d0
   cost        = 0d0
   gradcost(:) = 0d0
 
-  ! Totalflux regularization
-  if (tfd_l > 0) then
-    call calc_tfdreg(I1d,tfd_tgtfd,tfd_cost,tmp,N1d)
-    tfd_cost = tfd_l * tfd_cost
-    gradcost = gradcost + tfd_l * tmp
+  ! Total flux regularization at Stokes Q
+  if (qtfd_l > 0) then
+    call calc_tfdreg(Q1d,qtfd_tgtfd,qtfd_cost,tmp,N1d)
+    qtfd_cost = qtfd_l * qtfd_cost
+    gradcost = gradcost + qtfd_l * tmp
   end if
 
-  ! Center of mass regularization
-  if (cen_l > 0) then
-    allocate(tmp1d(N1d))
-    call calc_cenreg(I1d,xidx,yidx,Nxref,Nyref,cen_alpha,tmp,tmp1d,N1d)
-    cen_cost = cen_l * tmp
-    gradcost = gradcost + cen_l * tmp1d
-    deallocate(tmp1d)
+  ! Total flux regularization at Stokes U
+  if (utfd_l > 0) then
+    call calc_tfdreg(U1d,utfd_tgtfd,utfd_cost,tmp,N1d)
+    utfd_cost = utfd_l * utfd_cost
+    gradcost = gradcost + utfd_l * tmp
   end if
+
   ! Compute pixel-based regularizations (MEM, l1, tv, tsv)
   !   Allocate two dimensional array if needed
-  if (tv_l > 0 .or. tsv_l > 0) then
+  if (ptv_l > 0 .or. tsv_l > 0) then
     allocate(I2d(Nx,Ny))
     I2d(:,:)=0d0
     call I1d_I2d_fwd(xidx,yidx,I1d,I2d,N1d,Nx,Ny)
@@ -140,19 +192,6 @@ subroutine calc_cost_reg(&
   !$OMP                sm_l,  sm_maj, sm_min, sm_phi) &
   !$OMP   PRIVATE(ipix) &
   !$OMP   REDUCTION(+: l1_cost, tv_cost, tsv_cost, gs_cost, pkl_cost, gradcost)
-
-  ! second momentum regularizer
-  Isum = totalflux(I1d,N1d)
-  call xy_cen(I1d, xidx, yidx, N1d, xcen, ycen)
-  call Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
-  call one_momentum(I1d, xidx, yidx, N1d, mom)
-  if (sm_l>0) then
-    sm_cost = sm_cost + sm_l * sm_e(Sg, sm_maj, sm_min, sm_phi)
-  end if
-
-  ! check variables of second momentum
-  call check_sm_character(Sg, out_maj, out_min, out_phi)
-
   do ipix=1, N1d
     ! weighted L1
     if (l1_l > 0) then
@@ -552,56 +591,51 @@ end function
 !-------------------------------------------------------------------------------
 ! IQUV <---> m, phi, theta
 !-------------------------------------------------------------------------------
-subroutine mphitheta_QUV_fwd(I,m,phi,theta,Q,U,V,N1d)
+subroutine mphi_QU_fwd(I,m,phi,Q,U,N1d)
   implicit none
   integer,  intent(in) :: N1d
   real(dp), intent(in) :: I(N1d)
-  real(dp), intent(in) :: m(N1d),phi(N1d),theta(N1d)
-  real(dp), intent(out):: Q(N1d),U(N1d),V(N1d)
+  real(dp), intent(in) :: m(N1d),phi(N1d)
+  real(dp), intent(out):: Q(N1d),U(N1d)
 
   P = I*m
   cosphi = cos(phi)
   sinphi = sin(phi)
-  !costhe = cos(theta)
-  !sinthe = sin(theta)
 
-  Q = P*cosphi*costhe
-  U = P*sinphi*costhe
-  !V = P*sinthe
+  Q = P*cosphi
+  U = P*sinphi
 end subroutine
 
-subroutine mphitheta_QUV_inv(I,m,phi,theta,Q,U,V,N1d)
+subroutine mphi_QU_inv(I,m,phi,Q,U,N1d)
   implicit none
   integer,  intent(in) :: N1d
   real(dp), intent(in) :: I(N1d)
-  real(dp), intent(out):: m(N1d),phi(N1d),theta(N1d)
-  real(dp), intent(in) :: Q(N1d),U(N1d),V(N1d)
-  m = sqrt(Q**2+U**2+V**2)/I
+  real(dp), intent(out):: m(N1d),phi(N1d)
+  real(dp), intent(in) :: Q(N1d),U(N1d)
+
   P = sqrt(Q**2+U**2)
-  phi   = atan2(U,Q)
-  theta = atan2(V,P)
+
+  m = P/I
+  phi = atan2(U,Q)
 end subroutine
 
-subroutine mphitheta_QUV_grad_inv(&
-    I,m,phi,theta,&
-    Qg,Ug,Vg,&
-    mg,phig,thetag,&
+subroutine mphi_QU_grad_inv(&
+    I,m,phi,&
+    Qg,Ug,&
+    mg,phig,&
     N1d)
   implicit none
   integer,  intent(in) :: N1d
   real(dp), intent(in) :: I(N1d)
-  real(dp), intent(in) :: m(N1d),phi(N1d),theta(N1d)
-  real(dp), intent(out):: mg(N1d),phig(N1d),thetag(N1d)
+  real(dp), intent(in) :: m(N1d),phi(N1d)
+  real(dp), intent(out):: mg(N1d),phig(N1d)
 
   P = I*m
   cosphi = cos(phi)
   sinphi = sin(phi)
-  costhe = cos(theta)
-  sinthe = sin(theta)
 
-  mg     =  I*cosphi*costhe*Qg + I*sinphi*costhe*Ug + I*sinthe*Vg
-  phig   = -P*sinphi*costhe*Qg + P*cosphi*costhe*Ug
-  thetag = -P*cosphi*sinthe*Qg - P*sinphi*sinthe*Ug + P*costhe*Vg
+  mg     =  I*cosphi*Qg + I*sinphi*Ug
+  phig   = -P*sinphi*Qg + P*cosphi*Ug
 end subroutine
 
 !-------------------------------------------------------------------------------

@@ -11,7 +11,7 @@ contains
 ! Functions to compute chisquares and also residual vectors
 !-------------------------------------------------------------------------------
 subroutine calc_chisq_qu(&
-  Iin,xidx,yidx,Nx,Ny,&
+  Qin,Uin,xidx,yidx,Nx,Ny,&
   u,v,Icmp,&
   isqvis,uvidxqvis,qvis,Varqvis,wqvis,&
   isuvis,uvidxuvis,uvis,Varuvis,wuvis,&
@@ -24,7 +24,7 @@ subroutine calc_chisq_qu(&
 
   ! Image
   integer,  intent(in) :: Npix, Nx, Ny
-  real(dp), intent(in) :: Iin(Npix*2) ! for qu
+  real(dp), intent(in) :: Qin(Npix), Uin(Npix) ! for qu
   integer,  intent(in) :: xidx(Npix), yidx(Npix)
 
   ! uv coordinate
@@ -91,7 +91,7 @@ subroutine calc_chisq_qu(&
 
   ! Compute Stokes Q visibilities
   if ((isqvis .eqv. .True.) .or. (ismq .eqv. .True.)) then
-    call I1d_I2d_fwd(xidx,yidx,Iin(1:Npix),I2d,Npix,Nx,Ny)
+    call I1d_I2d_fwd(xidx,yidx,Qin,I2d,Npix,Nx,Ny)
     !     Forward Non-unifrom Fast Fourier Transform
     allocate(Qcmp(Nuv))
     Qcmp(:) = dcmplx(0d0,0d0)
@@ -100,7 +100,7 @@ subroutine calc_chisq_qu(&
 
   ! Compute Stokes U visibilities
   if ((isuvis .eqv. .True.) .or. (ismu .eqv. .True.)) then
-    call I1d_I2d_fwd(xidx,yidx,Iin(Npix+1:2*Npix),I2d,Npix,Nx,Ny)
+    call I1d_I2d_fwd(xidx,yidx,Uin,I2d,Npix,Nx,Ny)
     !     Forward Non-unifrom Fast Fourier Transform
     allocate(Ucmp(Nuv))
     Ucmp(:) = dcmplx(0d0,0d0)
