@@ -122,6 +122,19 @@ subroutine calc_cost_reg(&
     gradcost = gradcost + cen_l * tmp1d
     deallocate(tmp1d)
   end if
+
+  ! second momentum regularizer
+  Isum = totalflux(I1d,N1d)
+  call xy_cen(I1d, xidx, yidx, N1d, xcen, ycen)
+  call Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
+  call one_momentum(I1d, xidx, yidx, N1d, mom)
+  if (sm_l>0) then
+    sm_cost = sm_cost + sm_l * sm_e(Sg, sm_maj, sm_min, sm_phi)
+  end if
+
+  ! check variables of second momentum
+  call check_sm_character(Sg, out_maj, out_min, out_phi)
+
   ! Compute pixel-based regularizations (MEM, l1, tv, tsv)
   !   Allocate two dimensional array if needed
   if (tv_l > 0 .or. tsv_l > 0) then
@@ -136,23 +149,9 @@ subroutine calc_cost_reg(&
   !$OMP                tv_l,  tv_wgt,&
   !$OMP                tsv_l, tsv_wgt,&
   !$OMP                gs_l,  gs_wgt,&
-  !$OMP                kl_l,  kl_wgt,&
-  !$OMP                sm_l,  sm_maj, sm_min, sm_phi) &
+  !$OMP                kl_l,  kl_wgt) &
   !$OMP   PRIVATE(ipix) &
   !$OMP   REDUCTION(+: l1_cost, tv_cost, tsv_cost, gs_cost, kl_cost, gradcost)
-
-  ! second momentum regularizer
-  Isum = totalflux(I1d,N1d)
-  call xy_cen(I1d, xidx, yidx, N1d, xcen, ycen)
-  call Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
-  call one_momentum(I1d, xidx, yidx, N1d, mom)
-  if (sm_l>0) then
-    sm_cost = sm_cost + sm_l * sm_e(Sg, sm_maj, sm_min, sm_phi)
-  end if
-
-  ! check variables of second momentum
-  call check_sm_character(Sg, out_maj, out_min, out_phi)
-
   do ipix=1, N1d
     ! weighted L1
     if (l1_l > 0) then
@@ -189,7 +188,6 @@ subroutine calc_cost_reg(&
       gradcost(ipix) = gradcost(ipix) + sm_l * sm_grade(I1d(ipix), xidx(ipix), &
                         yidx(ipix), Isum, xcen, ycen, Sg, mom, sm_maj, sm_min, sm_phi)
     end if
-
   end do
   !$OMP END PARALLEL DO
 
@@ -199,7 +197,7 @@ subroutine calc_cost_reg(&
   end if
 
   ! take summation of all the cost function
-  cost = l1_cost + tv_cost + tsv_cost + kl_cost + gs_cost + tfd_cost + cen_cost +sm_cost
+  cost = l1_cost + tv_cost + tsv_cost + kl_cost + gs_cost + tfd_cost + cen_cost + sm_cost
 end subroutine
 
 

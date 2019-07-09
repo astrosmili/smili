@@ -137,6 +137,20 @@ subroutine calc_cost_reg3d(&
   gradcost(:) = 0d0
   di_gradcost(:) = 0d0
   !$OMP PARALLEL DO DEFAULT(SHARED) &
+  !$OMP   FIRSTPRIVATE(Npix, I1d, xidx, yidx, Nxref, Nyref, Nx, Ny, Nz,&
+  !$OMP                l1_l,  l1_wgt,  l1_Nwgt,&
+  !$OMP                tv_l,  tv_wgt,  tv_Nwgt,&
+  !$OMP                tsv_l, tsv_wgt, tsv_Nwgt,&
+  !$OMP                kl_l,  kl_wgt,  kl_Nwgt,&
+  !$OMP                gs_l,  gs_wgt,  gs_Nwgt,&
+  !$OMP                tfd_l, tfd_tgtfd,&
+  !$OMP                cen_l, cen_alpha,&
+  !$OMP                sm_l, sm_maj, sm_min, sm_phi) &
+  !$OMP   PRIVATE(iz, l1_cost_frm, sm_cost_frm, tv_cost_frm, tsv_cost_frm,&
+  !$OMP           kl_cost_frm, gs_cost_frm, tfd_cost_frm, cen_cost_frm,&
+  !$OMP           out_maj_frm, out_min_frm, out_phi_frm, cost_frm, gradcost_frm) &
+  !$OMP   REDUCTION(+: cost, gradcost, l1_cost, sm_cost, tv_cost, tsv_cost,&
+  !$OMP                kl_cost, gs_cost, tfd_cost, cen_cost, out_maj, out_min, out_phi)
   do iz=1, Nz
     call calc_cost_reg(&
         I1d((iz-1)*Npix+1:iz*Npix), &
@@ -146,8 +160,8 @@ subroutine calc_cost_reg3d(&
         tsv_l, tsv_wgt, tsv_Nwgt,&
         kl_l, kl_wgt, kl_Nwgt,&
         gs_l, gs_wgt, gs_Nwgt,&
-        tfd_l, tfd_tgtfd,&
-        cen_l, cen_alpha,&
+        tfd_l, tfd_tgtfd,& ! tgtfd should be array, and here should be tfd_l(iz), tfd_tftfd(iz)
+        cen_l, cen_alpha,& ! cen_l=-1, cen_alpha=1d0,
         sm_l, sm_maj, sm_min, sm_phi,&
         l1_cost_frm, &
         tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
@@ -156,7 +170,6 @@ subroutine calc_cost_reg3d(&
         out_maj_frm, out_min_frm, out_phi_frm,&
         cost_frm, gradcost_frm, Npix &
     )
-
     l1_cost  = l1_cost + l1_cost_frm / Nz
     sm_cost  = sm_cost + sm_cost_frm / Nz
     tv_cost  = tv_cost + tv_cost_frm / Nz
@@ -164,13 +177,12 @@ subroutine calc_cost_reg3d(&
     kl_cost  = kl_cost + kl_cost_frm / Nz
     gs_cost  = gs_cost + gs_cost_frm / Nz
     tfd_cost = tfd_cost + tfd_cost_frm / Nz
-    cen_cost = cen_cost + cen_cost_frm /Nz
+    cen_cost = cen_cost + cen_cost_frm /Nz   ! cen reg must be computed for the sum of image
     out_maj  = out_maj + out_maj_frm / Nz
     out_min  = out_min + out_min_frm / Nz
     out_phi  = out_phi + out_phi_frm / Nz
     cost     = cost + cost_frm / Nz
     gradcost((iz-1)*Npix+1:iz*Npix) = gradcost_frm / Nz
-
   end do
   !$OMP END PARALLEL DO
 
@@ -183,7 +195,6 @@ subroutine calc_cost_reg3d(&
     cost     = cost + di_cost
     gradcost(:) = gradcost(:) + di_gradcost(:)
   end if
-
 end subroutine
 !
 !-------------------------------------------------------------------------------
