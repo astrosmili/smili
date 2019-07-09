@@ -594,8 +594,8 @@ class VisTable(UVTable):
         # u,v coordinates
         u = outtable.u.values
         v = outtable.v.values
-        outtable["amp"] = geomodel.Vamp(u,v).eval(**evalargs)
-        outtable["phase"] = geomodel.Vphase(u,v).eval(**evalargs) * 180./np.pi
+        outtable["amp"] = geomodel.Vamp(u,v)
+        outtable["phase"] = geomodel.Vphase(u,v) * 180./np.pi
 
         return outtable
 
@@ -625,10 +625,10 @@ class VisTable(UVTable):
         sigma = self.sigma.values
 
         if amp is False:
-            modVre = geomodel.real(u,v)
-            modVim = geomodel.imag(u,v)
-            Vre = Vamp * T.cos(Vpha)
-            Vim = Vamp * T.sin(Vpha)
+            modVre = geomodel.Vre(u,v)
+            modVim = geomodel.Vim(u,v)
+            Vre = Vamp * np.cos(Vpha)
+            Vim = Vamp * np.sin(Vpha)
             resid_re = Vre - modVre
             resid_im = Vim - modVim
             if normed:
@@ -642,9 +642,47 @@ class VisTable(UVTable):
                 residual /= sigma
 
         if doeval:
-            return residual.eval(**evalargs)
+            return residual
         else:
             return residual
+
+
+    def blurr_vistable(self, geomodel):
+        '''
+        Blur visibility values using a gaussian
+
+        Args:
+            geomodel (geomodel.geomodel.GeoModel object):
+                input model
+        Returns:
+            VisTable object
+        '''
+        vistable_d = copy.deepcopy(self)
+
+        kernel =  self.eval_geomodel(geomodel)
+        vistable_d["amp"]   *= kernel["amp"]
+        vistable_d["sigma"] *= kernel["amp"]
+        return vistable_d
+
+
+    def deblurr_vistable(self, geomodel):
+        '''
+        Deblur visibility values using a gaussian
+
+        Args:
+            geomodel (geomodel.geomodel.GeoModel object):
+                input model
+        Returns:
+            VisTable object
+        '''
+        vistable_d = copy.deepcopy(self)
+
+        kernel =  self.eval_geomodel(geomodel)
+        vistable_d["amp"]  /= kernel["amp"]
+        vistable_d["sigma"] /= kernel["amp"]
+        return vistable_d
+
+
 
     def make_bstable(self, redundant=None, dependent=False):
         '''

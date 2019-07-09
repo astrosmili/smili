@@ -342,8 +342,8 @@ class CATable(UVTable):
         v3 = outtable.v3.values
         u4 = outtable.u4.values
         v4 = outtable.v4.values
-        outtable["amp"] = geomodel.Camp(u1,v1,u2,v2,u3,v3,u4,v4).eval(**evalargs)
-        outtable["logamp"] = geomodel.logCamp(u1,v1,u2,v2,u3,v3,u4,v4).eval(**evalargs)
+        outtable["amp"] = geomodel.Camp(u1,v1,u2,v2,u3,v3,u4,v4)
+        outtable["logamp"] = geomodel.logCamp(u1,v1,u2,v2,u3,v3,u4,v4)
         return outtable
 
 
@@ -381,9 +381,46 @@ class CATable(UVTable):
             residual /= logsigma
 
         if doeval:
-            return residual.eval(**evalargs)
+            return residual
         else:
             return residual
+
+    def burr_catable(self, geomodel):
+        '''
+        Blur closure values using a gaussian
+
+        Args:
+            geomodel (geomodel.geomodel.GeoModel object):
+                input model
+        Returns:
+            CATable object
+        '''
+
+        catable_d = copy.deepcopy(self)
+        kernel =  self.eval_geomodel(geomodel)
+        catable_d["amp"]         *= kernel["amp"]
+        catable_d["logamp"]      += kernel["logamp"]
+        catable_d["sigma"]       *= kernel["amp"]
+        return catable_d
+
+    def deburr_catable(self, geomodel):
+        '''
+        Deblur closure values using a gaussian
+
+        Args:
+            geomodel (geomodel.geomodel.GeoModel object):
+                input model
+        Returns:
+            CATable object
+        '''
+
+        catable_d = copy.deepcopy(self)
+        kernel =  self.eval_geomodel(geomodel)
+        catable_d["amp"]         /= kernel["amp"]
+        catable_d["logamp"]      -= kernel["logamp"]
+        catable_d["sigma"]       /= kernel["amp"]
+        return catable_d
+
 
 
     #-------------------------------------------------------------------------
