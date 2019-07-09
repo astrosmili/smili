@@ -664,7 +664,7 @@ class IMFITS(object):
         hdulist[0].header.set("CDELT1",   np.float64(self.header["dx"]))
         hdulist[0].header.set("CRPIX1",   np.float64(self.header["nxref"]))
         hdulist[0].header.set("CROTA1",   np.float64(0.))
-        hdulist[0].header.set("CTYPE2",   "DEC---SIN")
+        hdulist[0].header.set("CTYPE2",   "DEC--SIN")
         hdulist[0].header.set("CRVAL2",   np.float64(self.header["y"]))
         hdulist[0].header.set("CDELT2",   np.float64(self.header["dy"]))
         hdulist[0].header.set("CRPIX2",   np.float64(self.header["nyref"]))
