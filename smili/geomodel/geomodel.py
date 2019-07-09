@@ -177,7 +177,7 @@ class GeoModel(object):
         Return:
             imaginary part of the bi-spectrum
         '''
-        return np.real(B(u1,v1,u2,v2,u3,v3))
+        return np.real(self.B(u1,v1,u2,v2,u3,v3))
 
     def Bim(self, u1, v1, u2, v2, u3, v3):
         '''
@@ -188,7 +188,7 @@ class GeoModel(object):
         Return:
             imaginary part of the bi-spectrum
         '''
-        return np.imag(B(u1,v1,u2,v2,u3,v3))
+        return np.imag(self.B(u1,v1,u2,v2,u3,v3))
 
 
     def Bamp(self, u1, v1, u2, v2, u3, v3):
@@ -200,7 +200,7 @@ class GeoModel(object):
         Return:
             amplitude of the bi-spectrum
         '''
-        return np.abs(B(u1, v1, u2, v2, u3, v3))
+        return np.abs(self.B(u1, v1, u2, v2, u3, v3))
 
 
     def Bphase(self, u1, v1, u2, v2, u3, v3):
@@ -213,7 +213,7 @@ class GeoModel(object):
         Return:
             phase of the bi-spectrum
         '''
-        return np.angle(B(u1, v1, u2, v2, u3, v3))
+        return np.angle(self.B(u1, v1, u2, v2, u3, v3))
 
 
     # Closure Amplitudes
