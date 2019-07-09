@@ -746,40 +746,6 @@ real(dp) function tsv_grade(xidx,yidx,I2d,Nx,Ny)
   !
 end function
 
-
-!-------------------------------------------------------------------------------
-! Total Flux Regularization
-!-------------------------------------------------------------------------------
-subroutine init_tfdreg(tfd_l_in, tfd_tgtfd, tfd_tgter, tfd_l)
-  implicit none
-  !
-  real(dp),intent(in)  :: tfd_l_in   ! input Lambda value for this regularization
-  real(dp),intent(in)  :: tfd_tgtfd  ! Target total flux density
-  real(dp),intent(in)  :: tfd_tgter  ! Target fractional error
-  real(dp),intent(out) :: tfd_l      ! Normalized Lambda
-
-  ! normalize lambda with the target total flux density and fractional error
-  tfd_l = tfd_l_in / (tfd_tgtfd * tfd_tgter)**2
-end subroutine
-
-
-subroutine calc_tfdreg(I1d,tgtfd,cost,gradcost,N1d)
-  implicit none
-  !
-  integer, intent(in) :: N1d      ! number of data sets
-  real(dp),intent(in) :: I1d(N1d) ! input image
-  real(dp),intent(in) :: tgtfd    ! target total flux
-  real(dp),intent(out):: cost     ! cost function
-  real(dp),intent(out):: gradcost ! gradient is constant,
-                                  ! so this is just 1 real value
-  real(dp) :: resid
-
-  resid = sum(I1d)-tgtfd   ! take the total flux and residual
-  cost = resid**2
-  gradcost = 2*resid
-end subroutine
-
-
 !-------------------------------------------------------------------------------
 ! IQUV <---> m, phi, theta
 !-------------------------------------------------------------------------------
@@ -819,7 +785,6 @@ subroutine mphitheta_QUV_grad_inv(&
     mg,phig,thetag,&
     N1d)
   implicit none
-
   integer,  intent(in) :: N1d
   real(dp), intent(in) :: I(N1d)
   real(dp), intent(in) :: m(N1d),phi(N1d),theta(N1d)
