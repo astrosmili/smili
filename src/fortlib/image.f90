@@ -107,7 +107,7 @@ subroutine calc_cost_reg(&
   cost        = 0d0
   gradcost(:) = 0d0
 
-  ! Totalflux regularization
+  ! Total flux regularization
   if (tfd_l > 0) then
     call calc_tfdreg(I1d,tfd_tgtfd,tfd_cost,tmp,N1d)
     tfd_cost = tfd_l * tfd_cost
@@ -129,9 +129,7 @@ subroutine calc_cost_reg(&
     call xy_cen(I1d, xidx, yidx, N1d, xcen, ycen)
     call Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
     call one_momentum(I1d, xidx, yidx, N1d, mom)
-
     sm_cost = sm_cost + sm_l * sm_e(Sg, sm_maj, sm_min, sm_phi)
-
     ! check variables of second momentum
     call check_sm_character(Sg, out_maj, out_min, out_phi)
   end if
