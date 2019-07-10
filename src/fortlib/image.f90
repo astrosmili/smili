@@ -124,16 +124,17 @@ subroutine calc_cost_reg(&
   end if
 
   ! second momentum regularizer
-  Isum = totalflux(I1d,N1d)
-  call xy_cen(I1d, xidx, yidx, N1d, xcen, ycen)
-  call Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
-  call one_momentum(I1d, xidx, yidx, N1d, mom)
   if (sm_l>0) then
-    sm_cost = sm_cost + sm_l * sm_e(Sg, sm_maj, sm_min, sm_phi)
-  end if
+    Isum = totalflux(I1d,N1d)
+    call xy_cen(I1d, xidx, yidx, N1d, xcen, ycen)
+    call Sigma(I1d, xidx, yidx, N1d, Isum, xcen, ycen, Sg)
+    call one_momentum(I1d, xidx, yidx, N1d, mom)
 
-  ! check variables of second momentum
-  call check_sm_character(Sg, out_maj, out_min, out_phi)
+    sm_cost = sm_cost + sm_l * sm_e(Sg, sm_maj, sm_min, sm_phi)
+
+    ! check variables of second momentum
+    call check_sm_character(Sg, out_maj, out_min, out_phi)
+  end if
 
   ! Compute pixel-based regularizations (MEM, l1, tv, tsv)
   !   Allocate two dimensional array if needed

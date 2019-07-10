@@ -46,9 +46,12 @@ FCLIBS_LBFGSB=-L../lbfgsb -llbfgsb
 FCFLAGS=-fPIC @FCFLAGS@
 FCFLAGS+=$(FCFLAGS_OPT)
 FCFLAGS+=$(FCFLAGS_DBG)
-FCFLAGS+=$(FCFLAGS_OMP)
-FCFLAGS+=@OPENBLAS_CFLAGS@
-FCFLAGS+=@FFTW3_CFLAGS@
+FCFLAGS+=$(FCLIBS_OMP)
+FCFLAGS+=$(FCLIBS_OPENBLAS)
+FCFLAGS+=$(FCLIBS_FINUFFT)
+#FCFLAGS+=$(FCLIBS_LBFGSB)
+#FCFLAGS+=@OPENBLAS_CFLAGS@
+#FCFLAGS+=@FFTW3_CFLAGS@
 
 #-------------------------------------------
 # F2PY
@@ -103,6 +106,7 @@ F2PYFLAGS2+=$(F2PYLIBS_OMP)
 SRCS=param.f90
 SRCS+=interp.f90 phasecon.f90 houghlib.f90
 SRCS+=image.f90 fftlib.f90 fftim2d.f90
+SRCS+=fftlibqu.f90
 SRCS+=image3d.f90 fftlib3d.f90 fftim3d.f90
 SRCS+=dftlib.f90 dftim2d.f90
 SRCS+=coord.f90 uvdata.f90
@@ -110,6 +114,7 @@ SRCS+=coord.f90 uvdata.f90
 OBJS=param.o
 OBJS+=interp.o phasecon.o houghlib.o
 OBJS+=image.o fftlib.o fftim2d.o
+OBJS+=fftlibqu.o
 OBJS+=image3d.o fftlib3d.o fftim3d.o
 OBJS+=dftlib.o dftim2d.o
 OBJS+=coord.o uvdata.o
