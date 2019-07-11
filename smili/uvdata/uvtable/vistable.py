@@ -21,7 +21,6 @@ import pandas as pd
 import scipy.special as ss
 from scipy import optimize
 from scipy import linalg
-import theano.tensor as T
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import NullFormatter

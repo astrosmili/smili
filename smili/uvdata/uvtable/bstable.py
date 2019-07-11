@@ -17,7 +17,6 @@ import itertools
 # numerical packages
 import numpy as np
 import pandas as pd
-import theano.tensor as T
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import NullFormatter
