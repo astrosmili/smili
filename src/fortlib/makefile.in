@@ -56,7 +56,7 @@ FCFLAGS+=$(FCLIBS_FINUFFT)
 #-------------------------------------------
 # F2PY
 F2PY=@F2PY@
-F2PYFLAGS_FC=@FC@
+F2PYFLAGS_FC=gfortran
 
 ifeq ($(OSTYPE),"LINUX")
   F2PYFLAGS_OPT=-O3
