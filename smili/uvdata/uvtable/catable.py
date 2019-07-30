@@ -385,7 +385,7 @@ class CATable(UVTable):
         else:
             return residual
 
-    def burr_catable(self, geomodel):
+    def blurr_catable(self, geomodel):
         '''
         Blur closure values using a gaussian
 
@@ -400,10 +400,11 @@ class CATable(UVTable):
         kernel =  self.eval_geomodel(geomodel)
         catable_d["amp"]         *= kernel["amp"]
         catable_d["logamp"]      += kernel["logamp"]
+        catable_d["logsigma"]    += kernel["logsigma"]
         catable_d["sigma"]       *= kernel["amp"]
         return catable_d
 
-    def deburr_catable(self, geomodel):
+    def deblurr_catable(self, geomodel):
         '''
         Deblur closure values using a gaussian
 
@@ -418,6 +419,7 @@ class CATable(UVTable):
         kernel =  self.eval_geomodel(geomodel)
         catable_d["amp"]         /= kernel["amp"]
         catable_d["logamp"]      -= kernel["logamp"]
+        catable_d["logsigma"]    -= kernel["logsigma"]
         catable_d["sigma"]       /= kernel["amp"]
         return catable_d
 

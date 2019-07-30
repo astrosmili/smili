@@ -428,7 +428,7 @@ class BSTable(UVTable):
         else:
             return residual
 
-    def burr_bstable(self, geomodel):
+    def blurr_bstable(self, geomodel):
         '''
         Blur closure values using a gaussian
 
@@ -445,7 +445,7 @@ class BSTable(UVTable):
         bstable_d["sigma"] *= kernel["amp"]
         return bstable_d
 
-    def deburr_bstable(self, geomodel):
+    def deblurr_bstable(self, geomodel):
         '''
         Deblur closure values using a gaussian
 
