@@ -7,4 +7,5 @@ Tutorial and Example Scripts
   examples/image/imfits
   examples/imregion/imregion
   examples/uvdata/uvdata
+  examples/uvdata/averaging
   examples/imaging/imaging
