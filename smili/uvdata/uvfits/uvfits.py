@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 
 # internal
 from ... import imdata, fortlib
-from ...util import prt
+from ...util import prt, average1d, interpolation1d
 from ..uvtable import VisTable
 from ..cltable import CLTable
 
@@ -458,6 +458,7 @@ class UVFITS(object):
         visdata.check()
 
         self.visdata = visdata
+        self.update_scan(minint=86400)
 
     def to_uvfits(self, filename=None, overwrite=True):
         '''
@@ -1040,6 +1041,38 @@ class UVFITS(object):
         UVW = uvw.T
         return UVW
 
+    def get_scan(self):
+        '''
+        Return the unique elements of utc and corresponding scans.
+        '''
+        utc, utcfwdidx = np.unique(self.visdata.coord.utc.values, return_index=True)
+        scan = self.visdata.coord.loc[utcfwdidx, "scan"]
+        return utc, scan
+
+    def update_scan(self, minint=60):
+        '''
+        Recomputing scan using given the minimum separation.
+        You can check results with the method get_scan, or
+        directly looking at self.visdata.coord.
+
+        Args:
+            minsep (int, default=60): Minimum seperation in seconds
+        '''
+        utc = self.get_utc()
+        cxcsec = utc.cxcsec
+        cxcsec-= cxcsec.min()
+
+        # get unique time stamps
+        sec_uni, sec_uni_fwdidx, sec_uni_invidx = np.unique(cxcsec, return_index=True, return_inverse=True)
+
+        # compute scan ids
+        scan_uni = np.zeros(sec_uni.shape, dtype=np.int64)
+        scan_uni[1:] = np.int64(np.diff(sec_uni) > minint)
+        scan_uni = np.cumsum(scan_uni)
+
+        # compute scan ids
+        self.visdata.coord["scan"] = scan_uni[sec_uni_invidx]
+
     def eval_image(self,iimage,qimage=None,uimage=None,vimage=None):
         '''
         This method will compude model visivilities based on uv-coverages of
@@ -1154,7 +1187,6 @@ class UVFITS(object):
                 outfits.visdata.data[:, 0, 0, :, :, i, 0] = uvis[:,:,:,0] + vvis[:,:,:,1]
                 outfits.visdata.data[:, 0, 0, :, :, i, 1] = uvis[:,:,:,1] - vvis[:,:,:,0]
         return outfits
-
 
     def selfcal(self,iimage,qimage=None,uimage=None,vimage=None,std_amp=1,std_pha=100):
         '''
@@ -1350,109 +1382,150 @@ class UVFITS(object):
 
         return outfits
 
-    def uvavg(self, solint=10, minpoint=4):
+    def uvavg(self, solint=60, interp_kind="cubic", minpoint=2):
         '''
-        This method will weighted-average full complex visibilities in time direction.
-        Visibilities will be weighted-average, using weight information of data.
-        uvw-coordinates on new time grid will be interpolated with cubic spline interpolation.
-        This may give slightly different uvw coordinates from other software, such as DIFMAP
-        computing weighted averages or AIPS UVFIX recalculating uvw coordinates.
+        Time averaging data. uvw coordinates are interpolated from input data.
+        Time averaging of data will be done on scan basis.
+        Once you specify scans with the update_scan method,
+        you can do scan_averaging by setting solint=0.
+
         Args:
-          solint (float; default=10):
-            Time averaging interval (in sec)
-            minpoint (int; default =2.):
-              Number of points required to re-evaluate weights.
-              It must be larger than 4, since the software is using a cubic
-              interpolation for recalculating uv coordinates.
-              If data do not have enough number of points at each time/frequency
-              segments specified with dofreq, weight will be set to 0
-              meaning that the corresponding point will be flagged out.
-        Returns: uvfits.UVFITS object
+            solint (float; default=60):
+                The integration time in seconds. If you specify solint = 0,
+                then data will be scan-averaged based on the current scan
+                definitions.
+            interp_kind (str; default="cubic")
+                the type of the interpolation for uvw coordinates
+                Availables are "nearest", "linear" and "cubic".
+            minpoint (int; default=2):
+                Minimum number of points to output averaged data.
+                We will keep averaged data even if input data do not have
+                points more than minpoint, but they will be flagged.
         '''
-        if minpoint < 4:
-            raise ValueError("Please specify minpoint >= 4")
+        # set solution interval
+        if solint == 0:
+            avesec = 86400
+        else:
+            avesec = solint
 
-        outfits = copy.deepcopy(self)
+        print("Time Averaging data")
+        # get visibilities
+        olddata = self.visdata.data.copy()
+        Ndata_old, dammy, dammy, Nif, Nch, Npl, dammy = olddata.shape
 
-        # Sort visdata
-        print("(1/5) Sort Visibility Data")
-        outfits.visdata.sort(by=["subarray","ant1","ant2","source","utc"])
-        Ndata = len(outfits.visdata.coord)
+        # coordinates
+        oldcoord = self.visdata.coord.copy()
+        oldcoord["sec"] = at.Time(oldcoord["utc"]).cxcsec
+        cxcsecmin = oldcoord["sec"].min()
+        oldcoord["sec"]-= cxcsecmin
 
-        # Check number of Baselines
-        print("(2/5) Check Number of Baselines")
-        # pick up combinations
-        select = outfits.visdata.coord.drop_duplicates(subset=["subarray","ant1","ant2","source","freqsel"])
-        combset = list(zip(
-            select.subarray.values,
-            select.ant1.values,
-            select.ant2.values,
-            select.source.values,
-            select.freqsel.values
-        ))
-        stlst = np.asarray(select.index.tolist(), dtype=np.int32)+1
-        edlst = np.asarray(select.index.tolist()+[Ndata], dtype=np.int32)[1:]
-        Nidx = len(stlst)
+        print("(1/3) Compute new time stamps")
+        gr_scan = oldcoord.groupby(by=["scan"])
 
-        print("(3/5) Create Timestamp")
-        tsecin = outfits.get_utc().cxcsec
-        tsecout = np.arange(tsecin.min()+solint/2,tsecin.max(),solint)
-        Nt = len(tsecout)
+        Nscan = len(gr_scan.groups.keys())
+        scans = list(gr_scan.groups.keys())
 
-        # Check number of Baselines
-        print("(4/5) Average UV data")
-        out = fortlib.uvdata.average(
-            uvdata=np.float32(outfits.visdata.data.T),
-            u=np.float64(outfits.visdata.coord.usec.values),
-            v=np.float64(outfits.visdata.coord.vsec.values),
-            w=np.float64(outfits.visdata.coord.wsec.values),
-            tin=np.float64(tsecin),
-            tout=np.float64(tsecout),
-            start=np.int32(stlst),
-            end=np.int32(edlst),
-            solint=solint,
-            minpoint=minpoint,
-        )
-        usec = out[1]
-        vsec = out[2]
-        wsec = out[3]
-        isdata = np.asarray(out[4],dtype=np.bool)
-        outfits.visdata.data = np.ascontiguousarray(out[0].T)[np.where(isdata)]
-        del out
+        sec_bin = []
+        scn_bin = []
+        for scanidx in tqdm.tqdm(range(Nscan)):
+            coordidx = gr_scan.groups[scans[scanidx]]
+            coordscn = oldcoord.loc[coordidx,:]
 
-        print("(5/5) Forming UV data")
-        utc = [tsecout for i in range(Nidx)]
-        #usec = [0.0 for i in range(Nidx*Nt)]
-        #vsec = [0.0 for i in range(Nidx*Nt)]
-        #wsec = [0.0 for i in range(Nidx*Nt)]
-        subarray = [[combset[idx][0] for i in range(Nt)] for idx in range(Nidx)]
-        ant1 = [[combset[idx][1] for i in range(Nt)] for idx in range(Nidx)]
-        ant2 = [[combset[idx][2] for i in range(Nt)] for idx in range(Nidx)]
-        source = [[combset[idx][3] for i in range(Nt)] for idx in range(Nidx)]
-        inttim = [solint for i in range(Nidx*Nt)]
-        freqsel = [[combset[idx][4] for i in range(Nt)] for idx in range(Nidx)]
-        utc = at.Time(np.concatenate(utc), format="cxcsec", scale="utc").datetime
+            tmp_uni = np.unique(coordscn["sec"].values)
+            tmp_bin = np.arange(0,tmp_uni.max()-tmp_uni.min(),avesec)
+            tmp_bin+= (tmp_uni.max()-tmp_uni.min())/2 + tmp_uni.min() - (tmp_bin.max()-tmp_bin.min())/2
+            sec_bin.append(tmp_bin)
+            scn_bin.append([coordscn["scan"].values[0] for i in range(len(tmp_bin))])
+        del coordidx, coordscn, tmp_uni, tmp_bin
 
-        outfits.visdata.coord = pd.DataFrame()
-        outfits.visdata.coord["utc"] = utc
-        outfits.visdata.coord["usec"] = np.float64(usec)
-        outfits.visdata.coord["vsec"] = np.float64(vsec)
-        outfits.visdata.coord["wsec"] = np.float64(wsec)
-        outfits.visdata.coord["subarray"] = np.int64(np.concatenate(subarray))
-        outfits.visdata.coord["ant1"] = np.int64(np.concatenate(ant1))
-        outfits.visdata.coord["ant2"] = np.int64(np.concatenate(ant2))
-        outfits.visdata.coord["source"] = np.int64(np.concatenate(source))
-        outfits.visdata.coord["inttim"] = np.float64(inttim)
-        outfits.visdata.coord["freqsel"] = np.int64(np.concatenate(freqsel))
-        del utc,usec,vsec,wsec,subarray,ant1,ant2,source,inttim,freqsel
-        del combset,stlst,edlst,Nt,Nidx
-        outfits.visdata.coord = outfits.visdata.coord.loc[isdata,:]
-        outfits.visdata.coord.reset_index(drop=True,inplace=True)
-        outfits.visdata.sort()
+        sec_bin = np.concatenate(sec_bin)
+        sortidx = np.argsort(sec_bin)
 
-        #print("(6/6) UVW recaluation")
-        #outfits = outfits.uvw_recalc()
-        return outfits
+        sec_bin = sec_bin[sortidx]
+        scn_bin = np.concatenate(scn_bin)[sortidx]
+        utc_bin = np.asarray(at.Time(cxcsecmin + sec_bin, format="cxcsec").datetime)
+        Nbins = len(sec_bin)
+
+        print("(2/3) Interpolate uvw coordinates")
+        gr_bl = oldcoord.groupby(by=["ant1","ant2","subarray"])
+        Nbl = len(gr_bl.groups.keys())
+        bls = list(gr_bl.groups.keys())
+
+        newcoord = []
+        for blidx in tqdm.tqdm(range(Nbl)):
+            coordbl = oldcoord.loc[gr_bl.groups[bls[blidx]],:]
+
+            tmptab = pd.DataFrame()
+            tmptab["utc"] = utc_bin
+            tmptab["usec"] = interpolation1d(coordbl["sec"].values,coordbl["usec"].values,sec_bin,kind=interp_kind)
+            tmptab["vsec"] = interpolation1d(coordbl["sec"].values,coordbl["vsec"].values,sec_bin,kind=interp_kind)
+            tmptab["wsec"] = interpolation1d(coordbl["sec"].values,coordbl["wsec"].values,sec_bin,kind=interp_kind)
+            for key in ["subarray", "ant1", "ant2", "source","inttim","freqsel"]:
+                if key == "inttim":
+                    tmptab[key] = np.zeros(Nbins, dtype=np.int64) + avesec
+                else:
+                    tmptab[key] = np.zeros(Nbins, dtype=np.int64) + coordbl[key].values[0]
+            tmptab["scan"] = scn_bin
+            tmptab["sec"] = sec_bin
+            newcoord.append(tmptab)
+        del tmptab
+
+        newcoord = pd.concat(newcoord, ignore_index=True)
+        for key in ["usec","vsec","wsec"]:
+            newcoord = newcoord.loc[np.isnan(newcoord[key])==False,:]
+        newcoord = newcoord.reset_index(drop=True)
+
+        print("(3/3) Time Average Visibilities")
+
+        # create new visibilities
+        Ndata_new = newcoord.shape[0]
+        newdata = np.zeros([Ndata_new,1,1,Nif,Nch,Npl,3],dtype=np.float64)
+
+        # create groups
+        oldgr_bl = oldcoord.groupby(by=["scan","ant1","ant2","subarray"])
+        newgr_bl = newcoord.groupby(by=["scan","ant1","ant2","subarray"])
+
+        # check if group id exist in both data sets
+        oldbls = list(oldgr_bl.groups.keys())
+        bls = list(newgr_bl.groups.keys())
+        tmp = []
+        for bl in bls:
+            if bl not in oldbls:
+                tmp.append(bl)
+        for bl in tmp:
+            bls.remove(bl)
+        del tmp, bl
+
+        # average data
+        Nbl = len(bls)
+        for idx in tqdm.tqdm(range(Nbl*Nif*Nch*Npl)):
+            blidx, ifidx, chidx, plidx = np.unravel_index(idx, shape=[Nbl,Nif,Nch,Npl])
+
+            oldcoordblidx = oldgr_bl.groups[bls[blidx]]
+            newcoordblidx = newgr_bl.groups[bls[blidx]]
+
+            oldcoordbl = oldcoord.loc[oldcoordblidx,:]
+            vr = olddata[:,0,0,ifidx,chidx,plidx,0][oldcoordblidx]
+            vi = olddata[:,0,0,ifidx,chidx,plidx,1][oldcoordblidx]
+            vw = olddata[:,0,0,ifidx,chidx,plidx,2][oldcoordblidx]
+            vw[np.where(vw<0)] = 0
+            vw[np.where(np.isnan(vw))] = 0
+            vw[np.where(np.isinf(vw))] = 0
+
+            newcoordbl = newcoord.loc[newcoordblidx,:]
+            newvcmp, newvw = average1d(oldcoordbl["sec"].values,vr+1j*vi,vw,newcoordbl["sec"].values,avesec,minpoint=minpoint)
+            newvr = np.real(newvcmp)
+            newvi = np.imag(newvcmp)
+
+            newdata[newcoordblidx,0,0,ifidx,chidx,plidx,0] = newvr
+            newdata[newcoordblidx,0,0,ifidx,chidx,plidx,1] = newvi
+            newdata[newcoordblidx,0,0,ifidx,chidx,plidx,2] = newvw
+
+        newuvfits = copy.deepcopy(self)
+        newuvfits.visdata.data = newdata
+        newuvfits.visdata.coord = newcoord
+        newuvfits.visdata.sort()
+        return newuvfits
 
     def avspc(self, dofreq=0, minpoint=2):
         '''
@@ -2037,7 +2110,6 @@ class UVFITS(object):
                     normerror=normerror, errorbar=errorbar,
                     ls=ls, marker=marker, **plotargs)
 
-
 #-------------------------------------------------------------------------
 # Subfunctions for UVFITS
 #-------------------------------------------------------------------------
@@ -2202,7 +2274,6 @@ class ArrayData(object):
         lines.append("  AN Table Contents:")
         lines.append(prt(self.antable["id,name,x,y,z,mnttype".split(",")],indent*2,output=True))
         return "\n".join(lines)
-
 
 class SourceData(object):
     def __init__(self):

@@ -41,8 +41,18 @@ def set_ompnumthreads(numthreads, variable="OMP_NUM_THREADS"):
             The variable name of the number of threads for Open MP.
     '''
     import os
+
     print("export %s=%d"%(variable,numthreads))
     os.environ[variable] = '%d'%(numthreads)
+
+def set_nproc(numprocess):
+    '''
+    Set the number of threads for Open MP
+    '''
+    global __smili_env_nprocess
+
+    print("The number of processes is set to %d."%(numprocess))
+    __smili_env_nprocess = numprocess
 
 def fluxconv(unit1="Jy", unit2="Jy"):
     '''
@@ -130,7 +140,6 @@ def angconv(unit1="deg", unit2="deg"):
         return -1
     return conv
 
-
 def solidang(x=1.,y=None,angunit="deg",satype="pixel",angunitout=None):
     '''
     Return the solid angle of the pixel or beam
@@ -202,3 +211,29 @@ def prt(obj, indent="", output=False):
         return "\n".join(lines)
     else:
         print("\n".join(lines))
+
+def interpolation1d(xd,yd,xi,kind="cubic",bounds_error=False):
+    from scipy.interpolate import interp1d
+    f = interp1d(xd,yd,kind=kind,bounds_error=bounds_error)
+    return f(xi)
+
+def average1d(xd,yd,wd,xa,width,minpoint=2):
+    idx = np.where(wd>0)
+    xd2 = xd[idx]
+    yd2 = yd[idx]
+    wd2 = wd[idx]
+    del idx
+
+    Na = len(xa)
+    ya = np.zeros(Na, dtype=yd.dtype)
+    wa = np.zeros(Na, dtype=np.float64)
+    for i in range(Na):
+        idx = np.where(np.abs(xd2-xa[i]) <= width/2.)
+        if idx[0].shape[0] == 0:
+            continue
+
+        wa[i] = np.sum(wd2[idx])
+        ya[i] = np.sum(yd2[idx]*wd2[idx])/wa[i]
+        if idx[0].shape[0] < minpoint:
+            wa[i] *= -1
+    return ya, wa
