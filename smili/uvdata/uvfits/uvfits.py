@@ -2275,6 +2275,7 @@ class ArrayData(object):
         lines.append(prt(self.antable["id,name,x,y,z,mnttype".split(",")],indent*2,output=True))
         return "\n".join(lines)
 
+
 class SourceData(object):
     def __init__(self):
         # Frequency Setup Number
