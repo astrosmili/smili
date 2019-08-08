@@ -1073,6 +1073,75 @@ class UVFITS(object):
         # compute scan ids
         self.visdata.coord["scan"] = scan_uni[sec_uni_invidx]
 
+    def deblurr(self,geomodel):
+        '''
+        deblurr uvfits files with the given geometric model object
+
+        Args:
+            geomodel (geomodel.GeoModel object):
+                input geometric model
+        Returns:
+            uvdata.UVFITS object
+        '''
+        # create new data sets.
+        outuvfits = copy.deepcopy(self)
+
+        #data number of u,v,w
+        Ndata, Ndec, Nra, Nif, Nch, Nstokes, Ncomp=self.visdata.data.shape
+
+        # u,v coordinates
+        #   the array size is Ndata, Nif, Nch
+        UVW=self.get_uvw()
+        u = UVW[0,:,:,:].reshape([Ndata*Nif*Nch])
+        v = UVW[1,:,:,:].reshape([Ndata*Nif*Nch])
+        del UVW
+
+        # get kernel
+        kernel = geomodel.Vamp(u,v).reshape([Ndata,Nif,Nch])
+        weight_kernel = 1./(kernel)**2
+
+        # deblurr visibilities
+        for i in range(Nstokes):
+            outuvfits.visdata.data[:,0,0,:,:,i,0] /= kernel
+            outuvfits.visdata.data[:,0,0,:,:,i,1] /= kernel
+            outuvfits.visdata.data[:,0,0,:,:,i,2] /= weight_kernel
+        return outuvfits
+
+
+    def blurr(self,geomodel):
+        '''
+        blurr uvfits files with the given geometric model object
+
+        Args:
+            geomodel (geomodel.GeoModel object):
+                input geometric model
+        Returns:
+            uvdata.UVFITS object
+        '''
+        # create new data sets.
+        outuvfits = copy.deepcopy(self)
+
+        #data number of u,v,w
+        Ndata, Ndec, Nra, Nif, Nch, Nstokes, Ncomp=self.visdata.data.shape
+
+        # u,v coordinates
+        #   the array size is Ndata, Nif, Nch
+        UVW=self.get_uvw()
+        u = UVW[0,:,:,:].reshape([Ndata*Nif*Nch])
+        v = UVW[1,:,:,:].reshape([Ndata*Nif*Nch])
+        del UVW
+
+        # get kernel
+        kernel = geomodel.Vamp(u,v).reshape([Ndata,Nif,Nch])
+        weight_kernel = 1./(kernel)**2
+
+        # deblurr visibilities
+        for i in range(Nstokes):
+            outuvfits.visdata.data[:,0,0,:,:,i,0] *= kernel
+            outuvfits.visdata.data[:,0,0,:,:,i,1] *= kernel
+            outuvfits.visdata.data[:,0,0,:,:,i,2] *= weight_kernel
+        return outuvfits
+
     def eval_image(self,iimage,qimage=None,uimage=None,vimage=None):
         '''
         This method will compude model visivilities based on uv-coverages of
