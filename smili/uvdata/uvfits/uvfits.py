@@ -1499,7 +1499,7 @@ class UVFITS(object):
         # average data
         Nbl = len(bls)
         for idx in tqdm.tqdm(range(Nbl*Nif*Nch*Npl)):
-            blidx, ifidx, chidx, plidx = np.unravel_index(idx, shape=[Nbl,Nif,Nch,Npl])
+            blidx, ifidx, chidx, plidx = np.unravel_index(idx, dims=(Nbl,Nif,Nch,Npl))
 
             oldcoordblidx = oldgr_bl.groups[bls[blidx]]
             newcoordblidx = newgr_bl.groups[bls[blidx]]
