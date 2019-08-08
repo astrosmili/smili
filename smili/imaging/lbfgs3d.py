@@ -162,13 +162,10 @@ def imaging3d(
             If negative then, this regularization won't be used.
             You should NOT use this regularization if you will use the
             full complex visibilities.
-        cen_power (float, default=3):
+        cen_alpha (float, default=3):
             The power to be used in the centroid regularizaion.
             cen_power = 1 gives the exact center-of-mass regularization, while
             higher value will work as the peak fixing regularization.
-        cem_prior (IMFITS, default=None):
-            The prior image to be used to compute the normalization factor.
-            If not specified, then the initial image will be used.
         niter (int,defalut=100):
             The number of iterations.
         nonneg (boolean,default=True):
@@ -432,18 +429,7 @@ def imaging3d(
         cen_l = -1
         cen_alpha = 1
     else:
-        print("  Initialize the Centroid Regularization")
-        if cen_prior is None:
-            cen_priorarr = copy.deepcopy(Iin[0])
-        else:
-            if imregion is None:
-                cen_priorarr = cen_prior.data[0,0].reshape(Nyx)
-            else:
-                cen_priorarr = cen_prior.data[0,0][winidx]
-        cen_l = fortlib.image.init_cenreg(
-            cen_l_in=np.float64(cen_lambda),
-            cen_prior=np.float64(cen_priorarr),
-            cen_alpha=np.float64(cen_alpha))
+        cen_l = cen_lambda
 
     # Rt regularization
     #lambrt_sim = rt_lambda / (2 * fluxscale**2 * Nyx * Nt)

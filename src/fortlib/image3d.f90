@@ -6,7 +6,7 @@ module image3d
                     I1d_I2d_fwd,I1d_I2d_inv,&
                     l1_e, l1_grade,&
                     tv_e, tv_grade,&
-                    tsv_e, tsv_grade, smabs
+                    tsv_e, tsv_grade, smabs, calc_cenreg
   implicit none
 contains
 !-------------------------------------------------------------------------------
@@ -151,6 +151,8 @@ subroutine calc_cost_reg3d(&
   !$OMP           out_maj_frm, out_min_frm, out_phi_frm, cost_frm, gradcost_frm) &
   !$OMP   REDUCTION(+: cost, gradcost, l1_cost, sm_cost, tv_cost, tsv_cost,&
   !$OMP                kl_cost, gs_cost, tfd_cost, cen_cost, out_maj, out_min, out_phi)
+
+
   do iz=1, Nz
     call calc_cost_reg(&
         I1d((iz-1)*Npix+1:iz*Npix), &
@@ -161,7 +163,7 @@ subroutine calc_cost_reg3d(&
         kl_l, kl_wgt, kl_Nwgt,&
         gs_l, gs_wgt, gs_Nwgt,&
         tfd_l, tfd_tgtfd,& ! tgtfd should be array, and here should be tfd_l(iz), tfd_tftfd(iz)
-        cen_l, cen_alpha,& ! cen_l=-1, cen_alpha=1d0,
+        -1d0, 1d0,& ! cen_l=-1, cen_alpha=1d0,
         sm_l, sm_maj, sm_min, sm_phi,&
         l1_cost_frm, &
         tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
@@ -177,7 +179,6 @@ subroutine calc_cost_reg3d(&
     kl_cost  = kl_cost + kl_cost_frm / Nz
     gs_cost  = gs_cost + gs_cost_frm / Nz
     tfd_cost = tfd_cost + tfd_cost_frm / Nz
-    cen_cost = cen_cost + cen_cost_frm /Nz   ! cen reg must be computed for the sum of image
     out_maj  = out_maj + out_maj_frm / Nz
     out_min  = out_min + out_min_frm / Nz
     out_phi  = out_phi + out_phi_frm / Nz
@@ -187,10 +188,10 @@ subroutine calc_cost_reg3d(&
   !$OMP END PARALLEL DO
 
   ! dynamical imaging regularizers
-  if (rt_l > 0 .or. ri_l > 0 .or. rs_l > 0) then
+  if (cen_l > 0. .or. rt_l > 0 .or. ri_l > 0 .or. rs_l > 0) then
     call calc_cost_dynamical(&
-      Npix, Nz, I1d, rt_l, ri_l, rs_l, rf_l, &
-      rt_cost, ri_cost, rs_cost, rf_cost, di_cost, di_gradcost&
+      Npix, Nz, xidx, yidx, Nxref, Nyref, I1d, cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l, &
+      cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, di_cost, di_gradcost&
     )
     cost     = cost + di_cost
     gradcost(:) = gradcost(:) + di_gradcost(:)
@@ -201,33 +202,41 @@ end subroutine
 ! Regularization Function for Dynamical Imaging
 !-------------------------------------------------------------------------------
 subroutine calc_cost_dynamical(&
-  Npix, Nz, Iin, rt_l, ri_l, rs_l, rf_l, &
-  rt_cost, ri_cost, rs_cost, rf_cost, &
+  Npix, Nz, xidx, yidx, Nxref, Nyref, Iin, cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l, &
+  cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, &
   cost, gradcost &
 )
   implicit none
 
   ! allocatable arrays
   integer, intent(in) :: Nz, Npix
+  real(dp), intent(in)  :: Nxref, Nyref
   real(dp), intent(in) :: Iin(Npix*Nz)
-  real(dp), intent(in) :: rt_l, ri_l, rs_l, rf_l
-  real(dp), intent(out) :: rt_cost, ri_cost, rs_cost, rf_cost
+  integer,  intent(in)  :: xidx(Npix), yidx(Npix)
+  real(dp), intent(in) :: cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l
+  real(dp), intent(out) :: cen_cost, rt_cost, ri_cost, rs_cost, rf_cost
   real(dp), intent(out) :: cost, gradcost(Npix*Nz)
 
   real(dp) :: Iavg(Npix), Iin_frm(Npix), s, su, sl, f, fu, fl, Il, Iu
 
   integer :: ipix, iz
   real(dp) :: totalflux, stotal
-  real(dp) :: ri_wgt, rt_wgt, rs_wgt, rf_wgt
+  real(dp) :: ri_wgt, rt_wgt, rs_wgt, rf_wgt, gradcost_cen(Npix)
+
+  real(dp)  :: tmp
+  real(dp), allocatable :: tmp1d(:)
+
   ! Initialize
   Iavg(:)   = 0d0
   totalflux = 0d0
   stotal    = 0d0
+  cen_cost  = 0d0
   rt_cost   = 0d0
   ri_cost   = 0d0
   rs_cost   = 0d0
   rf_cost   = 0d0
   cost   = 0d0
+
 
   ! Calculate averaged intensity map, totalflux and total entropy
   do iz=1, Nz
@@ -238,6 +247,19 @@ subroutine calc_cost_dynamical(&
     stotal    = stotal + s_e(Iavg, Npix)
 
   end do
+
+  if (cen_l > 0) then
+    allocate(tmp1d(Npix))
+    call calc_cenreg(Iavg,xidx,yidx,Nxref,Nyref,cen_alpha,tmp,tmp1d,Npix)
+    cen_cost = cen_l * tmp
+
+    do iz=1, Nz
+      gradcost((iz-1)*Npix+1:iz*Npix) = gradcost((iz-1)*Npix+ipix) + &
+                                        cen_l * tmp1d / Nz
+    end do
+    deallocate(tmp1d)
+  end if
+
 
   ! uniform weight of each dynamical regularizer
   ri_wgt = 1. / (totalflux * Nz)
@@ -261,6 +283,8 @@ subroutine calc_cost_dynamical(&
         end if
       end if
     end if
+
+
 
 
     do ipix=1,Npix
@@ -310,7 +334,7 @@ subroutine calc_cost_dynamical(&
     end do
 
     ! take summation of all the cost function
-    cost = ri_cost + rt_cost + rs_cost + rf_cost
+    cost = cen_cost + ri_cost + rt_cost + rs_cost + rf_cost
 
   end do
 
