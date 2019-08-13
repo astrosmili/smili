@@ -451,7 +451,7 @@ class MOVIE(object):
             if uvfits_framelist_list[it] is None:
                 cltable_list_list.append(None)
                 continue
-            cltable_list = [uvfits.selfcal(self.images[it],std_amp,std_pha) for uvfits in uvfits_framelist_list[it]]
+            cltable_list = [uvfits.selfcal(self.images[it],std_amp=std_amp,std_pha=std_pha) for uvfits in uvfits_framelist_list[it]]
             cltable_list_list.append(cltable_list)
         return uvfits_framelist_list,uvfits_idlist_list,cltable_list_list
 
