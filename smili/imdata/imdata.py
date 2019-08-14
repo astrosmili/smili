@@ -1973,6 +1973,67 @@ class IMFITS(object):
             outfits.data[istokes,ifreq,:,:] += gauss
         return outfits
 
+
+    def nxcorr(self,refimage):
+        '''
+        Computing normalized cross correlation with input image
+
+        Args:
+          refimage: Referenced fitsimage used in calculating cross correlation
+        Returns:
+          imdata.IMFITS object
+         '''
+        # Adjusting image pixcels of two images for cross corr
+        grid_self = refimage.cpimage(self)
+
+        # get 2d arr
+        im_arr  = grid_self.data[0,0]
+        ref_arr = np.fliplr(np.flipud(refimage.data[0,0]))
+
+        # the maximum peak of autocorr
+        fact = 1/np.sqrt(np.sum(im_arr*im_arr) * np.sum(ref_arr*ref_arr))
+
+        # Setting results coodinate to matching reference flame
+        image_cc = copy.deepcopy(refimage)
+        image_cc.header["nxref"] = refimage.header["nx"]/2+1
+        image_cc.header["nyref"] = refimage.header["ny"]/2+1
+
+        normfunc = lambda x: 1
+        crosscorr = convolve_fft(ref_arr, im_arr, normalize_kernel=normfunc)*fact
+        image_cc.data[0,0] = np.fliplr(np.flipud(crosscorr))
+        return image_cc
+
+
+    def nxcorrpos(self, refimage):
+        '''
+        Computing the offset position between two images using cross correlation
+
+        Args:
+          refimage: Referenced fitsimage used in calculating cross correlation
+        Returns:
+           dictionary for the offset position
+         '''
+        nxcorr_image = self.nxcorr(refimage)
+        return nxcorr_image.peakpos()
+
+    def nxcorrshift(self, refimage, save_totalflux=True):
+        '''
+        Automatically obtaining the shifted image using cross correlation
+
+        Args:
+          refimage:
+            Referenced fitsimage used in calculating cross correlation
+          save_totalflux (boolean):
+            If true, the total flux of the image will be conserved.
+        Returns:
+           imdata.IMFITS object
+         '''
+        shift = self.nxcorrpos(refimage)
+        x0=shift['x0']
+        y0=shift['y0']
+        angunit=shift['angunit']
+        return self.refshift(x0=-x0,y0=-y0,angunit=angunit,save_totalflux=save_totalflux)
+
     #---------------------------------------------------------------------------
     # Feature Extraction
     #---------------------------------------------------------------------------
