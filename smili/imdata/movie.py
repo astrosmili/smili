@@ -624,7 +624,10 @@ def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
     '''
 
     Nt      = len(uvfits_idlist_list)
-    Nuvfits = np.max(np.max(uvfits_idlist_list))+1
+    uvfits_ids = uvfits_idlist_list.copy()
+    while None in uvfits_ids:
+        uvfits_ids.remove(None)
+    Nuvfits = np.max(uvfits_ids)+1
     uvfits_con_list = [None for iuvfits in range(Nuvfits)]
 
     print("concatenate uvfits files")
