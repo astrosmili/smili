@@ -476,6 +476,59 @@ class MOVIE(object):
         outmovie.images = [imdata.IMFITS(filename) for filename in filenames]
         return outmovie
 
+    def cpmovie(self, oldmovie,  save_totalflux=False, kind="cubic"):
+
+        '''
+        Copy the brightness ditribution of the input MOVIE object
+        into the image grid of this movie data.
+
+        Args:
+            oldmovie (imdata.MOVIE object):
+                The movie will be copied into the movie grid of this data.
+            save_totalflux (boolean):
+                If true, the total flux of each image is conserved.
+            kind (string): kind of interpolation whose definition is the same as scypy functions
+                                (e.g, 'linear', 'nearest', 'quadratic', 'cubic', ...")
+
+        Returns:
+            imdata.MOVIE object: the copied movie
+
+        '''
+        told=at.Time(oldmovie.timetable["utc"])
+        told.format = "cxcsec"
+        told=told-told[0]
+        tref=at.Time(self.timetable["utc"])
+        tref.format = "cxcsec"
+        tref=tref-tref[0]
+
+        Nt = oldmovie.Nt
+        Ny,Nx=oldmovie.images[0].data[0,0].shape
+        Ntref=self.Nt
+        oldimage = copy.deepcopy(oldmovie.images[0])
+        refimage = copy.deepcopy(self.images[0])
+        im1d = np.zeros((Nt, Ny, Nx), dtype=np.float64)
+        imref = np.zeros((Ntref, Ny, Nx),dtype=np.float64)
+
+        # Set array of the old movie
+        iterator=itertools.product(range(Nt), range(Ny), range(Nx))
+        for it, iy, ix in iterator:
+            im1d[it,iy,ix] = oldmovie.images[it].data[0,0,iy,ix] # Nt, Nx, Ny
+
+        # Interpolation to the time direction
+        iterator=itertools.product(range(Ny), range(Nx))
+        for iy,ix in iterator:
+            imref[:, iy,ix]=util.interpolation1d(told.value, im1d[:,iy,ix], tref.value) # Ntref, Nx, Ny
+
+        # Interpolation to spatial directions
+        refimage_list=[]
+        newmovie = copy.deepcopy(self)
+        for itref in range(Ntref):
+            if True in np.isnan(imref[itref,:,:]):
+                imref[itref,:,:]=copy.deepcopy(imref[itref-1,:,:])
+            oldimage.data[0,0,:,:] = imref[itref, :, :]
+            newmovie.images[itref].data=refimage.cpimage(oldimage).data
+
+        return newmovie
     #---------------------------------------------------------------------------
     # Output
     #---------------------------------------------------------------------------
