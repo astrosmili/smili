@@ -212,9 +212,9 @@ def prt(obj, indent="", output=False):
     else:
         print("\n".join(lines))
 
-def interpolation1d(xd,yd,xi,kind="cubic",bounds_error=False):
+def interpolation1d(xd,yd,xi,kind="cubic",bounds_error=False, fill_value=np.nan):
     from scipy.interpolate import interp1d
-    f = interp1d(xd,yd,kind=kind,bounds_error=bounds_error)
+    f = interp1d(xd,yd,kind=kind,bounds_error=bounds_error, fill_value=fill_value)
     return f(xi)
 
 def average1d(xd,yd,wd,xa,width,minpoint=2):
