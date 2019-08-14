@@ -1791,7 +1791,7 @@ class UVFITS(object):
         dshape = list(outfits.visdata.data.shape)
         dshape[5] = 1
 
-        if stokes == "I":
+        if stokes.upper() == "I":
             outfits.stokes = ["I"]
             if ("I" in stokesorg):  # I <- I
                 print("Stokes I data will be copied from the input data")
@@ -1832,7 +1832,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "PI":
+        elif stokes.upper() == "PI":
             outfits.stokes = ["I"]
             if ("I" in stokesorg):  # I <- I
                 print("Stokes I data will be copied from the input data")
@@ -1875,7 +1875,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "Q":
+        elif stokes.upper() == "Q":
             outfits.stokes = ["Q"]
             if ("Q" in stokesorg):  # Q <- Q
                 print("Stokes Q data will be copied from the input data")
@@ -1900,7 +1900,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "U":
+        elif stokes.upper() == "U":
             outfits.stokes = ["U"]
             if ("U" in stokesorg):  # U <- U
                 print("Stokes U data will be copied from the input data")
@@ -1925,7 +1925,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "V":
+        elif stokes.upper() == "V":
             outfits.stokes = ["V"]
             if ("V" in stokesorg):  # V <- V
                 print("Stokes V data will be copied from the input data")
@@ -1950,7 +1950,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "RR":
+        elif stokes.upper() == "RR":
             outfits.stokes = ["RR"]
             if ("RR" in stokesorg):
                 print("Stokes RR data will be copied from the input data")
@@ -1959,7 +1959,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "LL":
+        elif stokes.upper() == "LL":
             outfits.stokes = ["LL"]
             if ("LL" in stokesorg):
                 print("Stokes LL data will be copied from the input data")
@@ -1968,7 +1968,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "RL":
+        elif stokes.upper() == "RL":
             outfits.stokes = ["RL"]
             if ("RL" in stokesorg):
                 print("Stokes RL data will be copied from the input data")
@@ -1977,7 +1977,7 @@ class UVFITS(object):
             else:
                 errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
                 raise ValueError(errmsg)
-        elif stokes == "LR":
+        elif stokes.upper() == "LR":
             outfits.stokes = ["LR"]
             if ("LR" in stokesorg):
                 print("Stokes LR data will be copied from the input data")
@@ -2262,7 +2262,7 @@ def _bindstokes(data, stokes1, stokes2, factr1, factr2, ignore_missing=False):
     idx = np.where(flag2==1)
     vweig[idx] += np.abs(factr2)**2 / vweig2[idx] / normfact[idx]**2
     vweig = np.power(vweig, -1)
-    
+
     # reset wierd weights
     select = vweig <= 0
     select |= np.isnan(vweig)
