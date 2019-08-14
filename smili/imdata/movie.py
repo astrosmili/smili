@@ -517,7 +517,7 @@ class MOVIE(object):
         # Interpolation to the time direction
         iterator=itertools.product(range(Ny), range(Nx))
         for iy,ix in iterator:
-            imref[:, iy,ix]=util.interpolation1d(told.value, im1d[:,iy,ix], tref.value) # Ntref, Nx, Ny
+            imref[:, iy,ix]=util.interpolation1d(told.value, im1d[:,iy,ix], tref.value,kind=kind) # Ntref, Nx, Ny
 
         # Interpolation to spatial directions
         refimage_list=[]
@@ -526,7 +526,7 @@ class MOVIE(object):
             if True in np.isnan(imref[itref,:,:]):
                 imref[itref,:,:]=copy.deepcopy(imref[itref-1,:,:])
             oldimage.data[0,0,:,:] = imref[itref, :, :]
-            newmovie.images[itref].data=refimage.cpimage(oldimage).data
+            newmovie.images[itref].data=refimage.cpimage(oldimage,save_totalflux=save_totalflux).data
 
         return newmovie
     #---------------------------------------------------------------------------
