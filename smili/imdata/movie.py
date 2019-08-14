@@ -494,6 +494,7 @@ class MOVIE(object):
             imdata.MOVIE object: the copied movie
 
         '''
+        
         told=at.Time(oldmovie.timetable["utc"])
         told.format = "cxcsec"
         told=told-told[0]
