@@ -1777,7 +1777,7 @@ class UVFITS(object):
         Args:
           stokes (string; default="I"):
             Output stokes parameters.
-            Availables are ["I", "Q", "U", "V",
+            Availables are ["I", "Q", "U", "V", "PI",
                             "LL", "RR", "RL", "LR",
                             "XX", "YY", "XY", "YX"].
 
@@ -1821,6 +1821,49 @@ class UVFITS(object):
                     self.visdata.data,
                     stokes1=idx1, stokes2=idx2,
                     factr1=0.5, factr2=0.5)
+            elif ("XX" in stokesorg):  # I <- XX
+                print("Stokes I data will be copied from input XX data")
+                idx = stokesorg.index("XX")
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
+            elif ("YY" in stokesorg):  # I <- YY
+                print("Stokes I data will be copied from input YY data")
+                idx = stokesorg.index("YY")
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
+            else:
+                errmsg="[WARNING] No data are available to calculate Stokes %s"%(stokes)
+                raise ValueError(errmsg)
+        elif stokes == "PI":
+            outfits.stokes = ["I"]
+            if ("I" in stokesorg):  # I <- I
+                print("Stokes I data will be copied from the input data")
+                idx = stokesorg.index("I")
+                outfits.visdata.data =  self.visdata.data[:, :, :, :, :, idx, :].copy()
+            elif ("RR" in stokesorg) and ("LL" in stokesorg):  # I <- (RR + LL)/2
+                print("Stokes I data will be calculated from input RR and LL data")
+                idx1 = stokesorg.index("RR")
+                idx2 = stokesorg.index("LL")
+                outfits.visdata.data = _bindstokes(
+                    self.visdata.data.copy(),
+                    stokes1=idx1, stokes2=idx2,
+                    factr1=0.5, factr2=0.5,
+                    ignore_missing=True)
+            elif ("RR" in stokesorg):  # I <- RR
+                print("Stokes I data will be copied from input RR data")
+                idx = stokesorg.index("RR")
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
+            elif ("LL" in stokesorg):  # I <- LL
+                print("Stokes I data will be copied from input LL data")
+                idx = stokesorg.index("LL")
+                outfits.visdata.data = self.visdata.data[:, :, :, :, :, idx, :].copy()
+            elif ("XX" in stokesorg) and ("YY" in stokesorg):  # I <- (XX + YY)/2
+                print("Stokes I data will be calculated from input XX and YY data")
+                idx1 = stokesorg.index("XX")
+                idx2 = stokesorg.index("YY")
+                outfits.visdata.data = _bindstokes(
+                    self.visdata.data,
+                    stokes1=idx1, stokes2=idx2,
+                    factr1=0.5, factr2=0.5,
+                    ignore_missing=True)
             elif ("XX" in stokesorg):  # I <- XX
                 print("Stokes I data will be copied from input XX data")
                 idx = stokesorg.index("XX")
@@ -2182,7 +2225,7 @@ class UVFITS(object):
 #-------------------------------------------------------------------------
 # Subfunctions for UVFITS
 #-------------------------------------------------------------------------
-def _bindstokes(data, stokes1, stokes2, factr1, factr2):
+def _bindstokes(data, stokes1, stokes2, factr1, factr2, ignore_missing=False):
     '''
     This is a subfunction for uvdata.UVFITS.
     '''
@@ -2193,19 +2236,44 @@ def _bindstokes(data, stokes1, stokes2, factr1, factr2):
         1j * data[:, :, :, :, :, stokes2, 1]
     vweig2 = data[:, :, :, :, :, stokes2, 2]
 
-    vcomp = factr1 * vcomp1 + factr2 * vcomp2
-    vweig = np.power(np.abs(factr1)**2 / vweig1 +
-                     np.abs(factr2)**2 / vweig2, -1)
+    # set weights on flagged/abnormal data to be zero
+    flag1 = np.ones(vcomp1.shape, dtype=np.int64)
+    flag2 = np.ones(vcomp1.shape, dtype=np.int64)
 
     select  = vweig1 <= 0
-    select |= vweig2 <= 0
-    select |= vweig <= 0
     select |= np.isnan(vweig1)
-    select |= np.isnan(vweig2)
-    select |= np.isnan(vweig)
     select |= np.isinf(vweig1)
+    flag1[np.where(select)] = 0
+
+    select  = vweig2 <= 0
+    select |= np.isnan(vweig2)
     select |= np.isinf(vweig2)
+    flag2[np.where(select)] = 0
+
+    # take a sum
+    vcomp = factr1 * vcomp1 * flag1 + factr2 * vcomp2 * flag2
+    normfact = factr1 * flag1 + factr2 * flag2
+    vcomp /= normfact
+
+    # compute weights
+    vweig = np.zeros(vcomp1.shape)
+    idx = np.where(flag1==1)
+    vweig[idx] += np.abs(factr1)**2 / vweig1[idx] / normfact[idx]**2
+    idx = np.where(flag2==1)
+    vweig[idx] += np.abs(factr2)**2 / vweig2[idx] / normfact[idx]**2
+    vweig = np.power(vweig, -1)
+    
+    # reset wierd weights
+    select = vweig <= 0
+    select |= np.isnan(vweig)
     select |= np.isinf(vweig)
+    if not ignore_missing:
+        select |= vweig1 <= 0
+        select |= vweig2 <= 0
+        select |= np.isnan(vweig1)
+        select |= np.isnan(vweig2)
+        select |= np.isinf(vweig1)
+        select |= np.isinf(vweig2)
     vweig[np.where(select)] = 0.0
 
     outdata = data[:, :, :, :, :, stokes1, :].copy()
