@@ -73,8 +73,11 @@ class MOVIE(object):
             self.Nt = len(utc)
 
             if len(utc) < 2:
-                raise ValueError("You need at least two time frames.")
+                print("Warning: You have only one frame!")
 
+            if len(utc) == 0:
+                raise ValueError("No time frame was input.")
+            
             if hasattr(tint, "__iter__"):
                 if len(utc) != len(tint):
                     raise ValueError("len(utc) != len(tint)")
