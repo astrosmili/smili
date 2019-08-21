@@ -258,7 +258,7 @@ subroutine weightcal(uvdata,tsec,ant1,ant2,subarray,source,&
             avei = sum(vmi(i4,:,:,i3,i2))/N
             msqr = sum(vrr(i4,:,:,i3,i2))/N
             msqi = sum(vri(i4,:,:,i3,i2))/N
-            var = 0.5 * (msqr - aver**2 + msqi - avei**2)
+            var = 0.5 * (msqr - aver**2 + msqi - avei**2) * N / (N-1)
             uvdataout(3,i4,:,:,i3,i2,i1) = sngl(1d0/var)
           end do
         else if (dofreq .eq. 1) then
@@ -273,7 +273,7 @@ subroutine weightcal(uvdata,tsec,ant1,ant2,subarray,source,&
               avei = sum(vmi(i5,:,i4,i3,i2))/N
               msqr = sum(vrr(i5,:,i4,i3,i2))/N
               msqi = sum(vri(i5,:,i4,i3,i2))/N
-              var = 0.5 * (msqr - aver**2 + msqi - avei**2)
+              var = 0.5 * (msqr - aver**2 + msqi - avei**2) * N / (N-1)
               uvdataout(3,i5,:,i4,i3,i2,i1) = sngl(1d0/var)
             end do
           end do
