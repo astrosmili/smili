@@ -991,6 +991,76 @@ class IMFITS(object):
         }
         return outdic
 
+    def get_secondmoment(self, istokes=0, ifreq=0):
+
+        '''
+        Return second momentums of images
+
+        Args:
+            istokes (int, default=0):
+                The ordinal number of stokes parameters
+            ifreq (int, default=0):
+                The ordinal number of frequency
+
+        Returns:
+            Second momentum for xx, yy, and xy components
+        '''
+
+        Nx = self.header["nx"]
+        Ny = self.header["ny"]
+        Nxy = Nx*Ny
+        I1d = np.float64(self.data[istokes, ifreq]).reshape(Nxy)
+        xidx = np.arange(Nx)+1
+        yidx = np.arange(Ny)+1
+        xidx, yidx = np.meshgrid(xidx, yidx)
+        dtheta = np.abs(self.angconv("deg",self.angunit)*self.header["dx"])
+
+        Isum = fortlib.image.totalflux(I1d, Nxy)
+        print(Isum)
+        xycen = fortlib.image.xy_cen(I1d, xidx, yidx, Nxy)
+        print(len(xycen))
+        print(xycen)
+        Sg = fortlib.image.Sigma(I1d, xidx, yidx, Nxy, Isum, xycen[0], xycen[1])
+        Sg *= dtheta**2
+        return Sg
+
+    def get_sm_character(self, istokes=0, ifreq=0):
+
+        '''
+        Returns characteristic quantities for secondary momentum
+
+        Args:
+            istokes (int, default=0):
+                The ordinal number of stokes parameters
+            ifreq (int, default=0):
+                The ordinal number of frequency
+
+        Returns:
+            FWHMs of major axis, minor axis [same unit of imdata.IMFITS object]
+            position angles [rad]
+        '''
+
+        Nx = self.header["nx"]
+        Ny = self.header["ny"]
+        Nxy = Nx*Ny
+        I1d = np.float64(self.data[istokes, ifreq]).reshape(Nxy)
+        xidx = np.arange(Nx)+1
+        yidx = np.arange(Ny)+1
+        xidx, yidx = np.meshgrid(xidx, yidx)
+        dtheta = np.abs(self.angconv("deg",self.angunit)*self.header["dx"])
+
+        Isum = fortlib.image.totalflux(I1d, Nxy)
+        xycen = fortlib.image.xy_cen(I1d, xidx, yidx, Nxy)
+        Sg = fortlib.image.Sigma(I1d, xidx, yidx, Nxy, Isum, xycen[0], xycen[1])
+        dtheta = np.abs(initimage.angconv("deg",initimage.angunit)*initimage.header["dx"])
+
+        #out_maj, out_min, out_phi
+        output = fortlib.image.check_sm_character(Sg)
+        #output[0] *= sqrt(8.*log(2.) * dtheta
+        #output[1] *= sqrt(8.*log(2.) * dtheta
+
+        return output
+
     def imagecost(self, func, out, istokes=0, ifreq=0, compower=1.0):
         '''
         return image cost.
@@ -1603,6 +1673,14 @@ class IMFITS(object):
 
         outfits.update_fits()
         return outfits
+
+    def copy(self):
+        '''
+        Copy the brightness ditribution of the input IMFITS object
+        '''
+
+        return copy.deepcopy(self)
+
 
     #def convolve(self, kernelimage):
 
