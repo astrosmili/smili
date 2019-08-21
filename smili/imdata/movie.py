@@ -530,6 +530,17 @@ class MOVIE(object):
             newmovie.images[itref]=refimage.cpimage(oldimage,save_totalflux=save_totalflux)
         return newmovie
 
+    def copy(self):
+
+        '''
+        Copy the movie object
+        '''
+
+        outmovie=copy.deepcopy(self)
+        outmovie.images = [copy.deepcopy(self.images[it]) for it in range(self.Nt)]
+
+        return outmovie
+
     #---------------------------------------------------------------------------
     # Output
     #---------------------------------------------------------------------------
