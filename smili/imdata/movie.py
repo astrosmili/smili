@@ -380,7 +380,7 @@ class MOVIE(object):
         outtable.loc[:, "frmidx"] = -1
         for i in range(len(dutcset)):
             idx = np.abs(mutcarr - dutcset[i]) < mutcint/2
-            if True in idx:
+            if True in idx.values:
                 outtable.loc[dutcarr==dutcset[i], "frmidx"] = np.where(idx)[0][0]
 
         if -1 in outtable.frmidx.values:
