@@ -58,7 +58,11 @@ class MOVIE(object):
             imdata.MOVIE object
         '''
         if timetable is not None:
-            tmtable = pd.read_csv(timetable)
+            if   type(timetable) == type(""):
+                tmtable = pd.read_csv(timetable)
+            elif type(timetable) == type(pd.DataFrame):
+                tmtable = timetable.copy()
+            
             if "utc" in tmtable.columns:
                 tmtable["utc"] = at.Time(tmtable["utc"].values.tolist()).datetime
         else:
