@@ -1484,8 +1484,7 @@ class UVFITS(object):
 
         # coordinates
         oldcoord = self.visdata.coord.copy()
-        oldcoord["sec"] = at.Time(np.datetime_as_string(oldcoord["utc"]),scale="utc") 
-        #at.Time(oldcoord["utc"]).cxcsec
+        oldcoord["sec"] = at.Time(np.datetime_as_string(oldcoord["utc"]),scale="utc").cxcsec
         cxcsecmin = oldcoord["sec"].min()
         oldcoord["sec"]-= cxcsecmin
 
