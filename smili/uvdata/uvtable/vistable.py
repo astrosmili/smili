@@ -38,7 +38,7 @@ from .catable   import CATable, CASeries
 from .bstable   import BSTable, BSSeries
 from .tools import get_uvlist, get_uvlist_loop
 from ... import imdata, fortlib,util
-
+from ... import lightcurve
 # ------------------------------------------------------------------------------
 # Classes
 # ------------------------------------------------------------------------------
@@ -1202,6 +1202,37 @@ class VisTable(UVTable):
         for i in range(len(CATable.catable_columns)):
             column = CATable.catable_columns[i]
             outtab[column] = CATable.catable_types[i](outtab[column])
+        return outtab
+
+    def make_lightcurve(self,baseline_list=None, uvdistmax=None):
+
+        '''
+        Return light curve for selected baseline
+
+        Args:
+            baseline_list (list):
+                selected pairs of stations composing baselines
+            uvdistmin (float):
+                extract visibility amplitudes with uvdist<=uvdistmax
+        Returns:
+            Lightcurve object
+        '''
+
+        if baseline_list is not None:
+
+            for baseline in baseline_list:
+                self = copy.deepcopy(self.query("st1name == '%s' or st2name == '%s'"%(baseline,baseline)))
+
+        if uvdistmax is not None:
+            self = copy.deepcopy(self.query("uvdist <= %e"%(uvdistmax)))
+
+        tmptab = copy.deepcopy(self)
+
+        outtab = lightcurve.Lightcurve()
+        outtab["utc"]=copy.deepcopy(tmptab["utc"])
+        outtab["gsthour"] = copy.deepcopy(tmptab["gsthour"])
+        outtab["flux"] = copy.deepcopy(tmptab["amp"])
+
         return outtab
 
 

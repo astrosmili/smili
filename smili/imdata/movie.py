@@ -36,7 +36,7 @@ import matplotlib.animation as manimation
 # for lightcurve
 import itertools
 # internal
-from .. import fortlib, util
+from .. import fortlib, util, lightcurve
 from . import imdata
 #-------------------------------------------------------------------------
 # IMAGEFITS (Manupulating FITS FILES)
@@ -62,7 +62,7 @@ class MOVIE(object):
                 tmtable = pd.read_csv(timetable)
             elif type(timetable) == type(pd.DataFrame):
                 tmtable = timetable.copy()
-            
+
             if "utc" in tmtable.columns:
                 tmtable["utc"] = at.Time(tmtable["utc"].values.tolist()).datetime
         else:
@@ -160,6 +160,17 @@ class MOVIE(object):
         lightcurve = movie.sum(axis=2)
         lightcurve = lightcurve.sum(axis=1)
         return lightcurve
+
+    def make_lightcurve(self):
+        '''
+        Return Lightcurve object for movies
+        '''
+        outtab = lightcurve.Lightcurve()
+        outtab["utc"]=copy.deepcopy(self.timetable["utc"])
+        outtab["gsthour"] = copy.deepcopy(self.timetable["gsthour"])
+        outtab["flux"] = copy.deepcopy(self.get_lightcurve())
+
+        return outtab
 
     #---------------------------------------------------------------------------
     # Edit Movies
