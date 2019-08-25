@@ -620,7 +620,7 @@ class IMFITS(object):
         '''
 
         # CREATE HDULIST
-        hdu = pyfits.PrimaryHDU(self.data)
+        hdu = pyfits.PrimaryHDU(self.data.copy())
         hdulist = pyfits.HDUList([hdu])
 
         # GET Current Time
@@ -901,7 +901,7 @@ class IMFITS(object):
           istokes (integer): index for Stokes Parameter at which l1-norm will be calculated
           ifreq (integer): index for Frequency at which l1-norm will be calculated
         '''
-        image = self.data[istokes,ifreq]
+        image = self.data[istokes,ifreq].copy()
         if imregion is not None:
             maskimage = imregion.maskimage(self)
             image = image[np.where(maskimage > 0.5)]
@@ -915,7 +915,7 @@ class IMFITS(object):
           istokes (integer): index for Stokes Parameter at which l1-norm will be calculated
           ifreq (integer): index for Frequency at which l1-norm will be calculated
         '''
-        image = self.data[istokes,ifreq]
+        image = self.data[istokes,ifreq].copy()
         if imregion is not None:
             maskimage = imregion.maskimage(self)
             image = image[np.where(maskimage > 0.5)]
@@ -2067,7 +2067,7 @@ class IMFITS(object):
         grid_self = refimage.cpimage(self)
 
         # get 2d arr
-        im_arr  = grid_self.data[0,0]
+        im_arr  = grid_self.data[0,0].copy()
         ref_arr = np.fliplr(np.flipud(refimage.data[0,0]))
 
         # the maximum peak of autocorr
