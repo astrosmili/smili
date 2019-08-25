@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
-
-
-
 '''
 This module describes data formats and related functions of uv data tables
 '''
@@ -272,26 +268,22 @@ def get_uvlist_loop(Nt, fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=
     for i in range(Nt):
         fcvsingle, ampsingle, bssingle, casingle = None, None, None, None
         if fcvconcat is not None:
-            frmid = fcvconcat["frmidx"] == i
-            idx = np.where(frmid == True)
+            idx = np.where(fcvconcat.frmidx.values == i)
             if idx[0] != []:
                 fcvsingle = fcvconcat.loc[idx[0], :]
 
         if ampconcat is not None:
-            frmid = ampconcat["frmidx"] == i
-            idx = np.where(frmid == True)
+            idx = np.where(ampconcat.frmidx.values == i)
             if idx[0] != []:
                 ampsingle = ampconcat.loc[idx[0], :]
 
         if bsconcat is not None:
-            frmid = bsconcat["frmidx"] == i
-            idx = np.where(frmid == True)
+            idx = np.where(bsconcat.frmidx.values == i)
             if idx[0] != []:
                 bssingle = bsconcat.loc[idx[0], :]
 
         if caconcat is not None:
-            frmid = caconcat["frmidx"] == i
-            idx = np.where(frmid == True)
+            idx = np.where(caconcat.frmidx.values == i)
             if idx[0] != []:
                 casingle = caconcat.loc[idx[0], :]
 
