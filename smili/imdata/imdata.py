@@ -542,6 +542,8 @@ class IMFITS(object):
         '''
         if isinstance(uvfits, pyfits.hdu.hdulist.HDUList):
             hdulist = copy.deepcopy(uvfits)
+        if type(uvfits) == type(uvdata.UVFITS):
+            hdulist = uvfits.to_uvfits()
         else:
             hdulist = pyfits.open(uvfits)
         self.hdulist = hdulist
