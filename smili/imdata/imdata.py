@@ -33,7 +33,7 @@ import matplotlib.colors as mcolors
 import itertools
 
 # internal
-from .. import fortlib, util
+from .. import fortlib, util, uvdata
 from . import imregion as imr
 
 #-------------------------------------------------------------------------
