@@ -24,6 +24,7 @@ subroutine imaging(&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
   isca,uvidxca,CA,Varca,wca,&
+  inormfactr,&
   m,factr,pgtol,&
   Iout,&
   chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
@@ -116,6 +117,9 @@ subroutine imaging(&
   real(dp), intent(in) :: CA(Nca)         ! data
   real(dp), intent(in) :: Varca(Nca)      ! variance
   real(dp), intent(in) :: wca             ! data weights
+
+  ! Intensity Scale Parameter
+  real(dp), intent(in) :: inormfactr
 
   ! Paramters related to the L-BFGS-B
   integer,  intent(in) :: m
@@ -252,7 +256,7 @@ subroutine imaging(&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
     isca,uvidxca,CA,Varca,wca_n,&
-    1,&
+    1,inormfactr,&
     chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
     reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
     cost, gradcost, &
@@ -308,7 +312,7 @@ subroutine imaging(&
         isamp,uvidxamp,Vamp,Varamp,wamp_n,&
         iscp,uvidxcp,CP,Varcp,wcp_n,&
         isca,uvidxca,CA,Varca,wca_n,&
-        -1,&
+        -1,inormfactr,&
         chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
         reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
         cost, gradcost, &
@@ -336,7 +340,7 @@ subroutine imaging(&
           isamp,uvidxamp,Vamp,Varamp,wamp_n,&
           iscp,uvidxcp,CP,Varcp,wcp_n,&
           isca,uvidxca,CA,Varca,wca_n,&
-          1,&
+          1,inormfactr,&
           chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
           reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
           cost, gradcost, &
@@ -364,7 +368,7 @@ subroutine imaging(&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
     isca,uvidxca,CA,Varca,wca_n,&
-    1,&
+    1,inormfactr,&
     chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
     reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
     cost, gradcost, &
@@ -395,7 +399,7 @@ subroutine calc_cost(&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
   isca,uvidxca,CA,Varca,wca,&
-  doprint,&
+  doprint,inormfactr,&
   chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
   reg, l1_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, sm_cost, &
   cost, gradcost, &
@@ -479,7 +483,8 @@ subroutine calc_cost(&
   real(dp), intent(in) :: wca             ! data weights
 
   ! print option
-  integer,  intent(in) :: doprint   ! if doprint > 0 then print summary
+  integer,  intent(in) :: doprint     ! if doprint > 0 then print summary
+  real(dp), intent(in) :: inormfactr  ! intensity normalization factor
 
   ! Outputs
   !   Chi-squares
@@ -597,8 +602,7 @@ subroutine calc_cost(&
                                                                    - sm_phi * 180./pi
       print '("    output maj, min, phi : ",D13.6, D13.6, D13.6)', out_maj, out_min, out_phi * 180./pi
     end if
-
-    print '("  Total flux             : ",D13.6)',sum(Iin)
+    print '("  Total flux             : ",D13.6)',sum(Iin)/inormfactr
   end if
 end subroutine
 end module

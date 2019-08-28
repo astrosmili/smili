@@ -71,11 +71,11 @@ def imaging(
         sm_min=0.,
         sm_phi=0.,
         pulse_fwhm = -1,
-        cen_prior=None,
         niter=1000,
         nonneg=True,
         nprint=500,
         totalflux=None,
+        inorm=1,
         istokes=0, ifreq=0):
     '''
     FFT imaging with closure quantities.
@@ -146,9 +146,6 @@ def imaging(
             The power to be used in the centroid regularizaion.
             cen_alpha = 1 gives the exact center-of-mass regularization, while
             higher value will work as the peak fixing regularization.
-        cem_prior (IMFITS, default=None):
-            The prior image to be used to compute the normalization factor.
-            If not specified, then the initial image will be used.
         sm_lambda (float,default=-1):
             Regularization parameter for second moment.
             If negative then, this regularization won't be used.
@@ -164,6 +161,13 @@ def imaging(
             If nonneg=True, the problem is solved with non-negative constrants.
         totalflux (float, default=None):
             Total flux of the source.
+        inorm (float, default=-1):
+            If a positive value is specified, all of the input image, amplitudes,
+            expected total flux density, and related regularization functions are
+            scaled so that the peak intensity of the scaled intensity is the
+            specified value. This is essencial for the regularization functions
+            to work effectively espicially for faint sources. If your image has
+            the intensity lower than 10^{-4} Jy/pixel, then you should use inorm=1.
         nprint (integer, default=200):
             The summary of metrics will be printed with an interval specified
             with this number.
@@ -241,6 +245,17 @@ def imaging(
         yidx = yidx[winidx]
         Npix = len(Iin)
 
+    # determining intensity-normalization factor
+    if inorm < 0:
+        inormfactr = 1.0
+    else:
+        if Iin.sum() != 0:
+            inormfactr = inorm/Iin.max()
+        else:
+            inormfactr = inorm/(totalflux/Npix)
+    print("Intensity Scaling Factor: %g"%(inormfactr))
+    totalflux_scaled = totalflux * inormfactr
+
     # setup regularization functions
     #   l1-norm
     if l1_lambda <= 0:
@@ -251,13 +266,13 @@ def imaging(
         print("  Initialize l1 regularization")
         if l1_prior is None:
             l1_priorarr = copy.deepcopy(Iin)
-            l1_priorarr[:] = totalflux/Npix
+            l1_priorarr[:] = totalflux_scaled/Npix
         else:
             if imregion is None:
                 l1_priorarr = l1_prior.data[0,0].reshape(Nyx)
             else:
                 l1_priorarr = l1_prior.data[0,0][winidx]
-        l1_priorarr *= totalflux/l1_priorarr.sum()
+        l1_priorarr *= totalflux_scaled/l1_priorarr.sum()
         l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
         l1_nwgt = len(l1_wgt)
         l1_l = l1_lambda
@@ -272,7 +287,7 @@ def imaging(
         print("  Initialize TV regularization")
         if tv_prior is None:
             tv_priorarr = copy.deepcopy(Iin)
-            tv_priorarr[:] = totalflux/Npix
+            tv_priorarr[:] = totalflux_scaled/Npix
             tv_isflat = True
         else:
             if imregion is None:
@@ -280,7 +295,7 @@ def imaging(
             else:
                 tv_priorarr = tv_prior.data[0,0][winidx]
             tv_isflat = False
-        tv_priorarr *= totalflux/tv_priorarr.sum()
+        tv_priorarr *= totalflux_scaled/tv_priorarr.sum()
         tv_wgt = fortlib.image.init_tvreg(
             xidx = np.float32(xidx),
             yidx = np.float32(yidx),
@@ -302,7 +317,7 @@ def imaging(
         print("  Initialize TSV regularization")
         if tsv_prior is None:
             tsv_priorarr = copy.deepcopy(Iin)
-            tsv_priorarr[:] = totalflux/Npix
+            tsv_priorarr[:] = totalflux_scaled/Npix
             tsv_isflat = True
         else:
             if imregion is None:
@@ -310,7 +325,7 @@ def imaging(
             else:
                 tsv_priorarr = tsv_prior.data[0,0][winidx]
             tsv_isflat = False
-        tsv_priorarr *= totalflux/tsv_priorarr.sum()
+        tsv_priorarr *= totalflux_scaled/tsv_priorarr.sum()
         tsv_wgt = fortlib.image.init_tsvreg(
             xidx = np.int32(xidx),
             yidx = np.int32(yidx),
@@ -332,13 +347,13 @@ def imaging(
         print("  Initialize the KL Divergence.")
         if kl_prior is None:
             kl_priorarr = copy.deepcopy(Iin)
-            kl_priorarr[:] = totalflux/Npix
+            kl_priorarr[:] = totalflux_scaled/Npix
         else:
             if imregion is None:
                 kl_priorarr = kl_prior.data[0,0].reshape(Nyx)
             else:
                 kl_priorarr = kl_prior.data[0,0][winidx]
-        kl_priorarr *= totalflux/kl_priorarr.sum()
+        kl_priorarr *= totalflux_scaled/kl_priorarr.sum()
         kl_l, kl_wgt = fortlib.image.init_klreg(
             kl_l_in=np.float64(kl_lambda),
             kl_prior=np.float64(kl_priorarr)
@@ -355,13 +370,13 @@ def imaging(
         print("  Initialize the GS Entropy.")
         if gs_prior is None:
             gs_priorarr = copy.deepcopy(Iin)
-            gs_priorarr[:] = totalflux/Npix
+            gs_priorarr[:] = totalflux_scaled/Npix
         else:
             if imregion is None:
                 gs_priorarr = gs_prior.data[0,0].reshape(Nyx)
             else:
                 gs_priorarr = gs_prior.data[0,0][winidx]
-        gs_priorarr *= totalflux/gs_priorarr.sum()
+        gs_priorarr *= totalflux_scaled/gs_priorarr.sum()
         gs_wgt = fortlib.image.init_gsreg(
             gs_prior=np.float64(gs_priorarr)
         )
@@ -375,7 +390,7 @@ def imaging(
         tfd_tgtfd = 1
     else:
         print("  Initialize Total Flux Density regularization")
-        tfd_tgtfd = np.float64(totalflux)
+        tfd_tgtfd = np.float64(totalflux_scaled)
         tfd_l = fortlib.image.init_tfdreg(
             tfd_l_in = np.float64(tfd_lambda),
             tfd_tgtfd = np.float64(tfd_tgtfd),
@@ -417,10 +432,10 @@ def imaging(
         if pulse_fwhm > 0:
             vistable = deburr_vistable(vistable, pulse_fwhm, initimage.angunit)
         phase = np.deg2rad(np.array(vistable["phase"], dtype=np.float64))
-        amp   = np.array(vistable["amp"], dtype=np.float64)
+        amp   = np.array(vistable["amp"], dtype=np.float64) * inormfactr
         vfcvr = np.float64(amp*np.cos(phase))
         vfcvi = np.float64(amp*np.sin(phase))
-        varfcv = np.square(np.array(vistable["sigma"], dtype=np.float64))
+        varfcv = np.square(np.array(vistable["sigma"], dtype=np.float64)) * inormfactr**2
         del phase, amp
 
     # Visibility Amplitude
@@ -432,8 +447,8 @@ def imaging(
         isamp = True
         if pulse_fwhm > 0:
             amptable = deburr_vistable(amptable, pulse_fwhm, initimage.angunit)
-        vamp = np.array(amptable["amp"], dtype=np.float64)
-        varamp = np.square(np.array(amptable["sigma"], dtype=np.float64))
+        vamp = np.array(amptable["amp"], dtype=np.float64) * inormfactr
+        varamp = np.square(np.array(amptable["sigma"], dtype=np.float64)) * inormfactr**2
 
     # Closure Phase
     if bstable is None:
@@ -472,7 +487,7 @@ def imaging(
     # run imaging
     output = fortlib.fftim2d.imaging(
         # Images
-        iin=np.float64(Iin),
+        iin=np.float64(Iin*inormfactr),
         xidx=np.int32(xidx),
         yidx=np.int32(yidx),
         nxref=np.float64(Nxref),
@@ -536,21 +551,23 @@ def imaging(
         ca=np.float64(ca),
         varca=np.float64(varca),
         wca=np.float64(w_ca),
+        # intensity scale factor applied
+        inormfactr=np.float64(inormfactr),
         # Following 3 parameters are for L-BFGS-B
         m=np.int32(lbfgsbprms["m"]), factr=np.float64(lbfgsbprms["factr"]),
         pgtol=np.float64(lbfgsbprms["pgtol"])
     )
-    Iout = output[0]
+    Iout = output[0]/inormfactr
 
     outimage = copy.deepcopy(initimage)
     outimage.data[istokes, ifreq] = 0.
     for i in np.arange(len(xidx)):
         outimage.data[istokes, ifreq, yidx[i] - 1, xidx[i] - 1] = Iout[i]
     outimage.update_fits()
+
     #   Pulse function consideration
     if pulse_fwhm>0:
         outimage = copy.deepcopy(outimage.convolve_gauss(pulse_fwhm, angunit = outimage.angunit, save_totalflux=True))
-
     return outimage
 
 def statistics(
