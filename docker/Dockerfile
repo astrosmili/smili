@@ -12,7 +12,6 @@ RUN apt-get update -y && \
     apt-get install -y gfortran && \
     apt-get install -y pkg-config && \
     apt-get install -y git && \
-    apt-get install -y nano && \
     apt-get clean
 
 # add smili user
@@ -91,9 +90,6 @@ RUN cd $HOME/local && \
     echo 'Version: github'                                                             >> $HOME/local/lib/pkgconfig/finufft.pc && \
     echo 'Libs: -L${libdir} -lfinufft'                                                 >> $HOME/local/lib/pkgconfig/finufft.pc && \
     echo 'Cflags: -I${includedir}'                                                     >> $HOME/local/lib/pkgconfig/finufft.pc
-
-# install some python libraries
-RUN conda install ipython jupyter numpy scipy matplotlib pandas astropy
 
 # ehtim
 RUN cd $HOME/local && \
