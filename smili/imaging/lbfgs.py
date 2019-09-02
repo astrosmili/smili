@@ -75,7 +75,7 @@ def imaging(
         nonneg=True,
         nprint=500,
         totalflux=None,
-        inorm=1,
+        inorm=1.,
         istokes=0, ifreq=0):
     '''
     FFT imaging with closure quantities.
@@ -161,7 +161,7 @@ def imaging(
             If nonneg=True, the problem is solved with non-negative constrants.
         totalflux (float, default=None):
             Total flux of the source.
-        inorm (float, default=-1):
+        inorm (float, default=+1):
             If a positive value is specified, all of the input image, amplitudes,
             expected total flux density, and related regularization functions are
             scaled so that the peak intensity of the scaled intensity is the
