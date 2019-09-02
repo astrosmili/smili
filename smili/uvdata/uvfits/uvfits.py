@@ -555,6 +555,7 @@ class UVFITS(object):
         # this is fixing a latest bug in astropy (September 1)
         if ghdu.header["PCOUNT"] == 0:
             ghdu.header.set("PCOUNT", value=len(parnames))
+            ghdu.header.set("GCOUNT", value=self.visdata.data.shape[0])
             for i in range(len(parnames)):
                 ghdu.header.set("PTYPE%d"%(i+1), value=parnames[i])
 
