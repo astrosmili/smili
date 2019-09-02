@@ -5,13 +5,10 @@ FROM ubuntu:18.04
 SHELL ["/bin/bash", "-c"]
 
 # apt update & upgrade
-RUN apt-get clean && \
-    apt-get update -y && \
-    apt-get upgrade -y
+RUN apt-get update -y
 
 # install commands
 RUN apt-get install -y sudo && \
-    apt-get install -y nano && \
     apt-get install -y wget && \
     apt-get install -y build-essential && \
     apt-get install -y gfortran && \
@@ -43,13 +40,6 @@ RUN echo 'export PYENV_ROOT=$HOME/.pyenv' >> ~/.bashrc && \
     echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc && \
     echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 
-# miniconda3
-RUN pyenv install miniconda3-latest && \
-    pyenv global  miniconda3-latest
-
-# install some important packages
-RUN conda install ipython jupyter
-
 # create a path to $HOME/local
 ENV LD_LIBRARY_PATH $HOME/local/lib:$LD_LIBRARY_PATH
 ENV PKG_CONFIG_PATH $HOME/local/lib/pkgconfig:$PKG_CONFIG_PATH
@@ -57,6 +47,10 @@ ENV PATH $HOME/local/bin:$PATH
 RUN echo 'export PATH=$HOME/local/bin:$PATH' >> ~/.bashrc  && \
     echo 'export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH' >> ~/.bashrc  && \
     echo 'export PKG_CONFIG_PATH=$HOME/local/lib/pkgconfig:$PKG_CONFIG_PATH' >> ~/.bashrc
+
+# miniconda3
+RUN pyenv install miniconda3-latest && \
+    pyenv global  miniconda3-latest
 
 # OpenBLAS
 RUN cd $HOME/local && \
