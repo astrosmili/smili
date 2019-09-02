@@ -552,6 +552,11 @@ class UVFITS(object):
             bitpix=-32)
         ghdu = pf.GroupsHDU(gdata)
 
+        # this is fixing a latest bug in astropy (September 1)
+        if ghdu.header["PCOUNT"] == 0:
+            ghdu.header.set("PCOUNT", value=len(parnames))
+            for i in range(len(parnames)):
+                ghdu.header.set("PTYPE%d"%(i+1), value=parnames[i])
 
         # CTYPE HEADER
         cards = []
