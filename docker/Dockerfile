@@ -4,16 +4,16 @@ FROM ubuntu:18.04
 # use bash to setup
 SHELL ["/bin/bash", "-c"]
 
-# apt update & upgrade
-RUN apt-get update -y
-
-# install commands
-RUN apt-get install -y sudo && \
+# apt update and install commands
+RUN apt-get update -y && \
+    apt-get install -y sudo && \
     apt-get install -y wget && \
     apt-get install -y build-essential && \
     apt-get install -y gfortran && \
     apt-get install -y pkg-config && \
-    apt-get install -y git
+    apt-get install -y git && \
+    apt-get install -y nano && \
+    apt-get clean
 
 # add smili user
 RUN adduser --disabled-password --gecos '' smiliuser && \
@@ -91,6 +91,9 @@ RUN cd $HOME/local && \
     echo 'Version: github'                                                             >> $HOME/local/lib/pkgconfig/finufft.pc && \
     echo 'Libs: -L${libdir} -lfinufft'                                                 >> $HOME/local/lib/pkgconfig/finufft.pc && \
     echo 'Cflags: -I${includedir}'                                                     >> $HOME/local/lib/pkgconfig/finufft.pc
+
+# install some python libraries
+RUN conda install ipython jupyter numpy scipy matplotlib pandas astropy
 
 # ehtim
 RUN cd $HOME/local && \
