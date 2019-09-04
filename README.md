@@ -12,7 +12,7 @@ Please contact with Kazu Akiyama at NRAO / MIT Haystack Observatory if you have 
 - Kotaro Moriyama at National Astronomical Observatory of Japan
 
 ## How to install this library?
-Please have a look at [the installation guide](https://astrosmili.github.io/smili/_static/install.html).
+Please have a look at [the installation guide](https://smili.readthedocs.io/en/latest/install.html).
 
 ## What's the reference for this software?
 We are now preparing a software paper (Akiyama et al. in prep.) describing the latest snapshot of some new functions after Kuramochi et al. 2018. Until this paper will come out, please cite the following two papers for SMILI.

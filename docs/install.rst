@@ -75,7 +75,7 @@ Preparation
     brew install gcc
     brew link gcc
     brew install libomp
-    
+
     # your homebrew PREFIX directory
     HBPREFIX="your homebrew PREFIX; in default /usr/local"
 
@@ -319,8 +319,8 @@ prior to type ./configure
   export FFTW3_CFLAGS="-IYOURPREFIX/include"
 
   # Example for FINUFFT
-  export FINUFFT_LIBS="-LYOURPREFIX/lib -lfftw3"
-  export FINUFFT_CFLAGS="-IYOURPREFIX/include"
+  export FINUFFT_LIBS="-LYOURFINUFFTDIR/lib-static -lfinufft"
+  export FINUFFT_CFLAGS="-IYOURFINUFFTDIR/include"
 
 Make and compile the library.
 The internal C/Fortran Library will be compiled into python modules,
