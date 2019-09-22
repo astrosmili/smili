@@ -771,7 +771,17 @@ class IMFITS(object):
             elif saunit.lower() == "pixel":
                 saconv = 1
             else:
-                saconv = util.angconv("deg",saunit) ** 2
+                #saconv = util.angconv("deg",saunit) ** 2
+                saconv = util.saconv(
+                    x1=self.header["dx"],
+                    y1=self.header["dy"],
+                    angunit1="deg",
+                    satype1="pixel",
+                    x2=1.,
+                    y2=1.,
+                    angunit2=saunit,
+                    satype2="pixel",
+                )
             return fluxconv * saconv
         else:
             import astropy.constants as ac
