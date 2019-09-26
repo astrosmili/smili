@@ -21,16 +21,18 @@ subroutine imaging(&
   kl_l, kl_wgt, kl_Nwgt,&
   gs_l, gs_wgt, gs_Nwgt,&
   tfd_l, tfd_tgtfd,&
+  lc_l, lc_tgtfd,&
   cen_l, cen_alpha,&
   rt_l, ri_l, rs_l, rf_l, &
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,wfcv,&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
   isca,uvidxca,CA,Varca,wca,&
+  inormfactr,&
   m,factr,pgtol,&
   Iout,&
   chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-  reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+  reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, &
   rt_cost, ri_cost, rs_cost, rf_cost, &
   cost, &
   Npix,Nuv,Nfcv,Namp,Ncp,Nca&
@@ -85,6 +87,9 @@ subroutine imaging(&
   !   parameter for the total flux density regularization
   real(dp), intent(in)  :: tfd_l              ! lambda (Normalized)
   real(dp), intent(in)  :: tfd_tgtfd          ! target total flux
+  !   parameter for the light curve regularization
+  real(dp), intent(in)  :: lc_l(Nz)           ! lambda array (Normalized)
+  real(dp), intent(in)  :: lc_tgtfd(Nz)       ! target light curve
   !   parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l              ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha          ! alpha
@@ -128,6 +133,9 @@ subroutine imaging(&
   real(dp), intent(in) :: Varca(Nca)      ! variance
   real(dp), intent(in) :: wca             ! data weights
 
+  ! Intensity Scale Parameter
+  real(dp), intent(in) :: inormfactr
+
   ! Paramters related to the L-BFGS-B
   integer,  intent(in) :: m
   real(dp), intent(in) :: factr, pgtol
@@ -152,6 +160,7 @@ subroutine imaging(&
   real(dp), intent(out) :: kl_cost  ! cost of KL divergence
   real(dp), intent(out) :: gs_cost  ! cost of GS entropy
   real(dp), intent(out) :: tfd_cost ! cost of total flux regularization
+  real(dp), intent(out) :: lc_cost  ! cost of light curve regularization
   real(dp), intent(out) :: cen_cost ! cost of centoroid regularizaiton
 
   ! Regularization Functions for dynamical imaging
@@ -282,15 +291,16 @@ subroutine imaging(&
     kl_l, kl_wgt, kl_Nwgt,&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
+    lc_l, lc_tgtfd,&
     cen_l, cen_alpha,&
     rt_l,ri_l,rs_l, rf_l, &
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
     isca,uvidxca,CA,Varca,wca_n,&
-    1,&
+    1,inormfactr,&
     chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-    reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+    reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, &
     rt_cost, ri_cost, rs_cost, rf_cost, &
     cost, gradcost, &
     Npix, Nuv, Nfcv, Namp, Ncp, Nca &
@@ -341,15 +351,16 @@ subroutine imaging(&
         kl_l, kl_wgt, kl_Nwgt,&
         gs_l, gs_wgt, gs_Nwgt,&
         tfd_l, tfd_tgtfd,&
+        lc_l, lc_tgtfd,&
         cen_l, cen_alpha,&
         rt_l, ri_l, rs_l, rf_l, &
         isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
         isamp,uvidxamp,Vamp,Varamp,wamp_n,&
         iscp,uvidxcp,CP,Varcp,wcp_n,&
         isca,uvidxca,CA,Varca,wca_n,&
-        -1,&
+        -1,inormfactr,&
         chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-        reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+        reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, &
         rt_cost, ri_cost, rs_cost, rf_cost, &
         cost, gradcost, &
         Npix, Nuv, Nfcv, Namp, Ncp, Nca&
@@ -372,15 +383,16 @@ subroutine imaging(&
           kl_l, kl_wgt, kl_Nwgt,&
           gs_l, gs_wgt, gs_Nwgt,&
           tfd_l, tfd_tgtfd,&
+          lc_l, lc_tgtfd,&
           cen_l, cen_alpha,&
           rt_l, ri_l, rs_l, rf_l, &
           isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
           isamp,uvidxamp,Vamp,Varamp,wamp_n,&
           iscp,uvidxcp,CP,Varcp,wcp_n,&
           isca,uvidxca,CA,Varca,wca_n,&
-          1,&
+          1,inormfactr,&
           chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-          reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+          reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, &
           rt_cost, ri_cost, rs_cost, rf_cost, &
           cost, gradcost, &
           Npix, Nuv, Nfcv, Namp, Ncp, Nca&
@@ -403,15 +415,16 @@ subroutine imaging(&
     kl_l, kl_wgt, kl_Nwgt,&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
+    lc_l, lc_tgtfd,&
     cen_l, cen_alpha,&
     rt_l, ri_l, rs_l, rf_l, &
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
     isca,uvidxca,CA,Varca,wca_n,&
-    1,&
+    1,inormfactr,&
     chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-    reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+    reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, &
     rt_cost, ri_cost, rs_cost, rf_cost, &
     cost, gradcost, &
     Npix, Nuv, Nfcv, Namp, Ncp, Nca&
@@ -438,15 +451,16 @@ subroutine calc_cost(&
   kl_l, kl_wgt, kl_Nwgt,&
   gs_l, gs_wgt, gs_Nwgt,&
   tfd_l, tfd_tgtfd,&
+  lc_l, lc_tgtfd,&
   cen_l, cen_alpha,&
   rt_l, ri_l, rs_l, rf_l,&
   isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
   isca,uvidxca,CA,Varca,wca,&
-  doprint,&
+  doprint,inormfactr,&
   chisq, chisqfcv, chisqamp, chisqcp, chisqca,&
-  reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, cen_cost, &
+  reg, l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, &
   rt_cost, ri_cost, rs_cost, rf_cost, &
   cost, gradcost, &
   Npix, Nuv, Nfcv, Namp, Ncp, Nca &
@@ -495,6 +509,9 @@ subroutine calc_cost(&
   !   parameter for the total flux density regularization
   real(dp), intent(in)  :: tfd_l              ! lambda (Normalized)
   real(dp), intent(in)  :: tfd_tgtfd          ! target total flux
+  !   parameter for the light curve regularization
+  real(dp), intent(in)  :: lc_l(Nz)           ! lambda array (Normalized)
+  real(dp), intent(in)  :: lc_tgtfd(Nz)       ! target light curve
   !   parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l              ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha          ! alpha
@@ -537,6 +554,7 @@ subroutine calc_cost(&
 
   ! print option
   integer,  intent(in) :: doprint   ! if doprint > 0 then print summary
+  real(dp), intent(in) :: inormfactr  ! intensity normalization factor
 
   ! Outputs
   !   Chi-squares
@@ -555,6 +573,7 @@ subroutine calc_cost(&
   real(dp), intent(out) :: kl_cost  ! cost of KL divergence
   real(dp), intent(out) :: gs_cost  ! cost of GS entropy
   real(dp), intent(out) :: tfd_cost ! cost of total flux regularization
+  real(dp), intent(out) :: lc_cost  ! cost of light curve regularization
   real(dp), intent(out) :: cen_cost ! cost of centoroid regularizaiton
 
   ! Regularization functions for dynamical imagings
@@ -606,10 +625,11 @@ subroutine calc_cost(&
       kl_l, kl_wgt, kl_Nwgt,&
       gs_l, gs_wgt, gs_Nwgt,&
       tfd_l, tfd_tgtfd,&
+      lc_l, lc_tgtfd,&
       cen_l, cen_alpha,&
       rt_l, ri_l, rs_l, rf_l, &
       l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
-      tfd_cost, cen_cost,&
+      tfd_cost, lc_cost, cen_cost,&
       rt_cost, ri_cost, rs_cost, rf_cost,&
       out_maj, out_min, out_phi,&
       reg, gradreg, Npix, Nz &
@@ -671,12 +691,14 @@ subroutine calc_cost(&
     if (tfd_l > 0) then
       print '("    Total Flux Density   : ",D13.6)',tfd_cost
     end if
+    if (sum(lc_l) > 0) then
+      print '("    Light curve          : ",D13.6)',lc_cost
+    end if
     if (cen_l > 0) then
       print '("    Centoroid Reg.       : ",D13.6)',cen_cost
     endif
 
-    print '("  Total flux (avg)       : ",D13.6)',sum(Iin)/Nz
-
+    print '("  Total flux (avg)       : ",D13.6)',sum(Iin)/Nz/inormfactr
     ! regularization parameters for dynamical imaging
     if (rt_l > 0) then
       print '("  Dynamical  Rt Reg.     : ",D13.6)', rt_cost

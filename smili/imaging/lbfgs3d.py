@@ -60,6 +60,7 @@ def imaging3d(
         w_ca=1,
         l1_lambda=-1.,
         l1_prior=None,
+        l1_dyrange = -1,
         sm_lambda=-1,
         sm_maj=50.,
         sm_min=50.,
@@ -74,6 +75,9 @@ def imaging3d(
         gs_prior=None,
         tfd_lambda=-1,
         tfd_tgterror=0.01,
+        lc_lambda = -1,
+        lc_array = None,
+        lc_tgterror = 0.01,
         cen_lambda=-1,
         cen_alpha=3,
         rt_lambda=-1.,
@@ -88,6 +92,7 @@ def imaging3d(
         nonneg=True,
         nprint=500,
         totalflux=None,
+        inorm=1.,
         istokes=0, ifreq=0,
         output='list'):
     '''
@@ -113,6 +118,8 @@ def imaging3d(
             Prior image to be used to compute the weighted l1-norm.
             If not specified, the flat prior will be used.
             This prior image will be normalized with the total flux estimator.
+        l1_dyrange (float,default=-1):
+            dynamic range of l1 prior
         sm_lambda (float,default=-1):
             Regularization parameter for second moment.
             If negative then, this regularization won't be used.
@@ -157,6 +164,16 @@ def imaging3d(
             The target accracy of the total flux regulariztion. For instance,
             tfd_tgterror = 0.01 and tfd_lambda = 1 will give the cost function of
             unity when the fractional error of the total flux is 0.01.
+
+        lc_lambda (float, default=-1):
+            Regularization parameters for the light curve regularization.
+            If negative then, this regularization won't be used.
+        lc_array (float array, default=None):
+            Array of light curve regularizer.
+        lc_tgterror (float, default=0.01):
+            The target accuracy of the light curve regularization.
+            The definition is the same as that of tfd_tgterror.
+
         cen_lambda (float,default=-1.):
             Regularization parameter for the centroid regularization.
             If negative then, this regularization won't be used.
@@ -172,6 +189,13 @@ def imaging3d(
             If nonneg=True, the problem is solved with non-negative constrants.
         totalflux (float, default=None):
             Total flux of the source.
+        inorm (float, default=+1):
+            If a positive value is specified, all of the input image, amplitudes,
+            expected total flux density, and related regularization functions are
+            scaled so that the peak intensity of the scaled intensity is the
+            specified value. This is essencial for the regularization functions
+            to work effectively espicially for faint sources. If your image has
+            the intensity lower than 10^{-4} Jy/pixel, then you should use inorm=1.
         nprint (integer, default=200):
             The summary of metrics will be printed with an interval specified
             with this number.
@@ -243,7 +267,6 @@ def imaging3d(
     dx_rad = np.deg2rad(initimage.header["dx"])
     dy_rad = np.deg2rad(initimage.header["dy"])
 
-
     # Get imaging area
     if imregion is None:
         print("Imaging Window: Not Specified. We solve the image on all the pixels.")
@@ -267,6 +290,16 @@ def imaging3d(
         yidx = yidx[winidx]
         Npix = len(Iin[0])
 
+    # Determining intensity-normalization factor
+    if inorm < 0:
+        inormfactr = 1.0
+    else:
+        if np.sum(np.concatenate(Iin)) != 0:
+            inormfactr = inorm/np.max(np.concatenate(Iin))
+        else:
+            inormfactr = inorm/(totalflux/Npix)
+    print("Intensity Scaling Factor: %g"%(inormfactr))
+    totalflux_scaled = totalflux * inormfactr
 
     # Setup regularizatin functions
     #   l1-norm
@@ -278,13 +311,17 @@ def imaging3d(
         print("  Initialize l1 regularization")
         if l1_prior is None:
             l1_priorarr = copy.deepcopy(Iin[0])
-            l1_priorarr[:] = totalflux/Npix
+            l1_priorarr[:] = totalflux_scaled/Npix
         else:
             if imregion is None:
                 l1_priorarr = l1_prior.data[0,0].reshape(Nyx)
             else:
                 l1_priorarr = l1_prior.data[0,0][winidx]
-        l1_priorarr *= totalflux/l1_priorarr.sum()
+            if l1_dyrange>0:
+                l1_priorarr.data += np.max(l1_priorarr)*l1_dyrange
+                l1_priorarr.data /= np.sum(l1_priorarr)
+
+        l1_priorarr *= totalflux_scaled/l1_priorarr.sum()
         l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
         l1_nwgt = len(l1_wgt)
         l1_l = l1_lambda
@@ -314,7 +351,7 @@ def imaging3d(
         print("  Initialize TV regularization")
         if tv_prior is None:
             tv_priorarr = copy.deepcopy(Iin[0])
-            tv_priorarr[:] = totalflux/Npix
+            tv_priorarr[:] = totalflux_scaled/Npix
             tv_isflat = True
         else:
             if imregion is None:
@@ -322,7 +359,7 @@ def imaging3d(
             else:
                 tv_priorarr = tv_prior.data[0,0][winidx]
             tv_isflat = False
-        tv_priorarr *= totalflux/tv_priorarr.sum()
+        tv_priorarr *= totalflux_scaled/tv_priorarr.sum()
         tv_wgt = fortlib.image.init_tvreg(
             xidx = np.float32(xidx),
             yidx = np.float32(yidx),
@@ -344,7 +381,7 @@ def imaging3d(
         print("  Initialize TSV regularization")
         if tsv_prior is None:
             tsv_priorarr = copy.deepcopy(Iin[0])
-            tsv_priorarr[:] = totalflux/Npix
+            tsv_priorarr[:] = totalflux_scaled/Npix
             tsv_isflat = True
         else:
             if imregion is None:
@@ -352,7 +389,7 @@ def imaging3d(
             else:
                 tsv_priorarr = tsv_prior.data[0,0][winidx]
             tsv_isflat = False
-        tsv_priorarr *= totalflux/tsv_priorarr.sum()
+        tsv_priorarr *= totalflux_scaled/tsv_priorarr.sum()
         tsv_wgt = fortlib.image.init_tsvreg(
             xidx = np.int32(xidx),
             yidx = np.int32(yidx),
@@ -374,13 +411,13 @@ def imaging3d(
         print("  Initialize the KL Divergence.")
         if kl_prior is None:
             kl_priorarr = copy.deepcopy(Iin[0])
-            kl_priorarr[:] = totalflux/Npix
+            kl_priorarr[:] = totalflux_scaled/Npix
         else:
             if imregion is None:
                 kl_priorarr = kl_prior.data[0,0].reshape(Nyx)
             else:
                 kl_priorarr = kl_prior.data[0,0][winidx]
-        kl_priorarr *= totalflux/kl_priorarr.sum()
+        kl_priorarr *= totalflux_scaled/kl_priorarr.sum()
         kl_l, kl_wgt = fortlib.image.init_klreg(
             kl_l_in=np.float64(kl_lambda),
             kl_prior=np.float64(kl_priorarr)
@@ -397,13 +434,13 @@ def imaging3d(
         print("  Initialize the GS Entropy.")
         if gs_prior is None:
             gs_priorarr = copy.deepcopy(Iin[0])
-            gs_priorarr[:] = totalflux/Npix
+            gs_priorarr[:] = totalflux_scaled/Npix
         else:
             if imregion is None:
                 gs_priorarr = gs_prior.data[0,0].reshape(Nyx)
             else:
                 gs_priorarr = gs_prior.data[0,0][winidx]
-        gs_priorarr *= totalflux/gs_priorarr.sum()
+        gs_priorarr *= totalflux_scaled/gs_priorarr.sum()
         gs_wgt = fortlib.image.init_gsreg(
             gs_prior=np.float64(gs_priorarr)
         )
@@ -417,13 +454,27 @@ def imaging3d(
         tfd_tgtfd = 1
     else:
         print("  Initialize Total Flux Density regularization")
-        tfd_tgtfd = np.float64(totalflux)
+        tfd_tgtfd = np.float64(totalflux_scaled)
         tfd_l = fortlib.image.init_tfdreg(
             tfd_l_in = np.float64(tfd_lambda),
             tfd_tgtfd = np.float64(tfd_tgtfd),
             tfd_tgter = np.float64(tfd_tgterror))
     #
+    #   light curve regularization divergence
+    if lc_lambda <= 0:
+        lc_l = np.zeros(Nt,dtype=np.float64)-1.
+        lc_tgtfd = np.zeros(Nt,dtype=np.float64)+1.
+    else:
+        # check lengths of light curve arrays
+        if len(lc_array)!= Nt:
+            print("Error: Length of light array is inconsistent with time bin of the movie")
+            return -1
 
+        print("  Initialize Light curve regularization")
+        lc_array = np.float64(lc_array)
+        lc_tgtfd = lc_array * inormfactr
+        lc_l = lc_lambda / (lc_tgterror * lc_tgtfd)**2
+        #print(lc_tgterror)
     #   Centroid regularization
     if cen_lambda <= 0:
         cen_l = -1
@@ -436,7 +487,6 @@ def imaging3d(
     # Ri regularization
     #lambri_sim = ri_lambda / (fluxscale**2 * Nyx * Nt)
 
-
     dammyreal = np.zeros(1, dtype=np.float64)
 
     # Full Complex Visibility
@@ -448,10 +498,10 @@ def imaging3d(
     else:
         isfcv = True
         phase = np.deg2rad(np.array(vistable["phase"], dtype=np.float64))
-        amp = np.array(vistable["amp"], dtype=np.float64)
+        amp = np.array(vistable["amp"], dtype=np.float64) * inormfactr
         vfcvr = np.float64(amp*np.cos(phase))
         vfcvi = np.float64(amp*np.sin(phase))
-        varfcv = np.square(np.array(vistable["sigma"], dtype=np.float64))
+        varfcv = np.square(np.array(vistable["sigma"], dtype=np.float64)) * inormfactr**2
         del phase, amp
 
     # Visibility Amplitude
@@ -461,8 +511,8 @@ def imaging3d(
         varamp = dammyreal
     else:
         isamp = True
-        vamp = np.array(amptable["amp"], dtype=np.float64)
-        varamp = np.square(np.array(amptable["sigma"], dtype=np.float64))
+        vamp = np.array(amptable["amp"], dtype=np.float64) * inormfactr
+        varamp = np.square(np.array(amptable["sigma"], dtype=np.float64)) * inormfactr**2
 
     # Closure Phase
     if bstable is None:
@@ -507,7 +557,7 @@ def imaging3d(
     # run imaging
     output = fortlib.fftim3d.imaging(
         # Images
-        iin=np.float64(Iin),
+        iin=np.float64(Iin*inormfactr),
         xidx=np.int32(xidx),
         yidx=np.int32(yidx),
         nxref=np.float64(Nxref),
@@ -546,6 +596,8 @@ def imaging3d(
         gs_nwgt=np.int32(gs_nwgt),
         tfd_l=np.float64(tfd_l),
         tfd_tgtfd=np.float64(tfd_tgtfd),
+        lc_l=np.float64(lc_l),
+        lc_tgtfd=np.float64(lc_tgtfd),
         cen_l=np.float64(cen_l),
         cen_alpha=np.float64(cen_alpha),
         # Regularization Parameters for dynamical imaging
@@ -578,11 +630,13 @@ def imaging3d(
         ca=np.float64(ca),
         varca=np.float64(varca),
         wca=np.float64(w_ca),
+        # intensity scale factor applied
+        inormfactr=np.float64(inormfactr),
         # Following 3 parameters are for L-BFGS-B
         m=np.int32(lbfgsbprms["m"]), factr=np.float64(lbfgsbprms["factr"]),
         pgtol=np.float64(lbfgsbprms["pgtol"])
     )
-    Iout = output[0]
+    Iout = output[0]/inormfactr
     outmovie = copy.deepcopy(initmovie)
     for it in range(Nt):
         for i in range(len(xidx)):

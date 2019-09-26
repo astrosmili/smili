@@ -5,7 +5,7 @@ module image3d
   use image, only : calc_cost_reg, ixiy2ixy, ixy2ixiy, zeroeps,&
                     I1d_I2d_fwd,I1d_I2d_inv,&
                     l1_e, l1_grade,&
-                    tv_e, tv_grade,&
+                    tv_e, tv_grade,calc_tfdreg,&
                     tsv_e, tsv_grade, smabs, calc_cenreg
   implicit none
 contains
@@ -21,10 +21,11 @@ subroutine calc_cost_reg3d(&
     kl_l, kl_wgt, kl_Nwgt,&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
+    lc_l, lc_tgtfd,&
     cen_l, cen_alpha,&
     rt_l, ri_l, rs_l, rf_l, &
     l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
-    tfd_cost, cen_cost, &
+    tfd_cost, lc_cost, cen_cost, &
     rt_cost, ri_cost, rs_cost, rf_cost, &
     out_maj, out_min, out_phi,&
     cost, gradcost, &
@@ -70,6 +71,10 @@ subroutine calc_cost_reg3d(&
   real(dp), intent(in)  :: tfd_l             ! lambda (Normalized)
   real(dp), intent(in)  :: tfd_tgtfd         ! target total flux
 
+  ! parameter for the light curve regularization
+  real(dp), intent(in)  :: lc_l(Nz)          ! lambda (Normalized)
+  real(dp), intent(in)  :: lc_tgtfd(Nz)      ! target light curve
+
   ! parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l             ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha         ! alpha
@@ -88,6 +93,7 @@ subroutine calc_cost_reg3d(&
   real(dp), intent(out) :: kl_cost    ! cost of KL divergence
   real(dp), intent(out) :: gs_cost    ! cost of GS entropy
   real(dp), intent(out) :: tfd_cost   ! cost of total flux regularization
+  real(dp), intent(out) :: lc_cost    ! cost of light curve regularization
   real(dp), intent(out) :: cen_cost   ! cost of centoroid regularizaiton
 
   ! regularizer for dynamical imaging
@@ -110,7 +116,7 @@ subroutine calc_cost_reg3d(&
               out_maj_frm, out_min_frm, out_phi_frm,&
               cost_frm
   real(dp) :: gradcost_frm(Npix)
-
+  real(dp) :: lc_cost_frm, grad_lc_cost_frm
   integer :: iz
 
   ! Initialize
@@ -121,6 +127,7 @@ subroutine calc_cost_reg3d(&
   kl_cost  = 0d0
   gs_cost  = 0d0
   tfd_cost = 0d0
+  lc_cost  = 0d0
   cen_cost = 0d0
 
   rt_cost = 0d0
@@ -144,13 +151,15 @@ subroutine calc_cost_reg3d(&
   !$OMP                kl_l,  kl_wgt,  kl_Nwgt,&
   !$OMP                gs_l,  gs_wgt,  gs_Nwgt,&
   !$OMP                tfd_l, tfd_tgtfd,&
+  !$OMP                lc_l, lc_tgtfd,&
   !$OMP                cen_l, cen_alpha,&
   !$OMP                sm_l, sm_maj, sm_min, sm_phi) &
   !$OMP   PRIVATE(iz, l1_cost_frm, sm_cost_frm, tv_cost_frm, tsv_cost_frm,&
   !$OMP           kl_cost_frm, gs_cost_frm, tfd_cost_frm, cen_cost_frm,&
-  !$OMP           out_maj_frm, out_min_frm, out_phi_frm, cost_frm, gradcost_frm) &
+  !$OMP           out_maj_frm, out_min_frm, out_phi_frm, cost_frm, gradcost_frm,&
+  !$OMP           lc_cost_frm, grad_lc_cost_frm) &
   !$OMP   REDUCTION(+: cost, gradcost, l1_cost, sm_cost, tv_cost, tsv_cost,&
-  !$OMP                kl_cost, gs_cost, tfd_cost, cen_cost, out_maj, out_min, out_phi)
+  !$OMP                kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, out_maj, out_min, out_phi)
 
 
   do iz=1, Nz
@@ -184,7 +193,16 @@ subroutine calc_cost_reg3d(&
     out_phi  = out_phi + out_phi_frm / Nz
     cost     = cost + cost_frm / Nz
     gradcost((iz-1)*Npix+1:iz*Npix) = gradcost_frm / Nz
+
+    ! light curve regularizer
+    if (sum(lc_l) > 0.) then
+      call calc_tfdreg(I1d((iz-1)*Npix+1:iz*Npix), lc_tgtfd(iz), lc_cost_frm, grad_lc_cost_frm, Npix)
+      lc_cost = lc_cost + (lc_l(iz) * lc_cost_frm) / Nz
+      gradcost((iz-1)*Npix+1:iz*Npix) = gradcost((iz-1)*Npix+1:iz*Npix) + lc_l(iz) * grad_lc_cost_frm / Nz
+      cost     = cost + lc_cost
+    end if
   end do
+
   !$OMP END PARALLEL DO
 
   ! dynamical imaging regularizers
@@ -283,9 +301,6 @@ subroutine calc_cost_dynamical(&
         end if
       end if
     end if
-
-
-
 
     do ipix=1,Npix
 
