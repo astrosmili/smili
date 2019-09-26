@@ -1232,7 +1232,7 @@ class VisTable(UVTable):
         outtab["utc"]=copy.deepcopy(tmptab["utc"])
         outtab["gsthour"] = copy.deepcopy(tmptab["gsthour"])
         outtab["flux"] = copy.deepcopy(tmptab["amp"])
-
+        outtab = outtab.sort_values(by="utc").reset_index(drop=True)
         return outtab
 
 
