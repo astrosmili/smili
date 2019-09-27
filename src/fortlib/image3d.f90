@@ -245,23 +245,23 @@ subroutine calc_cost_dynamical(&
   real(dp), allocatable :: tmp1d(:)
 
   ! Initialize
-  Iavg(:)   = 0d0
-  totalflux = 0d0
-  stotal    = 0d0
-  cen_cost  = 0d0
-  rt_cost   = 0d0
-  ri_cost   = 0d0
-  rs_cost   = 0d0
-  rf_cost   = 0d0
-  cost   = 0d0
-
+  Iavg(:)     = 0d0
+  totalflux   = 0d0
+  stotal      = 0d0
+  cen_cost    = 0d0
+  rt_cost     = 0d0
+  ri_cost     = 0d0
+  rs_cost     = 0d0
+  rf_cost     = 0d0
+  cost        = 0d0
+  gradcost(:) = 0d0
 
   ! Calculate averaged intensity map, totalflux and total entropy
   do iz=1, Nz
 
     Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
     Iavg = Iavg + Iin_frm / Nz
-    totalflux  = totalflux + f_e(Iavg, Npix)
+    totalflux  = f_e(Iavg, Npix)
     stotal    = stotal + s_e(Iavg, Npix)
 
   end do
@@ -291,13 +291,13 @@ subroutine calc_cost_dynamical(&
     ! For Rs or Rf regularizer
     if (rs_l > 0 .or. rf_l > 0) then
       if (iz < Nz-1) then
-        s  = s_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
-        su = s_e(Iin((iz+1)*Npix+1:(iz+2)*Npix),Npix)
-        f  = f_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
-        fu = f_e(Iin((iz+1)*Npix+1:(iz+2)*Npix),Npix)
-        if(iz > 1 .and. iz < Nz-1) then
-          sl = s_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
-          fl = f_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+        s  = s_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+        su = s_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
+        f  = f_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+        fu = f_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
+        if(iz > 1) then
+          sl = s_e(Iin((iz-2)*Npix+1:(iz-1)*Npix),Npix)
+          fl = f_e(Iin((iz-2)*Npix+1:(iz-1)*Npix),Npix)
         end if
       end if
     end if
@@ -316,33 +316,27 @@ subroutine calc_cost_dynamical(&
         if (iz < Nz-1) then
           Iu = Iin((iz+1)*Npix+ipix)
           rt_cost  = rt_cost + rt_l * rt_wgt * rt_e(Iin(ipix), Iu)
-          if(iz > 1) then
-            Il    = Iin((iz-1)*Npix+ipix)
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rt_l * rt_wgt * rt_grade(Iin_frm(ipix), Il, Iu)
-          end if
+          Il    = Iin((iz-1)*Npix+ipix)
+          gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                    rt_l * rt_wgt * rt_grade(Iin_frm(ipix), Il, Iu)
         end if
       end if
 
       ! Rs regularizer
       if (rs_l > 0) then
-        if (iz < Nz-1) then
+        if (iz < Nz-1 .and. iz>1) then
           rs_cost  = rs_cost + rs_l * rs_wgt * rs_e(s, su)
-          if(iz > 1 .and. iz < Nz-1) then
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rs_l * rs_wgt * rs_grade(s, sl, su, Iin_frm(ipix))
-          end if
+          gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                    rs_l * rs_wgt * rs_grade(s, sl, su, Iin_frm(ipix))
         end if
       end if
 
       ! Rf regularizer
       if (rf_l > 0) then
-        if (iz < Nz-1) then
+        if (iz < Nz-1 .and. iz>1) then
           rf_cost  = rf_cost + rf_l * rf_wgt * rf_e(f, fu)
-          if(iz > 1 .and. iz < Nz-1) then
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rf_l * rf_wgt * rf_grade(f, fl, fu, Iin_frm(ipix))
-          end if
+          gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                    rf_l * rf_wgt * rf_grade(f, fl, fu, Iin_frm(ipix))
         end if
       end if
 
@@ -477,10 +471,10 @@ real(dp) function f_e(I1d, Npix)
 end function
 
 
-! gradient of rs norm at each pixel and time frame
+! gradient of rf norm at each pixel and time frame
 real(dp) function rf_grade(f, fl, fu, I)
   implicit none
-  real(dp), intent(in) :: f, fl, fu  ! maximum entropy of three time frames
+  real(dp), intent(in) :: f, fl, fu  ! total flux of three time frames
   real(dp), intent(in) :: I          ! pixel intensity of a time frame
 
   rf_grade = 2. * (2. * f - fl - fu)
