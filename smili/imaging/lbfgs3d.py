@@ -227,16 +227,18 @@ def imaging3d(
         catable = catable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
 
     # Sanity Check: Total Flux constraint
-    if ((vistable is None) and (amptable is None) and (totalflux is None)):
+    if ((vistable is None) and (amptable is None) and (totalflux is None) and (lc_array is None)):
         print("Error: No absolute amplitude information in the input data.")
         print("       You need to set the total flux constraint by totalflux / tfd_lambda")
         return -1
     elif ((vistable is None) and (amptable is None) and
-          ((totalflux is None) or (tfd_lambda <= 0))):
+          ((totalflux is None) or (tfd_lambda <= 0)) and (lc_array is None)):
         print("Warning: No absolute amplitude information in the input data.")
         print("         The total flux must be constrained")
         return -1
     # Guess the Total flux
+    elif ((totalflux is None) and (lc_array is not None)):
+        totalflux = np.median(lc_array)
     elif totalflux is None:
         totalflux = []
         if vistable is not None:
