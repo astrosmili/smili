@@ -21,7 +21,7 @@ subroutine calc_cost_reg3d(&
     kl_l, kl_wgt, kl_Nwgt,&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
-    lc_l, lc_tgtfd,&
+    lc_l, lc_tgtfd,lc_nidx,&
     cen_l, cen_alpha,&
     rt_l, ri_l, rs_l, rf_l, &
     l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
@@ -74,6 +74,7 @@ subroutine calc_cost_reg3d(&
   ! parameter for the light curve regularization
   real(dp), intent(in)  :: lc_l(Nz)          ! lambda (Normalized)
   real(dp), intent(in)  :: lc_tgtfd(Nz)      ! target light curve
+  integer,  intent(in)  :: lc_nidx           ! regularizer normalization with lc_tgtfd
 
   ! parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l             ! lambda (Normalized)
@@ -117,6 +118,8 @@ subroutine calc_cost_reg3d(&
               cost_frm
   real(dp) :: gradcost_frm(Npix)
   real(dp) :: lc_cost_frm, grad_lc_cost_frm
+  real(dp) :: l1_wgt_lc(l1_Nwgt), tv_wgt_lc(tv_Nwgt), tsv_wgt_lc(tsv_Nwgt),&
+              kl_wgt_lc(kl_Nwgt), gs_wgt_lc(gs_Nwgt)
   integer :: iz
 
   ! Initialize
@@ -143,6 +146,7 @@ subroutine calc_cost_reg3d(&
   cost     = 0d0
   gradcost(:) = 0d0
   di_gradcost(:) = 0d0
+
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Npix, I1d, xidx, yidx, Nxref, Nyref, Nx, Ny, Nz,&
   !$OMP                l1_l,  l1_wgt,  l1_Nwgt,&
@@ -151,27 +155,38 @@ subroutine calc_cost_reg3d(&
   !$OMP                kl_l,  kl_wgt,  kl_Nwgt,&
   !$OMP                gs_l,  gs_wgt,  gs_Nwgt,&
   !$OMP                tfd_l, tfd_tgtfd,&
-  !$OMP                lc_l, lc_tgtfd,&
+  !$OMP                lc_l, lc_tgtfd,lc_nidx,&
   !$OMP                cen_l, cen_alpha,&
   !$OMP                sm_l, sm_maj, sm_min, sm_phi) &
   !$OMP   PRIVATE(iz, l1_cost_frm, sm_cost_frm, tv_cost_frm, tsv_cost_frm,&
   !$OMP           kl_cost_frm, gs_cost_frm, tfd_cost_frm, cen_cost_frm,&
   !$OMP           out_maj_frm, out_min_frm, out_phi_frm, cost_frm, gradcost_frm,&
-  !$OMP           lc_cost_frm, grad_lc_cost_frm) &
+  !$OMP           lc_cost_frm, grad_lc_cost_frm,&
+  !$OMP            l1_wgt_lc, tv_wgt_lc, tsv_wgt_lc,kl_wgt_lc, gs_wgt_lc) &
   !$OMP   REDUCTION(+: cost, gradcost, l1_cost, sm_cost, tv_cost, tsv_cost,&
   !$OMP                kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, out_maj, out_min, out_phi)
 
 
   do iz=1, Nz
     if (sum(lc_l) > 0.) then
+      if (lc_nidx > 0) then
+        l1_wgt_lc(:) = l1_wgt(:) / sum(l1_wgt) * lc_l(iz)
+        tv_wgt_lc(:) = tv_wgt_lc(:) / sum(tv_wgt_lc) * lc_l(iz)
+        tsv_wgt_lc(:) = tsv_wgt(:) / sum(tsv_wgt) * lc_l(iz)
+        kl_wgt_lc(:) = kl_wgt(:) / sum(kl_wgt) * lc_l(iz)
+        gs_wgt_lc(:) = gs_wgt(:) / sum(gs_wgt) * lc_l(iz)
+
+      else
+        l1_wgt_lc(:) = l1_wgt(:)
+      end if
       call calc_cost_reg(&
           I1d((iz-1)*Npix+1:iz*Npix), &
           xidx, yidx, Nxref, Nyref, Nx, Ny,&
-          l1_l, l1_wgt, l1_Nwgt,&
-          tv_l, tv_wgt, tv_Nwgt,&
-          tsv_l, tsv_wgt, tsv_Nwgt,&
-          kl_l, kl_wgt, kl_Nwgt,&
-          gs_l, gs_wgt, gs_Nwgt,&
+          l1_l, l1_wgt_lc, l1_Nwgt,&
+          tv_l, tv_wgt_lc, tv_Nwgt,&
+          tsv_l, tsv_wgt_lc, tsv_Nwgt,&
+          kl_l, kl_wgt_lc, kl_Nwgt,&
+          gs_l, gs_wgt_lc, gs_Nwgt,&
           lc_l(iz), lc_tgtfd(iz),&
           -1d0, 1d0,& ! cen_l=-1, cen_alpha=1d0,
           sm_l, sm_maj, sm_min, sm_phi,&
@@ -218,14 +233,6 @@ subroutine calc_cost_reg3d(&
     out_phi  = out_phi + out_phi_frm / Nz
     cost     = cost + cost_frm / Nz
     gradcost((iz-1)*Npix+1:iz*Npix) = gradcost_frm / Nz
-
-    ! light curve regularizer
-    !if (sum(lc_l) > 0.) then
-    !  call calc_tfdreg(I1d((iz-1)*Npix+1:iz*Npix), lc_tgtfd(iz), lc_cost_frm, grad_lc_cost_frm, Npix)
-    !  lc_cost = lc_cost + lc_cost_frm / Nz
-    !  gradcost((iz-1)*Npix+1:iz*Npix) = gradcost((iz-1)*Npix+1:iz*Npix) + grad_lc_cost_frm / Nz
-    !  cost     = cost + lc_cost
-    !end if
   end do
 
   !$OMP END PARALLEL DO
@@ -234,7 +241,7 @@ subroutine calc_cost_reg3d(&
   if (cen_l > 0. .or. rt_l > 0 .or. ri_l > 0 .or. rs_l > 0) then
     call calc_cost_dynamical(&
       Npix, Nz, xidx, yidx, Nxref, Nyref, I1d, cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l, &
-      cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, di_cost, di_gradcost&
+      cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, lc_nidx, lc_tgtfd, di_cost, di_gradcost&
     )
     cost     = cost + di_cost
     gradcost(:) = gradcost(:) + di_gradcost(:)
@@ -246,7 +253,7 @@ end subroutine
 !-------------------------------------------------------------------------------
 subroutine calc_cost_dynamical(&
   Npix, Nz, xidx, yidx, Nxref, Nyref, Iin, cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l, &
-  cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, &
+  cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, lc_nidx, lc_tgtfd, &
   cost, gradcost &
 )
   implicit none
@@ -257,9 +264,11 @@ subroutine calc_cost_dynamical(&
   real(dp), intent(in) :: Iin(Npix*Nz)
   integer,  intent(in)  :: xidx(Npix), yidx(Npix)
   real(dp), intent(in) :: cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l
+  integer, intent(in) :: lc_nidx
+  real(dp), intent(in) :: lc_tgtfd(Nz)
   real(dp), intent(out) :: cen_cost, rt_cost, ri_cost, rs_cost, rf_cost
   real(dp), intent(out) :: cost, gradcost(Npix*Nz)
-
+  ! light curve normalization
   real(dp) :: Iavg(Npix), Iin_frm(Npix), s, su, sl, f, fu, fl, Il, Iu, II
 
   integer :: ipix, iz
@@ -308,6 +317,13 @@ subroutine calc_cost_dynamical(&
 
   do iz=1,Nz
     Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
+
+    ! Regularization normalization with light curve
+    if (lc_nidx >0) then
+      ri_wgt = 1. / (lc_tgtfd(iz) * Nz)
+      rt_wgt = 1. / (lc_tgtfd(iz) * Nz)
+      rf_wgt = 1. / (lc_tgtfd(iz) * Nz)
+    end if
 
     ! For Rs or Rf regularizer
     if (rs_l > 0 .or. rf_l > 0) then

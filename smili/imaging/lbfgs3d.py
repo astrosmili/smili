@@ -78,6 +78,7 @@ def imaging3d(
         lc_lambda = -1,
         lc_array = None,
         lc_tgterror = 0.01,
+        lc_normalize=False,
         cen_lambda=-1,
         cen_alpha=3,
         rt_lambda=-1.,
@@ -173,7 +174,8 @@ def imaging3d(
         lc_tgterror (float, default=0.01):
             The target accuracy of the light curve regularization.
             The definition is the same as that of tfd_tgterror.
-
+        lc_normalize (boolean, default=False):
+            If True, each regularizer are normalized by input light curve (lc_array).
         cen_lambda (float,default=-1.):
             Regularization parameter for the centroid regularization.
             If negative then, this regularization won't be used.
@@ -463,6 +465,7 @@ def imaging3d(
             tfd_tgter = np.float64(tfd_tgterror))
     #
     #   light curve regularization divergence
+    lc_nidx = -1
     if lc_lambda <= 0:
         lc_l = np.zeros(Nt,dtype=np.float64)-1.
         lc_tgtfd = np.zeros(Nt,dtype=np.float64)+1.
@@ -477,6 +480,9 @@ def imaging3d(
         lc_tgtfd = lc_array * inormfactr
         lc_l = lc_lambda / (lc_tgterror * lc_tgtfd)**2
         #print(lc_tgterror)
+        if lc_normalize:
+            print("Regularizer normalization with a light curve")
+            lc_nidx=1
     #   Centroid regularization
     if cen_lambda <= 0:
         cen_l = -1
@@ -600,6 +606,7 @@ def imaging3d(
         tfd_tgtfd=np.float64(tfd_tgtfd),
         lc_l=np.float64(lc_l),
         lc_tgtfd=np.float64(lc_tgtfd),
+        lc_nidx=np.int32(lc_nidx),
         cen_l=np.float64(cen_l),
         cen_alpha=np.float64(cen_alpha),
         # Regularization Parameters for dynamical imaging

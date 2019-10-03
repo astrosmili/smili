@@ -21,7 +21,7 @@ subroutine imaging(&
   kl_l, kl_wgt, kl_Nwgt,&
   gs_l, gs_wgt, gs_Nwgt,&
   tfd_l, tfd_tgtfd,&
-  lc_l, lc_tgtfd,&
+  lc_l, lc_tgtfd,lc_nidx,&
   cen_l, cen_alpha,&
   rt_l, ri_l, rs_l, rf_l, &
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,wfcv,&
@@ -90,6 +90,7 @@ subroutine imaging(&
   !   parameter for the light curve regularization
   real(dp), intent(in)  :: lc_l(Nz)           ! lambda array (Normalized)
   real(dp), intent(in)  :: lc_tgtfd(Nz)       ! target light curve
+  integer,  intent(in)  :: lc_nidx            ! regularizer normalization with lc_tgtfd
   !   parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l              ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha          ! alpha
@@ -291,7 +292,7 @@ subroutine imaging(&
     kl_l, kl_wgt, kl_Nwgt,&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
-    lc_l, lc_tgtfd,&
+    lc_l, lc_tgtfd,lc_nidx,&
     cen_l, cen_alpha,&
     rt_l,ri_l,rs_l, rf_l, &
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
@@ -351,7 +352,7 @@ subroutine imaging(&
         kl_l, kl_wgt, kl_Nwgt,&
         gs_l, gs_wgt, gs_Nwgt,&
         tfd_l, tfd_tgtfd,&
-        lc_l, lc_tgtfd,&
+        lc_l, lc_tgtfd,lc_nidx,&
         cen_l, cen_alpha,&
         rt_l, ri_l, rs_l, rf_l, &
         isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
@@ -383,7 +384,7 @@ subroutine imaging(&
           kl_l, kl_wgt, kl_Nwgt,&
           gs_l, gs_wgt, gs_Nwgt,&
           tfd_l, tfd_tgtfd,&
-          lc_l, lc_tgtfd,&
+          lc_l, lc_tgtfd,lc_nidx,&
           cen_l, cen_alpha,&
           rt_l, ri_l, rs_l, rf_l, &
           isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
@@ -415,7 +416,7 @@ subroutine imaging(&
     kl_l, kl_wgt, kl_Nwgt,&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
-    lc_l, lc_tgtfd,&
+    lc_l, lc_tgtfd,lc_nidx,&
     cen_l, cen_alpha,&
     rt_l, ri_l, rs_l, rf_l, &
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
@@ -451,7 +452,7 @@ subroutine calc_cost(&
   kl_l, kl_wgt, kl_Nwgt,&
   gs_l, gs_wgt, gs_Nwgt,&
   tfd_l, tfd_tgtfd,&
-  lc_l, lc_tgtfd,&
+  lc_l, lc_tgtfd,lc_nidx,&
   cen_l, cen_alpha,&
   rt_l, ri_l, rs_l, rf_l,&
   isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
@@ -512,6 +513,7 @@ subroutine calc_cost(&
   !   parameter for the light curve regularization
   real(dp), intent(in)  :: lc_l(Nz)           ! lambda array (Normalized)
   real(dp), intent(in)  :: lc_tgtfd(Nz)       ! target light curve
+  integer,  intent(in)  :: lc_nidx            ! regularizer normalization with lc_tgtfd
   !   parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l              ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha          ! alpha
@@ -625,7 +627,7 @@ subroutine calc_cost(&
       kl_l, kl_wgt, kl_Nwgt,&
       gs_l, gs_wgt, gs_Nwgt,&
       tfd_l, tfd_tgtfd,&
-      lc_l, lc_tgtfd,&
+      lc_l, lc_tgtfd,lc_nidx,&
       cen_l, cen_alpha,&
       rt_l, ri_l, rs_l, rf_l, &
       l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
