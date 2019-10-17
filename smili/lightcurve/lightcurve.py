@@ -52,8 +52,8 @@ class Lightcurve(pd.DataFrame):
     def _constructor_sliced(self):
         return LightcurveSeries
 
-    lightcurve_columns = ["utc","gsthour","flux","sigma"]
-    lightcurve_types   = [np.asarray, np.float64, np.float64, np.float64]
+    #lightcurve_columns = ["utc","gsthour","flux","sigma"]
+    #lightcurve_types   = [np.asarray, np.float64, np.float64, np.float64]
 
     def get_utc(self):
         '''
@@ -159,6 +159,29 @@ class Lightcurve(pd.DataFrame):
         '''
         Time smoothing function
         '''
+
+    def read_lightcurve(filename, uvunit=None, **args):
+        '''
+        This fuction loads lightcurve.Lightcurve from an input csv file using pd.read_csv().
+
+        Args:
+          filename:
+            str, pathlib.Path, py._path.local.LocalPath or any object with a read()
+            method (such as a file handle or StringIO)
+          uvunit (str, default is None):
+            units of uvdistance for plotting. If uvunit is None, uvunit will be
+            inferred from the maximum baseline length. Availables are ["l[ambda]",
+            "kl[ambda]", "ml[ambda]", "gl[ambda]", "m", "km"].
+
+        Returns:
+          uvdata.VisTable object
+        '''
+        table = Lightcurve(pd.read_csv(filename, **args))
+        if "utc" in table.columns:
+            table["utc"] = at.Time(table["utc"].values.tolist()).datetime
+
+        return table
+
 
 class LightcurveSeries(pd.Series):
     @property

@@ -5,7 +5,7 @@ module image3d
   use image, only : calc_cost_reg, ixiy2ixy, ixy2ixiy, zeroeps,&
                     I1d_I2d_fwd,I1d_I2d_inv,&
                     l1_e, l1_grade,&
-                    tv_e, tv_grade,&
+                    tv_e, tv_grade,calc_tfdreg,&
                     tsv_e, tsv_grade, smabs, calc_cenreg
   implicit none
 contains
@@ -21,10 +21,11 @@ subroutine calc_cost_reg3d(&
     kl_l, kl_wgt, kl_Nwgt,&
     gs_l, gs_wgt, gs_Nwgt,&
     tfd_l, tfd_tgtfd,&
+    lc_l, lc_tgtfd,lc_nidx,&
     cen_l, cen_alpha,&
     rt_l, ri_l, rs_l, rf_l, &
     l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
-    tfd_cost, cen_cost, &
+    tfd_cost, lc_cost, cen_cost, &
     rt_cost, ri_cost, rs_cost, rf_cost, &
     out_maj, out_min, out_phi,&
     cost, gradcost, &
@@ -70,6 +71,11 @@ subroutine calc_cost_reg3d(&
   real(dp), intent(in)  :: tfd_l             ! lambda (Normalized)
   real(dp), intent(in)  :: tfd_tgtfd         ! target total flux
 
+  ! parameter for the light curve regularization
+  real(dp), intent(in)  :: lc_l(Nz)          ! lambda (Normalized)
+  real(dp), intent(in)  :: lc_tgtfd(Nz)      ! target light curve
+  integer,  intent(in)  :: lc_nidx           ! regularizer normalization with lc_tgtfd
+
   ! parameter for the centoroid regularization
   real(dp), intent(in)  :: cen_l             ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha         ! alpha
@@ -88,6 +94,7 @@ subroutine calc_cost_reg3d(&
   real(dp), intent(out) :: kl_cost    ! cost of KL divergence
   real(dp), intent(out) :: gs_cost    ! cost of GS entropy
   real(dp), intent(out) :: tfd_cost   ! cost of total flux regularization
+  real(dp), intent(out) :: lc_cost    ! cost of light curve regularization
   real(dp), intent(out) :: cen_cost   ! cost of centoroid regularizaiton
 
   ! regularizer for dynamical imaging
@@ -110,7 +117,9 @@ subroutine calc_cost_reg3d(&
               out_maj_frm, out_min_frm, out_phi_frm,&
               cost_frm
   real(dp) :: gradcost_frm(Npix)
-
+  real(dp) :: lc_cost_frm, grad_lc_cost_frm
+  real(dp) :: l1_wgt_lc(l1_Nwgt), tv_wgt_lc(tv_Nwgt), tsv_wgt_lc(tsv_Nwgt),&
+              kl_wgt_lc(kl_Nwgt), gs_wgt_lc(gs_Nwgt)
   integer :: iz
 
   ! Initialize
@@ -121,6 +130,7 @@ subroutine calc_cost_reg3d(&
   kl_cost  = 0d0
   gs_cost  = 0d0
   tfd_cost = 0d0
+  lc_cost  = 0d0
   cen_cost = 0d0
 
   rt_cost = 0d0
@@ -136,6 +146,7 @@ subroutine calc_cost_reg3d(&
   cost     = 0d0
   gradcost(:) = 0d0
   di_gradcost(:) = 0d0
+
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP   FIRSTPRIVATE(Npix, I1d, xidx, yidx, Nxref, Nyref, Nx, Ny, Nz,&
   !$OMP                l1_l,  l1_wgt,  l1_Nwgt,&
@@ -144,54 +155,93 @@ subroutine calc_cost_reg3d(&
   !$OMP                kl_l,  kl_wgt,  kl_Nwgt,&
   !$OMP                gs_l,  gs_wgt,  gs_Nwgt,&
   !$OMP                tfd_l, tfd_tgtfd,&
+  !$OMP                lc_l, lc_tgtfd,lc_nidx,&
   !$OMP                cen_l, cen_alpha,&
   !$OMP                sm_l, sm_maj, sm_min, sm_phi) &
   !$OMP   PRIVATE(iz, l1_cost_frm, sm_cost_frm, tv_cost_frm, tsv_cost_frm,&
   !$OMP           kl_cost_frm, gs_cost_frm, tfd_cost_frm, cen_cost_frm,&
-  !$OMP           out_maj_frm, out_min_frm, out_phi_frm, cost_frm, gradcost_frm) &
+  !$OMP           out_maj_frm, out_min_frm, out_phi_frm, cost_frm, gradcost_frm,&
+  !$OMP           lc_cost_frm, grad_lc_cost_frm,&
+  !$OMP            l1_wgt_lc, tv_wgt_lc, tsv_wgt_lc,kl_wgt_lc, gs_wgt_lc) &
   !$OMP   REDUCTION(+: cost, gradcost, l1_cost, sm_cost, tv_cost, tsv_cost,&
-  !$OMP                kl_cost, gs_cost, tfd_cost, cen_cost, out_maj, out_min, out_phi)
+  !$OMP                kl_cost, gs_cost, tfd_cost, lc_cost, cen_cost, out_maj, out_min, out_phi)
 
 
   do iz=1, Nz
-    call calc_cost_reg(&
-        I1d((iz-1)*Npix+1:iz*Npix), &
-        xidx, yidx, Nxref, Nyref, Nx, Ny,&
-        l1_l, l1_wgt, l1_Nwgt,&
-        tv_l, tv_wgt, tv_Nwgt,&
-        tsv_l, tsv_wgt, tsv_Nwgt,&
-        kl_l, kl_wgt, kl_Nwgt,&
-        gs_l, gs_wgt, gs_Nwgt,&
-        tfd_l, tfd_tgtfd,& ! tgtfd should be array, and here should be tfd_l(iz), tfd_tftfd(iz)
-        -1d0, 1d0,& ! cen_l=-1, cen_alpha=1d0,
-        sm_l, sm_maj, sm_min, sm_phi,&
-        l1_cost_frm, &
-        tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
-        tfd_cost_frm, cen_cost_frm,&
-        sm_cost_frm,&
-        out_maj_frm, out_min_frm, out_phi_frm,&
-        cost_frm, gradcost_frm, Npix &
-    )
+    if (sum(lc_l) > 0.) then
+      if (lc_nidx > 0) then
+        l1_wgt_lc(:) = l1_wgt(:) / sum(l1_wgt) * lc_l(iz)
+        tv_wgt_lc(:) = tv_wgt_lc(:) / sum(tv_wgt_lc) * lc_l(iz)
+        tsv_wgt_lc(:) = tsv_wgt(:) / sum(tsv_wgt) * lc_l(iz)
+        kl_wgt_lc(:) = kl_wgt(:) / sum(kl_wgt) * lc_l(iz)
+        gs_wgt_lc(:) = gs_wgt(:) / sum(gs_wgt) * lc_l(iz)
+
+      else
+        l1_wgt_lc(:) = l1_wgt(:)
+      end if
+      call calc_cost_reg(&
+          I1d((iz-1)*Npix+1:iz*Npix), &
+          xidx, yidx, Nxref, Nyref, Nx, Ny,&
+          l1_l, l1_wgt_lc, l1_Nwgt,&
+          tv_l, tv_wgt_lc, tv_Nwgt,&
+          tsv_l, tsv_wgt_lc, tsv_Nwgt,&
+          kl_l, kl_wgt_lc, kl_Nwgt,&
+          gs_l, gs_wgt_lc, gs_Nwgt,&
+          lc_l(iz), lc_tgtfd(iz),&
+          -1d0, 1d0,& ! cen_l=-1, cen_alpha=1d0,
+          sm_l, sm_maj, sm_min, sm_phi,&
+          l1_cost_frm, &
+          tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
+          lc_cost_frm, cen_cost_frm,&
+          sm_cost_frm,&
+          out_maj_frm, out_min_frm, out_phi_frm,&
+          cost_frm, gradcost_frm, Npix &
+      )
+      lc_cost = lc_cost + lc_cost_frm / Nz
+
+    else
+      call calc_cost_reg(&
+          I1d((iz-1)*Npix+1:iz*Npix), &
+          xidx, yidx, Nxref, Nyref, Nx, Ny,&
+          l1_l, l1_wgt, l1_Nwgt,&
+          tv_l, tv_wgt, tv_Nwgt,&
+          tsv_l, tsv_wgt, tsv_Nwgt,&
+          kl_l, kl_wgt, kl_Nwgt,&
+          gs_l, gs_wgt, gs_Nwgt,&
+          tfd_l, tfd_tgtfd,&
+          -1d0, 1d0,& ! cen_l=-1, cen_alpha=1d0,
+          sm_l, sm_maj, sm_min, sm_phi,&
+          l1_cost_frm, &
+          tv_cost_frm, tsv_cost_frm, kl_cost_frm, gs_cost_frm,&
+          tfd_cost_frm, cen_cost_frm,&
+          sm_cost_frm,&
+          out_maj_frm, out_min_frm, out_phi_frm,&
+          cost_frm, gradcost_frm, Npix &
+      )
+      tfd_cost = tfd_cost + tfd_cost_frm / Nz
+    end if
+
     l1_cost  = l1_cost + l1_cost_frm / Nz
     sm_cost  = sm_cost + sm_cost_frm / Nz
     tv_cost  = tv_cost + tv_cost_frm / Nz
     tsv_cost = tsv_cost + tsv_cost_frm / Nz
     kl_cost  = kl_cost + kl_cost_frm / Nz
     gs_cost  = gs_cost + gs_cost_frm / Nz
-    tfd_cost = tfd_cost + tfd_cost_frm / Nz
+
     out_maj  = out_maj + out_maj_frm / Nz
     out_min  = out_min + out_min_frm / Nz
     out_phi  = out_phi + out_phi_frm / Nz
     cost     = cost + cost_frm / Nz
     gradcost((iz-1)*Npix+1:iz*Npix) = gradcost_frm / Nz
   end do
+
   !$OMP END PARALLEL DO
 
   ! dynamical imaging regularizers
   if (cen_l > 0. .or. rt_l > 0 .or. ri_l > 0 .or. rs_l > 0) then
     call calc_cost_dynamical(&
       Npix, Nz, xidx, yidx, Nxref, Nyref, I1d, cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l, &
-      cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, di_cost, di_gradcost&
+      cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, lc_nidx, lc_tgtfd, di_cost, di_gradcost&
     )
     cost     = cost + di_cost
     gradcost(:) = gradcost(:) + di_gradcost(:)
@@ -203,7 +253,7 @@ end subroutine
 !-------------------------------------------------------------------------------
 subroutine calc_cost_dynamical(&
   Npix, Nz, xidx, yidx, Nxref, Nyref, Iin, cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l, &
-  cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, &
+  cen_cost, rt_cost, ri_cost, rs_cost, rf_cost, lc_nidx, lc_tgtfd, &
   cost, gradcost &
 )
   implicit none
@@ -214,10 +264,12 @@ subroutine calc_cost_dynamical(&
   real(dp), intent(in) :: Iin(Npix*Nz)
   integer,  intent(in)  :: xidx(Npix), yidx(Npix)
   real(dp), intent(in) :: cen_l, cen_alpha, rt_l, ri_l, rs_l, rf_l
+  integer, intent(in) :: lc_nidx
+  real(dp), intent(in) :: lc_tgtfd(Nz)
   real(dp), intent(out) :: cen_cost, rt_cost, ri_cost, rs_cost, rf_cost
   real(dp), intent(out) :: cost, gradcost(Npix*Nz)
-
-  real(dp) :: Iavg(Npix), Iin_frm(Npix), s, su, sl, f, fu, fl, Il, Iu
+  ! light curve normalization
+  real(dp) :: Iavg(Npix), Iin_frm(Npix), s, su, sl, f, fu, fl, Il, Iu, II
 
   integer :: ipix, iz
   real(dp) :: totalflux, stotal
@@ -227,25 +279,22 @@ subroutine calc_cost_dynamical(&
   real(dp), allocatable :: tmp1d(:)
 
   ! Initialize
-  Iavg(:)   = 0d0
-  totalflux = 0d0
-  stotal    = 0d0
-  cen_cost  = 0d0
-  rt_cost   = 0d0
-  ri_cost   = 0d0
-  rs_cost   = 0d0
-  rf_cost   = 0d0
-  cost   = 0d0
-
+  Iavg(:)     = 0d0
+  totalflux   = 0d0
+  stotal      = 0d0
+  cen_cost    = 0d0
+  rt_cost     = 0d0
+  ri_cost     = 0d0
+  rs_cost     = 0d0
+  rf_cost     = 0d0
+  cost        = 0d0
+  gradcost(:) = 0d0
 
   ! Calculate averaged intensity map, totalflux and total entropy
   do iz=1, Nz
-
     Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
     Iavg = Iavg + Iin_frm / Nz
-    totalflux  = totalflux + f_e(Iavg, Npix)
-    stotal    = stotal + s_e(Iavg, Npix)
-
+    totalflux  = f_e(Iavg, Npix)
   end do
 
   if (cen_l > 0) then
@@ -260,7 +309,6 @@ subroutine calc_cost_dynamical(&
     deallocate(tmp1d)
   end if
 
-
   ! uniform weight of each dynamical regularizer
   ri_wgt = 1. / (totalflux * Nz)
   rt_wgt = 1. / (totalflux * Nz)
@@ -270,97 +318,78 @@ subroutine calc_cost_dynamical(&
   do iz=1,Nz
     Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
 
+    ! Regularization normalization with light curve
+    if (lc_nidx >0) then
+      ri_wgt = 1. / (lc_tgtfd(iz) * Nz)
+      rt_wgt = 1. / (lc_tgtfd(iz) * Nz)
+      rf_wgt = 1. / (lc_tgtfd(iz) * Nz)
+    end if
+
     ! For Rs or Rf regularizer
     if (rs_l > 0 .or. rf_l > 0) then
       if (iz < Nz-1) then
-        s  = s_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
-        su = s_e(Iin((iz+1)*Npix+1:(iz+2)*Npix),Npix)
-        f  = f_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
-        fu = f_e(Iin((iz+1)*Npix+1:(iz+2)*Npix),Npix)
-        if(iz > 1 .and. iz < Nz-1) then
-          sl = s_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
-          fl = f_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+        s  = s_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+        su = s_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
+        f  = f_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
+        fu = f_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
+        if(iz > 1) then
+          sl = s_e(Iin((iz-2)*Npix+1:(iz-1)*Npix),Npix)
+          fl = f_e(Iin((iz-2)*Npix+1:(iz-1)*Npix),Npix)
         end if
       end if
     end if
 
-
-
-
     do ipix=1,Npix
+      II = Iin((iz-1)*Npix+ipix)
+      if (iz < Nz-1) then
+        Iu = Iin(iz*Npix+ipix)
+      else
+        Iu = II
+      end if
+      if (iz > 1) then
+        Il = Iin((iz-2)*Npix+ipix)
+      else
+        Il = II
+      end if
+      ! Rt regularizer
+      if (rt_l > 0) then
+        rt_cost  = rt_cost + rt_l * rt_wgt * rt_e(II, Iu)
+        gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                  rt_l * rt_wgt * rt_grade(II, Il, Iu)
+      end if
 
       ! Ri regularizer
       if (ri_l > 0) then
-        ri_cost     = ri_cost + ri_l * ri_wgt * ri_e(Iin_frm(ipix), Iavg(ipix))
+        ri_cost     = ri_cost + ri_l * ri_wgt * ri_e(II, Iavg(ipix))
         gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                          ri_l * ri_wgt * ri_grade(Iin_frm(ipix), Iavg(ipix))
-      end if
-
-      ! Rt regularizer
-      if (rt_l > 0) then
-        if (iz < Nz-1) then
-          Iu = Iin((iz+1)*Npix+ipix)
-          rt_cost  = rt_cost + rt_l * rt_wgt * rt_e(Iin(ipix), Iu)
-          if(iz > 1) then
-            Il    = Iin((iz-1)*Npix+ipix)
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rt_l * rt_wgt * rt_grade(Iin_frm(ipix), Il, Iu)
-          end if
-        end if
+                          ri_l * ri_wgt * ri_grade(II, Iavg(ipix))
       end if
 
       ! Rs regularizer
       if (rs_l > 0) then
-        if (iz < Nz-1) then
+        if (iz < Nz-1 .and. iz>1) then
           rs_cost  = rs_cost + rs_l * rs_wgt * rs_e(s, su)
-          if(iz > 1 .and. iz < Nz-1) then
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rs_l * rs_wgt * rs_grade(s, sl, su, Iin_frm(ipix))
-          end if
+          gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                    rs_l * rs_wgt * rs_grade(s, sl, su, Iin_frm(ipix))
         end if
       end if
 
       ! Rf regularizer
       if (rf_l > 0) then
-        if (iz < Nz-1) then
+        if (iz < Nz-1 .and. iz>1) then
           rf_cost  = rf_cost + rf_l * rf_wgt * rf_e(f, fu)
-          if(iz > 1 .and. iz < Nz-1) then
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rf_l * rf_wgt * rf_grade(f, fl, fu, Iin_frm(ipix))
-          end if
+          gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
+                    rf_l * rf_wgt * rf_grade(f, fl, fu, Iin_frm(ipix))
         end if
       end if
 
     end do
-
     ! take summation of all the cost function
     cost = cen_cost + ri_cost + rt_cost + rs_cost + rf_cost
 
   end do
 
 end subroutine
-
-!-------------------------------------------------------------------------------
-! Regularization Function for Dynamical Imaging
-!-------------------------------------------------------------------------------
-! Ri regularizer
-!-------------------------------------------------------------------------------
-!ri norm at each pixel and time frame
-real(dp) function ri_e(I, Iavg)
-  implicit none
-  real(dp), intent(in) :: I, Iavg    ! pixel intensity and averaged one
-
-  ri_e = (I - Iavg)**2
-end function
-
-
-! gradient of ri norm at each pixel and time frame
-real(dp) function ri_grade(I, Iavg)
-  implicit none
-  real(dp), intent(in) :: I, Iavg    ! pixel intensity and averaged one
-
-  ri_grade = 2. *  (I - Iavg)
-end function
 
 
 !-------------------------------------------------------------------------------
@@ -380,9 +409,28 @@ real(dp) function rt_grade(I, Il, Iu)
   implicit none
   real(dp), intent(in) :: I, Iu, Il  ! pixel intensity of three time frames
 
-  rt_grade = 2. * (2. * I - Il - Iu)
+  rt_grade = 2. * ((I - Il) +(I - Iu))
 end function
 
+!-------------------------------------------------------------------------------
+! Ri regularizer
+!-------------------------------------------------------------------------------
+!ri norm at each pixel and time frame
+real(dp) function ri_e(I, Iavg)
+  implicit none
+  real(dp), intent(in) :: I, Iavg    ! pixel intensity and averaged one
+
+  ri_e = (I - Iavg)**2
+end function
+
+
+! gradient of ri norm at each pixel and time frame
+real(dp) function ri_grade(I, Iavg)
+  implicit none
+  real(dp), intent(in) :: I, Iavg    ! pixel intensity and averaged one
+
+  ri_grade = 2. *  (I - Iavg)
+end function
 
 !-------------------------------------------------------------------------------
 ! Rs regularizer
@@ -462,10 +510,10 @@ real(dp) function f_e(I1d, Npix)
 end function
 
 
-! gradient of rs norm at each pixel and time frame
+! gradient of rf norm at each pixel and time frame
 real(dp) function rf_grade(f, fl, fu, I)
   implicit none
-  real(dp), intent(in) :: f, fl, fu  ! maximum entropy of three time frames
+  real(dp), intent(in) :: f, fl, fu  ! total flux of three time frames
   real(dp), intent(in) :: I          ! pixel intensity of a time frame
 
   rf_grade = 2. * (2. * f - fl - fu)

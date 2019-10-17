@@ -263,28 +263,28 @@ def get_uvlist_loop(Nt, fcvconcat=None, ampconcat=None, bsconcat=None, caconcat=
     u, v = [], []
     uvidxfcv, uvidxamp, uvidxcp, uvidxca = [], [], [], []
     Nuvs = []
-
     idxcon = 0
     for i in range(Nt):
+
         fcvsingle, ampsingle, bssingle, casingle = None, None, None, None
         if fcvconcat is not None:
             idx = np.where(fcvconcat.frmidx.values == i)
-            if idx[0] != []:
+            if len(idx[0])>0:
                 fcvsingle = fcvconcat.loc[idx[0], :]
 
         if ampconcat is not None:
             idx = np.where(ampconcat.frmidx.values == i)
-            if idx[0] != []:
+            if len(idx[0])>0:
                 ampsingle = ampconcat.loc[idx[0], :]
 
         if bsconcat is not None:
             idx = np.where(bsconcat.frmidx.values == i)
-            if idx[0] != []:
+            if len(idx[0])>0:
                 bssingle = bsconcat.loc[idx[0], :]
 
         if caconcat is not None:
             idx = np.where(caconcat.frmidx.values == i)
-            if idx[0] != []:
+            if len(idx[0])>0:
                 casingle = caconcat.loc[idx[0], :]
 
         if ((fcvsingle is None) and (ampsingle is None) and

@@ -65,6 +65,7 @@ class MOVIE(object):
 
             if "utc" in tmtable.columns:
                 tmtable["utc"] = at.Time(tmtable["utc"].values.tolist()).datetime
+            self.Nt = len(tmtable)
         else:
             if tcen is None:
                 raise ValueError("tcen is not specified.")

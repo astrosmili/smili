@@ -1700,7 +1700,7 @@ class IMFITS(object):
 
     def convolve_gauss(self, majsize, minsize=None, x0=0, y0=0,
                        pa=0., scale=1., angunit=None,
-                       set_beam=True,
+                       set_beam=True, allow_huge=True,
                        save_totalflux=False):
         '''
         Gaussian Convolution
@@ -1715,6 +1715,7 @@ class IMFITS(object):
           restore (boolean; default=False): if True, omit the flux normalizing factor
           set_beam (boolean; default=True): update header file with this blurring beam
           save_totalflux (boolean): If true, the total flux of the image will be conserved.
+          allow_huge (boolean): If true, allow huge arrays (1GB) in the FFT.
         Returns:
           imdata.IMFITS object
         '''
@@ -1754,7 +1755,7 @@ class IMFITS(object):
         if np.any(gauss != 0):
             for idxs, idxf in itertools.product(list(range(outfits.header["ns"])),list(range(outfits.header["nf"]))):
                 orgimage = outfits.data[idxs, idxf]
-                newimage = convolve_fft(orgimage, gauss, normalize_kernel=True)
+                newimage = convolve_fft(orgimage, gauss, normalize_kernel=True, allow_huge=allow_huge)
                 outfits.data[idxs, idxf] = newimage
                 # Flux Scaling
                 if save_totalflux:
