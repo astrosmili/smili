@@ -23,7 +23,7 @@ AC_PROG_FC
 
 # f2py in numpy
 AC_CHECK_PROGS([F2PY],
-               [f2py],
+               [f2py3],
                [f2py])
 
 AC_LANG([Fortran])
