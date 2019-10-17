@@ -21,9 +21,14 @@ AC_PROG_FC
 #: ${CXXFLAGS=""}
 #AC_PROG_CXX
 
+# Python
+AC_CHECK_PROGS([PYTHON],
+               [python],
+               [python])
+
 # f2py in numpy
 AC_CHECK_PROGS([F2PY],
-               [f2py3],
+               [f2py],
                [f2py])
 
 AC_LANG([Fortran])
