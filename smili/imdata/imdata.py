@@ -1025,14 +1025,13 @@ class IMFITS(object):
         xidx = np.arange(Nx)+1
         yidx = np.arange(Ny)+1
         xidx, yidx = np.meshgrid(xidx, yidx)
+        xidx = xidx.reshape(Nxy)
+        yidx = yidx.reshape(Nxy)
         dtheta = np.abs(self.angconv("deg",self.angunit)*self.header["dx"])
 
         Isum = fortlib.image.totalflux(I1d, Nxy)
-        print(Isum)
-        xycen = fortlib.image.xy_cen(I1d, xidx, yidx, Nxy)
-        print(len(xycen))
-        print(xycen)
-        Sg = fortlib.image.Sigma(I1d, xidx, yidx, Nxy, Isum, xycen[0], xycen[1])
+        xycen = fortlib.image.xy_cen(I1d, xidx, yidx)
+        Sg = fortlib.image.sigma(I1d, xidx, yidx, Isum, xycen[0], xycen[1])
         Sg *= dtheta**2
         return Sg
 
@@ -1049,7 +1048,7 @@ class IMFITS(object):
 
         Returns:
             FWHMs of major axis, minor axis [same unit of imdata.IMFITS object]
-            position angles [rad]
+            position angles; angle between ra axis and major axis of elliptical gaussain  ([-90, 90] degree)
         '''
 
         Nx = self.header["nx"]
@@ -1059,17 +1058,21 @@ class IMFITS(object):
         xidx = np.arange(Nx)+1
         yidx = np.arange(Ny)+1
         xidx, yidx = np.meshgrid(xidx, yidx)
+        xidx = xidx.reshape(Nxy)
+        yidx = yidx.reshape(Nxy)
+
         dtheta = np.abs(self.angconv("deg",self.angunit)*self.header["dx"])
 
         Isum = fortlib.image.totalflux(I1d, Nxy)
-        xycen = fortlib.image.xy_cen(I1d, xidx, yidx, Nxy)
-        Sg = fortlib.image.Sigma(I1d, xidx, yidx, Nxy, Isum, xycen[0], xycen[1])
-        dtheta = np.abs(initimage.angconv("deg",initimage.angunit)*initimage.header["dx"])
+        xycen = fortlib.image.xy_cen(I1d, xidx, yidx)
+        Sg = fortlib.image.sigma(I1d, xidx, yidx, Isum, xycen[0], xycen[1])
 
         #out_maj, out_min, out_phi
-        output = fortlib.image.check_sm_character(Sg)
-        #output[0] *= sqrt(8.*log(2.) * dtheta
-        #output[1] *= sqrt(8.*log(2.) * dtheta
+        output = np.float64(fortlib.image.check_sm_character(Sg))
+        dtheta = np.abs(self.angconv("deg",self.angunit)*self.header["dx"])
+        output[0] = copy.deepcopy(np.sqrt(8.*np.log(2.) * output[0]) * dtheta)
+        output[1] = copy.deepcopy(np.sqrt(8.*np.log(2.) * output[1]) * dtheta)
+
 
         return output
 
