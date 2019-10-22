@@ -4,7 +4,7 @@ all:
 	cd src/fortlib; make install
 
 install: all
-	python setup.py install --record setup_files.log
+	@PYTHON@ setup.py install --record setup_files.log
 
 clean:
 	cd src/lbfgsb; make clean
