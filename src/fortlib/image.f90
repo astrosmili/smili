@@ -1095,7 +1095,8 @@ subroutine xy_cen(I1d, x, y, N1d, xcen, ycen)
   do ipix=1,N1d
     xcen = xcen + x(ipix)*I1d(ipix)
     ycen = ycen + y(ipix)*I1d(ipix)
-    Itot = Itot + smabs(I1d(ipix))
+    !Itot = Itot + smabs(I1d(ipix))
+    Itot = Itot + abs(I1d(ipix))
   end do
 
   xcen = xcen/Itot
@@ -1112,7 +1113,8 @@ real(dp) function totalflux(I1d, N1d)
   totalflux = 0d0
 
   do ipix=1,N1d
-    totalflux = totalflux + smabs(I1d(ipix))
+    !totalflux = totalflux + smabs(I1d(ipix))
+    totalflux = totalflux + abs(I1d(ipix))
   end do
 
 end function

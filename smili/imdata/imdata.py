@@ -1025,8 +1025,8 @@ class IMFITS(object):
         xidx = np.arange(Nx)+1
         yidx = np.arange(Ny)+1
         xidx, yidx = np.meshgrid(xidx, yidx)
-        xidx = xidx.reshape(Nxy)
-        yidx = yidx.reshape(Nxy)
+        xidx = np.int32(xidx.reshape(Nxy))
+        yidx = np.int32(yidx.reshape(Nxy))
         dtheta = np.abs(self.angconv("deg",self.angunit)*self.header["dx"])
 
         Isum = fortlib.image.totalflux(I1d, Nxy)
@@ -1058,8 +1058,8 @@ class IMFITS(object):
         xidx = np.arange(Nx)+1
         yidx = np.arange(Ny)+1
         xidx, yidx = np.meshgrid(xidx, yidx)
-        xidx = xidx.reshape(Nxy)
-        yidx = yidx.reshape(Nxy)
+        xidx = np.int32(xidx.reshape(Nxy))
+        yidx = np.int32(yidx.reshape(Nxy))
 
         dtheta = np.abs(self.angconv("deg",self.angunit)*self.header["dx"])
 
