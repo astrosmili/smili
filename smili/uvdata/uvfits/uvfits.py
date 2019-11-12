@@ -1409,7 +1409,7 @@ class UVFITS(object):
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,1]= g[i+Nant_itime]
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,2]= (gsigma[i]+gsigma[i+Nant_itime])/2.
                 '''
-        
+
         return cltable
 
     def apply_cltable(self,cltable):
@@ -2063,16 +2063,15 @@ class UVFITS(object):
 
         return outdata
 
-    def add_frac_error(self, ferror, quadrature=True):
+    def add_error(self, error, fractional=True):
         '''
         Increase errors by specified fractional values of amplitudes
 
         Args:
-            ferror (float):
-                fractional error of amplitudes to be added.
-            quadrature (boolean; default=True):
-                if True, error will be added to sigma in quadrature.
-                Otherwise, it will be added directly to the current sigma.
+            error (float):
+                Error of amplitudes to be added.
+            fractional (boolean; default=True):
+                if True, error specified above will be fractional amplitudes.
         '''
         # Data to be output
         outfits = copy.deepcopy(self)
@@ -2080,24 +2079,27 @@ class UVFITS(object):
         # Number of Data
         Ndata, Ndec, Nra, Nif, Nch, Nstokes, Ncomp = self.visdata.data.shape
 
-        # amplitudes
-        Vreal = np.sqrt(self.visdata.data[:,:,:,:,:,:,0])
-        Vimag = np.sqrt(self.visdata.data[:,:,:,:,:,:,1])
-        Vweig = np.sqrt(self.visdata.data[:,:,:,:,:,:,2])
+        # get data
+        Vreal = self.visdata.data[:,:,:,:,:,:,0].copy()
+        Vimag = self.visdata.data[:,:,:,:,:,:,1].copy()
+        Vweig = self.visdata.data[:,:,:,:,:,:,2].copy()
+
+        # compute amplitudes
         Vamp = np.sqrt(Vreal**2 + Vimag**2)
-        Vsig = 1./np.sqrt(np.abs(Vweig))
 
         # compute the new sigma
-        if quadrature:
-            Vsig_new = np.sqrt(Vsig**2 + (ferror * Vamp)**2)
+        if fractional:
+            newerror = error * Vamp
         else:
-            Vsig_new = Vsig + ferror * Vamp
+            newerror = error
 
         # recompute weights
-        Vweig_new = 1./(Vsig_new**2) * np.sign(Vweig)
+        Vweig_abs = np.abs(Vweig)
+        Vweig_new = Vweig_abs / (1 + Vweig_abs * newerror**2) * np.sign(Vweig)
+
+        # recompute weights
         Vweig_new[np.where(np.isnan(Vweig_new))] = 0.
         Vweig_new[np.where(np.isinf(Vweig_new))] = 0.
-        Vweig_new[np.where(Vweig_new<0)] = 0.
 
         # update uvfits object to be output
         outfits.visdata.data[:,:,:,:,:,:,2] = Vweig_new[:,:,:,:,:,:]
