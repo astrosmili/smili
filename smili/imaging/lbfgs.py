@@ -54,6 +54,7 @@ def imaging(
         w_ca=1,
         l1_lambda=-1.,
         l1_prior=None,
+        l1_noise=1e-2,
         tv_lambda=-1,
         tv_prior=None,
         tsv_lambda=-1,
@@ -100,6 +101,8 @@ def imaging(
             Prior image to be used to compute the weighted l1-norm.
             If not specified, the flat prior will be used.
             This prior image will be normalized with the total flux estimator.
+        l1_noise (float, default=1e-2):
+            Typical noise levels relative to the peak value of l1_prior image.
         tv_lambda (float,default=-1.):
             Regularization parameter for total variation.
             If negative then, this regularization won't be used.
@@ -272,6 +275,7 @@ def imaging(
                 l1_priorarr = l1_prior.data[0,0].reshape(Nyx)
             else:
                 l1_priorarr = l1_prior.data[0,0][winidx]
+            l1_priorarr[np.where(np.abs(l1_priorarr)<np.abs(l1_priorarr).max()*l1_noise)] = np.abs(l1_priorarr).max()*l1_noise
         l1_priorarr *= totalflux_scaled/l1_priorarr.sum()
         l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
         l1_nwgt = len(l1_wgt)
