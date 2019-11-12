@@ -1310,6 +1310,9 @@ class UVFITS(object):
             # get the number of data along each dimension
             Ntime,Nif,Nch,Nstokes,Nant,Ncomp = cltable.gaintabs[subarrid]["gain"].shape
 
+            # initialize the gain table
+            cltable.gaintabs[subarrid]["gain"][:,:,:,:,:,2]=-1
+
             # get utc information
             utcset = cltable.gaintabs[subarrid]["utc"]
             for itime,iif,ich,istokes in tqdm.tqdm(itertools.product(list(range(Ntime)),list(range(Nif)),list(range(Nch)),list(range(Nstokes)))):
@@ -1373,16 +1376,40 @@ class UVFITS(object):
                 gain0 = np.zeros(Nant_itime*2)
                 gain0[:Nant_itime] = 1.
 
-                #if Ndata_itime > Nant_itime:
-                result = leastsq(
-                    _selfcal_error_func, gain0, Dfun=_selfcal_error_dfunc,
-                    args=(ant1id,ant2id,w_itime,X_itime,std_amp,std_pha,Nant_itime,Ndata_itime))
+                # least square
+                results = leastsq(
+                    _selfcal_error_func, gain0,
+                    Dfun=_selfcal_error_dfunc,
+                    args=(ant1id,ant2id,w_itime,X_itime,std_amp,std_pha,Nant_itime,Ndata_itime)
+                )
 
                 # make cltable
-                g = result[0]
+                g = results[0]
                 for i in range(Nant_itime):
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,0]= g[i]
                     cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,1]= g[i+Nant_itime]
+                    cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,2]= 1
+
+                #if Ndata_itime > Nant_itime:
+                '''
+                g, gcov, infodict, mesg, ier = leastsq(
+                    _selfcal_error_func, gain0, Dfun=_selfcal_error_dfunc,
+                    args=(ant1id,ant2id,w_itime,X_itime,std_amp,std_pha,Nant_itime,Ndata_itime),
+                    full_output=True)
+
+                if ier not in [1,2,3,4]:
+                    continue
+
+                # make cltable
+                #grchisq = np.square(_selfcal_error_func(gain0,ant1id,ant2id,w_itime,X_itime,std_amp,std_pha,Nant_itime,Ndata_itime)).sum()
+                #grchisq/= Ndata_itime*2
+                gsigma = np.sqrt(np.diag(gcov))
+                for i in range(Nant_itime):
+                    cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,0]= g[i]
+                    cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,1]= g[i+Nant_itime]
+                    cltable.gaintabs[subarrid]["gain"][itime,iif,ich,istokes,antset_itime[i]-1,2]= (gsigma[i]+gsigma[i+Nant_itime])/2.
+                '''
+        
         return cltable
 
     def apply_cltable(self,cltable):

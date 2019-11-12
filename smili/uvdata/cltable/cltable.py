@@ -29,7 +29,7 @@ import matplotlib.dates as mdates
 #from ..catable   import CATable, CASeries
 #from ..bstable   import BSTable, BSSeries
 #from ... import imdata
-
+from ...util import gp_interp
 
 # ------------------------------------------------------------------------------
 # Classes
@@ -117,6 +117,91 @@ class CLTable(object):
             out.gaintabs[subarrid]["gain"][:,:,:,:,:,1] = gimag/gainamp
 
         return out
+
+
+    def smoothing_gp(self, timescale=None, amp=True, phase=True, n_restarts_optimizer=1):
+        '''
+        Smooth gains with the Gaussian Process Regression
+
+        Args:
+            timescale (optional; float):
+                The length scale of the RBF kernel in second.
+                If not specified, the minimal interval of data will be used.
+            amp, phase (optional, boolean):
+                If True, amp or phase gain solutions will be smoothed
+            n_restarts_optimizer (optional, integer):
+                The number of run for the Gaussian Process Regression.
+                A larger number will reduce the risk of finding a local minima
+                in the Gaussian Process Regression, but will also increase the
+                computational time.
+        Return:
+            cltable object: new table with smoothed gains
+        '''
+        newcltable = copy.deepcopy(self)
+        subarrids = self.gaintabs.keys()
+
+        if (not amp) and (not phase):
+            raise ValueError("Either of Amplitudes or Phases must be smoothed.")
+
+        # Parameters for the gaussian processing reguressor
+        gprargs = dict(
+            length_scale=timescale,
+            n_restarts_optimizer=n_restarts_optimizer
+        )
+
+        for subarrid in subarrids:
+            print("Smoothing subarray %d"%(subarrid))
+            # get gains
+            gainall = self.gaintabs[subarrid]["gain"]
+            Ndata,Nif,Nch,Npol,Nant,dummy = gainall.shape
+            # get utc
+            utcall = at.Time(self.gaintabs[1]["utc"], format="isot", scale="utc")
+
+            # get all iterations
+            Nit = Nif*Nch*Npol*Nant
+            if Nit == 0:
+                continue
+
+            for iit in tqdm.tqdm(range(Nit)):
+                iif,ich,ipol,iant = np.unravel_index(iit, [Nif,Nch,Npol,Nant])
+
+                # get flag
+                gsg = gainall[:,iif,ich,ipol,iant,2]
+                idx = np.where(gsg>0)
+
+
+                # get utc and other data
+                utctmp = utcall[idx]
+                if len(utctmp) == 0:
+                    continue
+                sectmp = utctmp.cxcsec
+                sectmp0= sectmp.min()
+                sectmp = sectmp - sectmp0
+
+                # get gains
+                gre = gainall[:,iif,ich,ipol,iant,0][idx]
+                gim = gainall[:,iif,ich,ipol,iant,1][idx]
+                gamp = np.sqrt(gre**2+gim**2)
+
+                if amp:
+                    gamp_pred = gp_interp(sectmp, gamp, **gprargs)
+                else:
+                    gamp_pred = gamp.copy()
+
+                if phase:
+                    gre_pred = gp_interp(sectmp, gre/gamp, **gprargs)
+                    gim_pred = gp_interp(sectmp, gim/gamp, **gprargs)
+                    ampratio = gamp_pred/np.sqrt(gre_pred**2+gim_pred**2)
+                    gre_pred *= ampratio
+                    gim_pred *= ampratio
+                else:
+                    gre_pred = gre/gamp*gamp_pred
+                    gim_pred = gim/gamp*gamp_pred
+
+                newcltable.gaintabs[subarrid]["gain"][idx,iif,ich,ipol,iant,0] = gre_pred
+                newcltable.gaintabs[subarrid]["gain"][idx,iif,ich,ipol,iant,1] = gim_pred
+        return newcltable
+
 
     def get_gaintable(self,uvfits):
         '''
