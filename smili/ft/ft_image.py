@@ -17,7 +17,7 @@ from pynfft.nfft import NFFT
 # ------------------------------------------------------------------------------
 # Class for the Fourier Transformation
 # ------------------------------------------------------------------------------
-class FT_Image(object):
+class NFFT_Image(object):
     def __init__(self,u,v,dx,dy,Nx,Ny):
         '''
         Initialize the Fourier Transform functions
@@ -60,7 +60,7 @@ class FT_Image(object):
         self.adjoint = self.nfft2d_simple_adjoint
         self.adjoint_real = self.nfft2d_simple_adjoint_real
 
-    def nfft2d_simple_forward(self, I2d):
+    def nfft2d_forward(self, I2d):
         '''
         Two-dimensional Forward Non-uniform Fast Fourier Transform
 
@@ -73,7 +73,7 @@ class FT_Image(object):
         self.plan.f_hat = I2d
         return self.plan.trafo()
 
-    def nfft2d_simple_adjoint(self, Vcmp):
+    def nfft2d_adjoint(self, Vcmp):
         '''
         Two-dimensional Adjoint Non-uniform Fast Fourier Transform
 
@@ -86,7 +86,7 @@ class FT_Image(object):
         self.plan.f = Vcmp
         return self.plan.adjoint()
 
-    def nfft2d_simple_adjoint_real(self, Vcmp):
+    def nfft2d_adjoint_real(self, Vcmp):
         '''
         Two-dimensional Adjoint Non-uniform Fast Fourier Transform
 

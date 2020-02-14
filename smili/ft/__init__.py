@@ -5,4 +5,4 @@ This module wrap up functions related to Fourier Tranformations
 '''
 __author__ = "Smili Developer Team"
 
-from .ft_image import FT_Image
+from .ft_image import NFFT_Image
