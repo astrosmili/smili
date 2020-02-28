@@ -154,34 +154,10 @@ class Lightcurve(pd.DataFrame):
             plt.xlabel("Universal Time")
 
 
-
     def smooth(self, solint=-1):
         '''
         Time smoothing function
         '''
-
-    def read_lightcurve(filename, uvunit=None, **args):
-        '''
-        This fuction loads lightcurve.Lightcurve from an input csv file using pd.read_csv().
-
-        Args:
-          filename:
-            str, pathlib.Path, py._path.local.LocalPath or any object with a read()
-            method (such as a file handle or StringIO)
-          uvunit (str, default is None):
-            units of uvdistance for plotting. If uvunit is None, uvunit will be
-            inferred from the maximum baseline length. Availables are ["l[ambda]",
-            "kl[ambda]", "ml[ambda]", "gl[ambda]", "m", "km"].
-
-        Returns:
-          uvdata.VisTable object
-        '''
-        table = Lightcurve(pd.read_csv(filename, **args))
-        if "utc" in table.columns:
-            table["utc"] = at.Time(table["utc"].values.tolist()).datetime
-
-        return table
-
 
 class LightcurveSeries(pd.Series):
     @property
@@ -191,3 +167,72 @@ class LightcurveSeries(pd.Series):
     @property
     def _constructor_expanddim(self):
         return Lightcurve
+
+
+def read_csv(filename, uvunit=None, **args):
+    '''
+    This fuction loads lightcurve.Lightcurve from an input csv file using pd.read_csv().
+
+    Args:
+      filename:
+        str, pathlib.Path, py._path.local.LocalPath or any object with a read()
+        method (such as a file handle or StringIO)
+      uvunit (str, default is None):
+        units of uvdistance for plotting. If uvunit is None, uvunit will be
+        inferred from the maximum baseline length. Availables are ["l[ambda]",
+        "kl[ambda]", "ml[ambda]", "gl[ambda]", "m", "km"].
+
+    Returns:
+      uvdata.VisTable object
+    '''
+    table = Lightcurve(pd.read_csv(filename, **args))
+    if "utc" in table.columns:
+        table["utc"] = at.Time(table["utc"].values.tolist()).datetime
+
+    return table
+
+
+def blank_lc(timetable=None, tcen=None, tint=None):
+    '''
+    Make blank light curve table for specified time frames.
+    '''
+
+    if timetable is not None:
+        if   type(timetable) == type(""):
+            tmtable = pd.read_csv(timetable)
+        elif type(timetable) == type(pd.DataFrame):
+            tmtable = timetable.copy()
+
+        if "utc" in tmtable.columns:
+            tmtable["utc"] = at.Time(tmtable["utc"].values.tolist()).datetime
+    else:
+        if tcen is None:
+            raise ValueError("tcen is not specified.")
+        else:
+            utc = at.Time(tcen)
+
+        tmtable = pd.DataFrame()
+        tmtable["utc"]     = utc.datetime
+        tmtable["gsthour"] = utc.sidereal_time("apparent", "greenwich").hour
+
+        if len(utc) < 2:
+            print("Warning: You have only one frame!")
+
+        if len(utc) == 0:
+            raise ValueError("No time frame was input.")
+
+        if hasattr(tint, "__iter__"):
+            if len(utc) != len(tint):
+                raise ValueError("len(utc) != len(tint)")
+            else:
+                tmtable["tint"] = tint
+        #else:
+        #    tmtable["tint"] = [tint for i in range(self.Nt)]
+
+        outtab = Lightcurve()
+        outtab["utc"]=copy.deepcopy(tmtable["utc"])
+        outtab["gsthour"] = copy.deepcopy(tmtable["gsthour"])
+        outtab["flux"] = np.zeros(len(tmtable["utc"]),dtype=np.float64)
+
+
+        return outtab

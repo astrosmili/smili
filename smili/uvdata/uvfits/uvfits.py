@@ -1027,10 +1027,10 @@ class UVFITS(object):
         subarray = self.visdata.coord.subarray.values
 
         # Usec,Vsec,Wsec,UVdsec
-        usec   = np.float64(self.visdata.coord.usec.values)
-        vsec   = np.float64(self.visdata.coord.vsec.values)
-        wsec   = np.float64(self.visdata.coord.wsec.values)
-        uvdsec = np.sqrt(usec**2+vsec**2)
+        usec   = np.array(np.float64(self.visdata.coord.usec.values))
+        vsec   = np.array(np.float64(self.visdata.coord.vsec.values))
+        wsec   = np.array(np.float64(self.visdata.coord.wsec.values))
+        uvdsec = np.array(np.sqrt(usec**2+vsec**2))
 
         #  frequency for each channel and frequency band
         freqdic =self.get_freq()
