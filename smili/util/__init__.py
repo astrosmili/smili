@@ -12,4 +12,5 @@ __author__ = "Smili Developer Team"
 # Modules
 # ------------------------------------------------------------------------------
 from .util import *
+from .terminal import prt, warn
 from .gp import gp_interp

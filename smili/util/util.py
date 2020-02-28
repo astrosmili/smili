@@ -192,26 +192,6 @@ def saconv(x1=1.,y1=None,angunit1="deg",satype1="pixel",
     solidang2 = solidang(x2,y2,angunit2,satype2,angunitout=angunit1)
     return np.abs(solidang2/solidang1)
 
-def prt(obj, indent="", output=False):
-    '''
-    a useful print function
-    '''
-    if   type(obj) == type(""):
-        lines = obj.split("\n")
-    else:
-        if hasattr(obj, '__str__'):
-            lines = obj.__str__().split("\n")
-        elif hasattr(obj, '__repr__'):
-            lines = obj.__repr__().split("\n")
-        else:
-            lines = [""]
-    for i in range(len(lines)):
-        lines[i] = indent + lines[i]
-    if output:
-        return "\n".join(lines)
-    else:
-        print("\n".join(lines))
-
 def interpolation1d(xd,yd,xi,kind="cubic",bounds_error=False, fill_value=np.nan):
     from scipy.interpolate import interp1d
     f = interp1d(xd,yd,kind=kind,bounds_error=bounds_error, fill_value=fill_value)
