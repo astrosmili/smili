@@ -4,7 +4,7 @@
 This is a submodule of smili. This module saves some common functions,
 variables, and data types in the smili module.
 '''
-from pandas as DataFrame, Series
+from pandas import DataFrame, Series
 
 class DataTable(DataFrame):
     '''
