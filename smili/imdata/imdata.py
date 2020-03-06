@@ -21,9 +21,6 @@ import astropy.io.fits as pyfits
 import astropy.time as at
 from astropy.convolution import convolve_fft
 
-# ds9
-import pyds9
-
 # matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -1420,6 +1417,8 @@ class IMFITS(object):
             wait (float, default = 10):
                 seconds to wait for ds9 to start.
         '''
+        import pyds9
+
         try:
             d = pyds9.DS9(wait=wait)
         except ValueError:
@@ -1450,6 +1449,8 @@ class IMFITS(object):
         Returns:
             imdata.IMRegion object
         '''
+        import pyds9
+        
         if angunit is None:
             angunit = self.angunit
 

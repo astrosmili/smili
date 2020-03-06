@@ -19,9 +19,6 @@ import pandas as pd
 # matplotlib
 import matplotlib.pyplot as plt
 
-# ds9
-import pyds9
-
 # internal
 from smili import util
 
@@ -143,6 +140,8 @@ class IMRegion(pd.DataFrame):
             wait (float, default = 10):
                 seconds to wait for ds9 to start.
         '''
+        import pyds9
+
         try:
             d = pyds9.DS9(wait=wait)
         except ValueError:
@@ -176,6 +175,8 @@ class IMRegion(pd.DataFrame):
         Returns:
             IMRegion.
         '''
+        import pyds9
+
         if angunit is None:
             angunit = image.angunit
 
