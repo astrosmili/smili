@@ -25,7 +25,7 @@ UJY = au.Unit("uJy")
 UAS = au.Unit("uas")
 MAS = au.Unit("mas")
 ASEC = au.Unit("arcsec")
-AMIN = au.unit("arcmin")
+AMIN = au.Unit("arcmin")
 DEG = au.Unit("deg")
 RAD = au.Unit("rad")
 
