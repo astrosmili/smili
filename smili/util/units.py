@@ -24,8 +24,8 @@ UJY = au.Unit("uJy")
 # Angular Size
 UAS = au.Unit("uas")
 MAS = au.Unit("mas")
-ASEC = au.Unit("asec")
-AMIN = au.unit("amin")
+ASEC = au.Unit("arcsec")
+AMIN = au.unit("arcmin")
 DEG = au.Unit("deg")
 RAD = au.Unit("rad")
 
