@@ -13,15 +13,26 @@ from numpy import sqrt, where, asarray, ones, zeros, float64, complex128, dtype
 from numpy import nan
 
 # astropy
-import astropy.units as au
 from astropy.coordinates import EarthLocation
 from astropy.table import QTable
 
+# internal
+from ..util.units import DIMLESS, M, JY, DEG
 
 # ------------------------------------------------------------------------------
 # Classes
 # ------------------------------------------------------------------------------
 class Array(object):
+    '''A class to handle an interferometric array
+
+    Attributes: 
+        name (str): the array name
+        columns (list): the list of the table columns
+        table (astropy.table.QTable): the array parameter
+    
+    Methods:
+        load_ehtim_array: loading the array object or file of the eht-imaging library
+    '''
     # name
     name = "MyArray"
 
@@ -49,12 +60,14 @@ class Array(object):
         import ehtim
         from copy import deepcopy
         
-        if   type(arrayobj) == type(""):
+        # Units
+
+        if type(arrayobj) == type(""):
             array = ehtim.array.load_txt(arrayobj, **args_load_txt)
         elif type(arrayobj) == type(ehtim.array.Array):
             array = deepcopy(arrayobj)
         else:
-            raise(ValueError, "Invalid data type of arrayobj: %s"%(type(arrayobj)))
+            raise ValueError("Invalid data type of arrayobj: %s"%(type(arrayobj)))
         
         tarr = array.tarr.copy()
         xyz_dist = sqrt(tarr["x"]**2+tarr["y"]**2+tarr["z"]**2)
@@ -70,24 +83,24 @@ class Array(object):
                 x = tarr["x"],
                 y = tarr["y"],
                 z = tarr["z"],
-                unit = au.m
+                unit = M
             ),
-            sefd1 = tarr["sefdr"] * au.Jy,
-            sefd2 = tarr["sefdl"] * au.Jy,
-            tau1 = zeros(Nant)*au.Unit(""),
-            tau2 = zeros(Nant)*au.Unit(""),
-            elmin = ones(Nant)*0.*au.deg,
-            elmax = ones(Nant)*90.*au.deg,
-            fr_pa_coeff = tarr["fr_par"]*au.Unit(""),
-            fr_el_coeff = tarr["fr_elev"]*au.Unit(""),
-            fr_offset = tarr["fr_off"]*au.deg,
-            d1 = tarr["dr"]*au.Unit(""),
-            d2 = tarr["dl"]*au.Unit(""),
+            sefd1 = tarr["sefdr"] * JY,
+            sefd2 = tarr["sefdl"] * JY,
+            tau1 = zeros(Nant)*DIMLESS,
+            tau2 = zeros(Nant)*DIMLESS,
+            elmin = ones(Nant)*0.*DEG,
+            elmax = ones(Nant)*90.*DEG,
+            fr_pa_coeff = tarr["fr_par"]*DIMLESS,
+            fr_el_coeff = tarr["fr_elev"]*DIMLESS,
+            fr_offset = tarr["fr_off"]*DEG,
+            d1 = tarr["dr"]*DIMLESS,
+            d2 = tarr["dl"]*DIMLESS,
             type = asarray(["ground" for i in range(Nant)], dtype="U8"),
         )
 
-        data["elmin"][idx_tle] = -90.*au.deg
-        data["elmax"][idx_tle] =  90.*au.deg
+        data["elmin"][idx_tle] = -90.*DEG
+        data["elmax"][idx_tle] =  90.*DEG
         data["type"][idx_tle] = "tle"
         
         outtable = cls()
