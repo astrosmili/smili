@@ -6,30 +6,6 @@ variables, and data types in the smili module.
 '''
 import numpy as np
 
-def matplotlibrc(nrows=1,ncols=1,width=250,height=250):
-    import matplotlib
-
-    # Get this from LaTeX using \showthe\columnwidth
-    fig_width_pt  = width*ncols
-    fig_height_pt = height*nrows
-    inches_per_pt = 1.0/72.27               # Convert pt to inch
-    fig_width     = fig_width_pt*inches_per_pt  # width in inches
-    fig_height    = fig_height_pt*inches_per_pt # height in inches
-    fig_size      = [fig_width,fig_height]
-    params = {'axes.labelsize': 13,
-              'axes.titlesize': 13,
-              'legend.fontsize': 14,
-              'xtick.labelsize': 14,
-              'ytick.labelsize': 14,
-              'figure.figsize': fig_size,
-              'figure.dpi'    : 300
-    }
-    matplotlib.rcParams.update(params)
-
-def reset_matplotlibrc():
-    import matplotlib
-    matplotlib.rcdefaults()
-
 def set_ompnumthreads(numthreads, variable="OMP_NUM_THREADS"):
     '''
     Set the number of threads for Open MP
@@ -45,14 +21,14 @@ def set_ompnumthreads(numthreads, variable="OMP_NUM_THREADS"):
     print("export %s=%d"%(variable,numthreads))
     os.environ[variable] = '%d'%(numthreads)
 
-def set_nproc(numprocess):
+def set_nproc(nproc):
     '''
-    Set the number of threads for Open MP
+    Set the number of threads for Open MP 
     '''
-    global __smili_env_nprocess
+    global __smili_nproc
 
-    print("The number of processes is set to %d."%(numprocess))
-    __smili_env_nprocess = numprocess
+    print("The number of processes is set to %d."%(nproc))
+    __smili_nproc = nproc
 
 def fluxconv(unit1="Jy", unit2="Jy"):
     '''
@@ -93,6 +69,7 @@ def fluxconv(unit1="Jy", unit2="Jy"):
     else:
         print("Error: unit2=%s is not supported" % (unit2))
         return -1
+    
     return conv
 
 def angconv(unit1="deg", unit2="deg"):
@@ -160,6 +137,7 @@ def solidang(x=1.,y=None,angunit="deg",satype="pixel",angunitout=None):
     Returns:
         solidangle in angunitout^2
     '''
+
     if y is None:
         y = x
     if angunitout is None:
@@ -184,6 +162,7 @@ def saconv(x1=1.,y1=None,angunit1="deg",satype1="pixel",
     '''
     return a conversion factor between given sizes of the pixel or beam
     '''
+
     if angunit2 is None:
         angunit2 = angunit1
     if satype2 is None:
@@ -194,6 +173,7 @@ def saconv(x1=1.,y1=None,angunit1="deg",satype1="pixel",
 
 def interpolation1d(xd,yd,xi,kind="cubic",bounds_error=False, fill_value=np.nan):
     from scipy.interpolate import interp1d
+
     f = interp1d(xd,yd,kind=kind,bounds_error=bounds_error, fill_value=fill_value)
     return f(xi)
 

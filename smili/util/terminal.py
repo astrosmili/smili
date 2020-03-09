@@ -39,7 +39,6 @@ def prt(obj, header="", footer="", fc=None, bc=None, output=False):
     else:
         print(footerstr.join(lines))
 
-
 def warn(obj, header="", footer="", fc="white", bc="red_3a", output=False):
     '''
     print warning message

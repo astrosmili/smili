@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''
-This module describes data classes and related functions to handle UVFITS data.
 '''
 __author__ = "Smili Developer Team"
 # ------------------------------------------------------------------------------
-# Modules
+# Definition and Global Variables
 # ------------------------------------------------------------------------------
-from .misc import *
-from .plot import matplotlibrc, reset_matplotlibrc
-from .terminal import prt, warn
-from .gp import gp_interp
+def set_global(name, default):
+    '''
+    '''
+    if name not in globals():
+        globals()[name] = default
+
+set_global("__smili_nproc", 1)

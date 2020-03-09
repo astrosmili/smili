@@ -36,4 +36,3 @@ def create_utc_array(tstart, tend, tscan=6.*MIN, tint=20*MIN, tap=30*SEC):
 
     utc = tstart + TimeDelta(concatenate([tscan_start+tscan_seg_sec for tscan_start in tscan_start_sec]), format="sec")
     return utc
-
