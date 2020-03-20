@@ -759,7 +759,7 @@ class CATable(UVTable):
                 if not normerror:
                     pltarrays.append(pltdata.logamp.values)
                     axislabels.append("Log Closure Amplitude")
-                    errors.append(pltdata.sigma.values)
+                    errors.append(pltdata.logsigma.values)
                     if errorbar and (not useerrorbar):
                         useerrorbar=True
                 else:
