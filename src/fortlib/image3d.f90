@@ -169,17 +169,21 @@ subroutine calc_cost_reg3d(&
 
   do iz=1, Nz
     if (sum(lc_l) > 0.) then
-      if (lc_nidx > 0) then
-        l1_wgt_lc(:) = l1_wgt(:) / sum(l1_wgt) * lc_l(iz)
-        tv_wgt_lc(:) = tv_wgt_lc(:) / sum(tv_wgt_lc) * lc_l(iz)
-        tsv_wgt_lc(:) = tsv_wgt(:) / sum(tsv_wgt) * lc_l(iz)
-        kl_wgt_lc(:) = kl_wgt(:) / sum(kl_wgt) * lc_l(iz)
-        gs_wgt_lc(:) = gs_wgt(:) / sum(gs_wgt) * lc_l(iz)
+    if (lc_nidx > 0) then
+      l1_wgt_lc(:) = l1_wgt(:) / sum(l1_wgt) * lc_l(iz)
+      tv_wgt_lc(:) = tv_wgt_lc(:) / sum(tv_wgt_lc) * lc_l(iz)
+      tsv_wgt_lc(:) = tsv_wgt(:) / sum(tsv_wgt) * lc_l(iz) * lc_l(iz)
+      kl_wgt_lc(:) = kl_wgt(:) / sum(kl_wgt) * lc_l(iz)
+      gs_wgt_lc(:) = gs_wgt(:) / sum(gs_wgt) * lc_l(iz)
 
-      else
-        l1_wgt_lc(:) = l1_wgt(:)
-      end if
-      call calc_cost_reg(&
+    else
+      l1_wgt_lc(:) = l1_wgt(:)
+      tv_wgt_lc(:) = tv_wgt(:)
+      tsv_wgt_lc(:) = tsv_wgt(:)
+      kl_wgt_lc(:) = kl_wgt(:)
+      gs_wgt_lc(:) = gs_wgt(:)
+    end if
+    call calc_cost_reg(&
           I1d((iz-1)*Npix+1:iz*Npix), &
           xidx, yidx, Nxref, Nyref, Nx, Ny,&
           l1_l, l1_wgt_lc, l1_Nwgt,&
