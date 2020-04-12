@@ -233,19 +233,24 @@ class VisTable(UVTable):
         else:
             return np.unique([self["st1name"],self["st2name"]]).tolist()
 
-    def check_snr(self, id=False):
+    def check_snr(self, id=False, avgtype="median"):
         '''
         Return list of stations rearranging based on mean snr. If id=True, return list of station IDs.
+        Args:
+            avgtype: method for calculating SNRs of each station (median or mean).
         '''
 
-        stnamelist = self.station_list()
-        stlist = self.station_list(id=True)
+        stnamelist = list(self.station_dic().values())
+        stlist     = list(self.station_dic().keys())
         snrlist = []
         table = pd.DataFrame([])
         for stname in stnamelist:
             vtable_s = self.query("st1name==@stname or st2name==@stname")
             snr = vtable_s.snr()
-            snrlist.append(np.mean(snr))
+            if avgtype=="median":
+                snrlist.append(np.median(snr))
+            elif avgtype=="mean":
+                snrlist.append(np.mean(snr))
 
         table["stname"] = stnamelist
         table["st"] = stlist
@@ -256,6 +261,32 @@ class VisTable(UVTable):
         else:
             return table["stname"].to_list()
 
+    def reorder_st_snr(self,avgtype="median"):
+        '''
+        Reorder station id based on median/mean SNRs of each station.
+        Args:
+            avgtype: method for calculating SNRs of each station (median or mean).
+        '''
+        Ndata = len(self["utc"])
+        indice = self.check_snr(id=True,avgtype=avgtype)
+        vistable = copy.deepcopy(self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True))
+        vistable["st1"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
+        vistable["st2"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
+        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        for i in range(Ndata):
+            if vistable.loc[i,"st1"]>vistable.loc[i,"st2"]:
+                st1=vistable.loc[i,"st2"]
+                st2=vistable.loc[i,"st1"]
+                vistable.loc[i,"st1"]=st1
+                vistable.loc[i,"st2"]=st2
+                st1name=vistable.loc[i,"st1name"]
+                st2name=vistable.loc[i,"st2name"]
+                vistable.loc[i,"st1name"]=st2name
+                vistable.loc[i,"st2name"]=st1name
+                vistable.loc[i,"u"]*=-1
+                vistable.loc[i,"v"]*=-1
+                vistable.loc[i,"phase"]*=-1
+        return vistable
 
     def station_dic(self, id2name=True):
         '''
@@ -946,13 +977,19 @@ class VisTable(UVTable):
         '''
         # Number of Stations
         Ndata = len(self["ch"])
+        print("(0/5) Align vistable using median SNR values")
+        indice = self.check_snr(id=True)
+        vistable = copy.deepcopy(self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True))
+        vistable["st1"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
+        vistable["st2"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
+        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
 
         # make dictionary of stations
-        stdict = self.station_dic(id2name=True)
+        stdict = vistable.station_dic(id2name=True)
 
         # Check redundant
         if redundant is not None:
-            stdict2 = self.station_dic(id2name=False)
+            stdict2 = vistable.station_dic(id2name=False)
             for i in range(len(redundant)):
                 stationids = []
                 for stid in redundant[i]:
@@ -964,15 +1001,26 @@ class VisTable(UVTable):
                 redundant[i] = sorted(set(stationids))
             del stid, stdict2
 
+        for i in range(Ndata):
+            if vistable.loc[i,"st1"]>vistable.loc[i,"st2"]:
+                st1=vistable.loc[i,"st2"]
+                st2=vistable.loc[i,"st1"]
+                vistable.loc[i,"st1"]=st1
+                vistable.loc[i,"st2"]=st2
+
+                st1name=vistable.loc[i,"st1name"]
+                st2name=vistable.loc[i,"st2name"]
+                vistable.loc[i,"st1name"]=st2name
+                vistable.loc[i,"st2name"]=st1name
+
+                vistable.loc[i,"u"]*=-1
+                vistable.loc[i,"v"]*=-1
+                vistable.loc[i,"phase"]*=-1
+
         print("(1/5) Sort data")
-        vistable = self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
 
-        print("(1+/5) Align vistable using mean SNR values")
-        indice = vistable.check_snr(id=True)
-        vistable["st1_snr"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
-        vistable["st2_snr"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
-
-        vistable["bl"] = vistable["st1_snr"] * 256 + vistable["st2_snr"]
+        vistable["bl"] = vistable["st1"] * 256 + vistable["st2"]
 
         print("(2/5) Tagging data")
         vistable["tag"] = np.zeros(Ndata, dtype=np.int64)
@@ -1006,7 +1054,7 @@ class VisTable(UVTable):
                 continue
 
             # Check number of stations
-            stset = sorted(set(tmptab["st1_snr"].tolist()+tmptab["st2_snr"].tolist()))
+            stset = sorted(set(tmptab["st1"].tolist()+tmptab["st2"].tolist()))
             Nst = len(stset)
             if Nst < 3:
                 bltype[itag] = -1
@@ -1032,6 +1080,7 @@ class VisTable(UVTable):
             rank = 0
             cblset = []
             cstset = []
+            #for stid1, stid2, stid3 in itertools.product(range(Nst),range(Nst),range(Nst)):
             for stid1, stid2, stid3 in itertools.combinations(list(range(Nst)), 3):
                 Ncomb=0
 
@@ -1157,7 +1206,6 @@ class VisTable(UVTable):
             outtab[column] = BSTable.bstable_types[i](outtab[column])
         return outtab
 
-
     def make_catable_snr(self, redundant=None, dependent=False, debias=True):
         '''
         Form closure amplitudes from complex visibilities.
@@ -1178,15 +1226,21 @@ class VisTable(UVTable):
             uvdata.CATable object
         '''
         from scipy.special import expi
+
         # Number of Stations
         Ndata = len(self["ch"])
+        print("(0/5) Align vistable using median SNR values")
+        indice = self.check_snr(id=True)
+        vistable = copy.deepcopy(self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True))
+        vistable["st1"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
+        vistable["st2"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
 
         # make dictionary of stations
-        stdict = self.station_dic(id2name=True)
+        stdict = vistable.station_dic(id2name=True)
 
         # Check redundant
         if redundant is not None:
-            stdict2 = self.station_dic(id2name=False)
+            stdict2 = vistable.station_dic(id2name=False)
             for i in range(len(redundant)):
                 stationids = []
                 for stid in range(len(redundant[i])):
@@ -1198,14 +1252,23 @@ class VisTable(UVTable):
             del stid, stdict2
 
         print("(1/5) Sort data")
-        vistable = self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        for i in range(Ndata):
+            if vistable.loc[i,"st1"]>vistable.loc[i,"st2"]:
+                st1=vistable.loc[i,"st2"]
+                st2=vistable.loc[i,"st1"]
+                vistable.loc[i,"st1"]=st1
+                vistable.loc[i,"st2"]=st2
 
-        print("(1+/5) Align vistable using mean SNR values")
-        indice = vistable.check_snr(id=True)
-        vistable["st1_snr"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
-        vistable["st2_snr"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
+                st1name=vistable.loc[i,"st1name"]
+                st2name=vistable.loc[i,"st2name"]
+                vistable.loc[i,"st1name"]=st2name
+                vistable.loc[i,"st2name"]=st1name
 
-        vistable["bl"] = vistable["st1_snr"] * 256 + vistable["st2_snr"]
+                vistable.loc[i,"u"]*=-1
+                vistable.loc[i,"v"]*=-1
+                vistable.loc[i,"phase"]*=-1
+        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        vistable["bl"] = vistable["st1"] * 256 + vistable["st2"]
 
         print("(2/5) Tagging data")
         vistable["tag"] = np.zeros(Ndata, dtype=np.int64)
@@ -1461,7 +1524,6 @@ class VisTable(UVTable):
             column = CATable.catable_columns[i]
             outtab[column] = CATable.catable_types[i](outtab[column])
         return outtab
-
 
 
     def make_catable(self, redundant=None, dependent=False, debias=True):
