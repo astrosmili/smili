@@ -736,7 +736,7 @@ class VisTable(UVTable):
         return vistable_d
 
 
-    def make_bstable(self, redundant=None, dependent=False):
+    def make_bstable(self, redundant=None, dependent=False,reorder_st=False):
         '''
         Form bi-spectra from complex visibilities.
 
@@ -749,18 +749,26 @@ class VisTable(UVTable):
             dependent (boolean; default=False):
                 If False, only independent dependent closure amplitudes will be formed.
                 Otherwise, dependent closure amplitudes also will be formed as well.
+            reorder_snr (default=False):
+                If snr, the station indeices are aligned using median SNRs for each station.
         Returns:
             uvdata.BSTable object
         '''
+        if not reorder_st:
+            vistable = copy.deepcopy(self)
+        elif reorder_st=="snr":
+            print("(0/5) Align vistable using median SNR values")
+            vistable = copy.deepcopy(self.reorder_st_snr(avgtype="median"))
+
         # Number of Stations
-        Ndata = len(self["ch"])
+        Ndata = len(vistable["ch"])
 
         # make dictionary of stations
-        stdict = self.station_dic(id2name=True)
+        stdict = vistable.station_dic(id2name=True)
 
         # Check redundant
         if redundant is not None:
-            stdict2 = self.station_dic(id2name=False)
+            stdict2 = vistable.station_dic(id2name=False)
             for i in range(len(redundant)):
                 stationids = []
                 for stid in redundant[i]:
@@ -773,7 +781,7 @@ class VisTable(UVTable):
             del stid, stdict2
 
         print("(1/5) Sort data")
-        vistable = self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         vistable["bl"] = vistable["st1"] * 256 + vistable["st2"]
 
         print("(2/5) Tagging data")
@@ -1526,7 +1534,7 @@ class VisTable(UVTable):
         return outtab
 
 
-    def make_catable(self, redundant=None, dependent=False, debias=True):
+    def make_catable(self, redundant=None, dependent=False, debias=True,reorder_st=False):
         '''
         Form closure amplitudes from complex visibilities.
 
@@ -1542,31 +1550,42 @@ class VisTable(UVTable):
             debias (boolean; default=True):
                 If True, visibility amplitudes will be debiased before closing
                 closure amplitudes.
+            reorder_snr (default=False):
+                If snr, the station indeices are aligned using median SNRs for each station.
+
         Returns:
             uvdata.CATable object
         '''
         from scipy.special import expi
+
+        if not reorder_st:
+            vistable = copy.deepcopy(self)
+        elif reorder_st=="snr":
+            print("(0/5) Align vistable using median SNR values")
+            vistable = copy.deepcopy(self.reorder_st_snr(avgtype="median"))
+
         # Number of Stations
-        Ndata = len(self["ch"])
+        Ndata = len(vistable["ch"])
 
         # make dictionary of stations
-        stdict = self.station_dic(id2name=True)
+        stdict = vistable.station_dic(id2name=True)
 
         # Check redundant
         if redundant is not None:
-            stdict2 = self.station_dic(id2name=False)
+            stdict2 = vistable.station_dic(id2name=False)
             for i in range(len(redundant)):
                 stationids = []
-                for stid in range(len(redundant[i])):
+                for stid in redundant[i]:
                     if isinstance(stid,str):
-                        stationids.append(stdict2[stid])
+                        if stid in list(stdict2.keys()):
+                            stationids.append(stdict2[stid])
                     else:
                         stationids.append(stid)
                 redundant[i] = sorted(set(stationids))
             del stid, stdict2
 
         print("(1/5) Sort data")
-        vistable = self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
         vistable["bl"] = vistable["st1"] * 256 + vistable["st2"]
 
         print("(2/5) Tagging data")
