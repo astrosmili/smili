@@ -906,7 +906,7 @@ def read_hdf5_smili(file_name):
             image = image_org.copy()
             image.data[0,0,:,:] = imlist[it,:,:]
             images.append(image)
-
+        timetable["utc"] = at.Time(timetable["utc"].values.tolist()).datetime
     return Nt, timetable, images
 
 def read_hdf5_ehtim(file_name):
@@ -958,7 +958,7 @@ def read_hdf5_ehtim(file_name):
         images=[]
         for it in range(Nt):
             image = image_org.copy()
-            image.data[0,0,:,:] = file["I"][it,:,:]
+            image.data[0,0,:,:] = np.flipud(file["I"][it,:,:])
             images.append(image)
-
+        timetable["utc"] = at.Time(timetable["utc"].values.tolist()).datetime
     return Nt, timetable, images
