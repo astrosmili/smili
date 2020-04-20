@@ -32,6 +32,8 @@ import matplotlib.cm as cm
 # for to_movie
 import matplotlib
 import matplotlib.animation as manimation
+import h5py
+import ast
 
 # for lightcurve
 import itertools
@@ -42,7 +44,7 @@ from . import imdata
 # IMAGEFITS (Manupulating FITS FILES)
 #-------------------------------------------------------------------------
 class MOVIE(object):
-    def __init__(self, timetable=None, tcen=None, tint=None, **imgprm):
+    def __init__(self, file_name=None, hdf5type="SMILI", timetable=None, tcen=None, tint=None, **imgprm):
         '''
         This will create a blank movie on specified time frames.
 
@@ -54,46 +56,51 @@ class MOVIE(object):
             **imgprm:
                 Parameters for the blank image at each frame.
                 See documentations for imdata.IMFITS for parameters.
+            file_name (string):
+                input hdf5 file. Default=None
         Returns:
             imdata.MOVIE object
         '''
-        if timetable is not None:
-            if   type(timetable) == type(""):
-                tmtable = pd.read_csv(timetable)
-            elif type(timetable) == type(pd.DataFrame):
-                tmtable = timetable.copy()
-
-            if "utc" in tmtable.columns:
-                tmtable["utc"] = at.Time(tmtable["utc"].values.tolist()).datetime
-            self.Nt = len(tmtable)
+        if file_name is not None:
+            self.Nt, self.timetable, self.images=read_hdf5(file_name =file_name, hdf5type=hdf5type)
         else:
-            if tcen is None:
-                raise ValueError("tcen is not specified.")
+            if timetable is not None:
+                if   type(timetable) == type(""):
+                    tmtable = pd.read_csv(timetable)
+                elif type(timetable) == type(pd.DataFrame()):
+                    tmtable = timetable.copy()
+
+                if "utc" in tmtable.columns:
+                    tmtable["utc"] = at.Time(tmtable["utc"].values.tolist()).datetime
+                self.Nt = len(tmtable)
             else:
-                utc = at.Time(tcen)
-
-            tmtable = pd.DataFrame()
-            tmtable["utc"]     = utc.datetime
-            tmtable["gsthour"] = utc.sidereal_time("apparent", "greenwich").hour
-            self.Nt = len(utc)
-
-            if len(utc) < 2:
-                print("Warning: You have only one frame!")
-
-            if len(utc) == 0:
-                raise ValueError("No time frame was input.")
-
-            if hasattr(tint, "__iter__"):
-                if len(utc) != len(tint):
-                    raise ValueError("len(utc) != len(tint)")
+                if tcen is None:
+                    raise ValueError("tcen is not specified.")
                 else:
-                    tmtable["tint"] = tint
-            else:
-                tmtable["tint"] = [tint for i in range(self.Nt)]
-        self.timetable = tmtable
+                    utc = at.Time(tcen)
 
-        # Initialize images
-        self.images = [imdata.IMFITS(**imgprm) for i in range(self.Nt)]
+                tmtable = pd.DataFrame()
+                tmtable["utc"]     = utc.datetime
+                tmtable["gsthour"] = utc.sidereal_time("apparent", "greenwich").hour
+                self.Nt = len(utc)
+
+                if len(utc) < 2:
+                    print("Warning: You have only one frame!")
+
+                if len(utc) == 0:
+                    raise ValueError("No time frame was input.")
+
+                if hasattr(tint, "__iter__"):
+                    if len(utc) != len(tint):
+                        raise ValueError("len(utc) != len(tint)")
+                    else:
+                        tmtable["tint"] = tint
+                else:
+                    tmtable["tint"] = [tint for i in range(self.Nt)]
+            self.timetable = tmtable
+
+            # Initialize images
+            self.images = [imdata.IMFITS(**imgprm) for i in range(self.Nt)]
 
     #---------------------------------------------------------------------------
     # Get some information of movie data
@@ -357,6 +364,7 @@ class MOVIE(object):
                            for i in range(self.Nt)]
         return outmovie
 
+    #
 
     #---------------------------------------------------------------------------
     # Edit other objects
@@ -557,9 +565,84 @@ class MOVIE(object):
 
         return outmovie
 
+
+
     #---------------------------------------------------------------------------
     # Output
     #---------------------------------------------------------------------------
+    def to_hdf5(self, file_name, hdf5type="SMILI"):
+        '''
+        Save the image(s) to movies to hdf5 files.
+        Args:
+            file_name (string): hdf5 file name
+            hdf5type (string): Type of hdf5 file to be load.
+        '''
+
+        if hdf5type.lower()=="smili":
+            self.to_hdf5_smili(file_name)
+        elif hdf5type.lower()=="ehtim":
+            self.to_hdf5_ehtim(file_name)
+        return
+
+    def to_hdf5_smili(self, file_name):
+        with h5py.File(file_name, "w") as file:
+            # 1 Save time information
+            timetable = self.timetable
+            i =0
+            for timehead in ["utc", "gsthour", "tint"]:
+                timelist = timetable[timehead].values.astype(str)
+                Nt = len(timelist)
+                str_dtype = h5py.special_dtype(vlen=str)
+                tset = file.create_dataset(timehead,shape=(Nt,),dtype=str_dtype)
+                tset[:] = timelist
+                i+=1
+
+            # 2. Save image headers
+            header = self.images[0].header
+            keys = list(header .keys())
+            head = file.create_dataset("header", (0,), dtype="S10")
+            # 2.2 Image header
+            head.attrs["imgprm"] =str(header)
+            head.attrs["angunit"] =self.images[0].angunit
+            # 3. Save images
+            imlist = np.zeros([Nt,header["nx"],header["ny"]],dtype=np.float64)
+            for it in range(Nt):
+                imlist[it,:,:] = self.images[it].data[0,0,:,:]
+            file.create_dataset("images", data=imlist, dtype='f8')
+
+        return
+
+    def to_hdf5_ehtim(self, file_name):
+        with h5py.File(file_name, "w") as file:
+
+            head = file.create_dataset('header', (0,), dtype="S10")
+            imhead = self.images[0].header
+            angunit = self.images[0].angunit
+            head.attrs['mjd'] = np.string_(str(int(at.Time(imhead["dateobs"]).mjd)))
+            head.attrs['psize'] = np.string_(str(imhead["dy"]*util.angconv("deg","rad")))
+            head.attrs['source'] = np.string_(str(imhead["object"]))
+            head.attrs['ra'] = np.string_(str(imhead["x"]/12.*util.angconv("deg",angunit)))
+            head.attrs['dec'] = np.string_(str(imhead["y"]*util.angconv("deg",angunit)))
+            head.attrs['rf'] = np.string_(str(imhead["f"]))
+            # If including polarization the following term should be updated
+            head.attrs['polrep'] = np.string_('stokes')
+            head.attrs['pol_prim'] = np.string_("I")
+
+            # time table
+            time_hour=[]
+            for it in range(self.Nt):
+                time=at.Time(self.timetable["utc"][it], format="datetime").value
+                time_hour.append(time.hour + time.minute/60. + time.second/3600.)
+            dset = file.create_dataset("times", data=time_hour, dtype='f8')
+
+            # image table (Nt * Ny * Nx)
+            name = "I"
+            frames = np.stack([self.images[it].data[0,0] for it in range(self.Nt)])
+            dset = file.create_dataset(name, data=frames, dtype='f8')
+
+
+
+
     def to_movie(self, filename, vmin=0, vmax=None, vmax_type=None, fps=15, dpi=100, **imshowprm):
         '''
         Args:
@@ -693,6 +776,8 @@ class MOVIE(object):
         image=self.images[it]
         image.imshow(**imshowprm)
 
+
+
 def concat_uvfits(uvfits_framelist_list,uvfits_idlist_list):
 
     '''
@@ -772,3 +857,108 @@ def apply_cltable(uvfits_framelist_list,uvfits_idlist_list,cltable_list_list):
 
     uvfits_totlist=concat_uvfits(uvfitscal_framelist_list,uvfits_idlist_list)
     return uvfits_totlist
+
+
+def read_hdf5(file_name, hdf5type="SMILI"):
+    '''
+    Read data from the movie hdf5 file geneated from the smili
+    Args:
+        file_name (string): hdf5 file name
+        hdf5type (string): Type of hdf5 file to be load.
+    Returns:
+        imdata.IMFITS object
+    '''
+
+    if hdf5type.lower()=="smili":
+        return read_hdf5_smili(file_name)
+    if hdf5type.lower()=="ehtim":
+        return read_hdf5_ehtim(file_name)
+
+def read_hdf5_smili(file_name):
+    with h5py.File(file_name, "r") as file:
+        # 1 Read time information
+        # 1.2 Make time table
+        timetable = pd.DataFrame([])
+        timetable["utc"] = list(file["utc"][:])
+        timetable["gsthour"] = np.float64(list(file["gsthour"]))
+        timetable["tint"] = np.float64(list(file["tint"]))
+        Nt = len(timetable["tint"])
+        # 2. Read image headers
+        head = file["header"]
+        # 2.2 image header
+        imgkeys = list(head.attrs.keys())
+        imgprm={}
+        imgprm=ast.literal_eval(head.attrs["imgprm"])
+        #for key in imgkeys:
+        #    imgprm[key]=head.attrs[key]
+
+        # 3. Read images
+        Nx = imgprm["nx"]
+        Ny = imgprm["ny"]
+        angunit= head.attrs["angunit"]
+        imgprm["dx"] = imgprm["dx"]*util.angconv("deg",angunit)
+        imgprm["dy"] = imgprm["dy"]*util.angconv("deg",angunit)
+
+        imlist = file["images"]
+        image_org = imdata.IMFITS(**imgprm)
+        images=[]
+        for it in range(Nt):
+            image = image_org.copy()
+            image.data[0,0,:,:] = imlist[it,:,:]
+            images.append(image)
+
+    return Nt, timetable, images
+
+def read_hdf5_ehtim(file_name):
+    import ehtim as eh
+    with h5py.File(file_name, "r") as file:
+        # 1 Read time information
+        # 1.2 Make time table
+        head = file['header']
+        mjd = int(head.attrs['mjd'].astype(str))
+        times = np.float64(file['times'][:]/24)+mjd
+
+        times =at.Time(times, format="mjd")
+        utc=at.Time(times, format='isot')
+        gsthour = np.float64(utc.sidereal_time('apparent', 'greenwich').hour)
+        tint = np.diff(file['times'][:]*3600)
+        # may need to modify tinterval
+        tint = np.append(tint,tint[-1])
+        timetable = pd.DataFrame([])
+        timetable["utc"] = utc
+        timetable["gsthour"] = gsthour
+        timetable["tint"] = tint
+        Nt = len(timetable)
+        # 2.2 image header
+        imgprm={}
+        # If multiple date observation, it should be modified
+        mov = eh.movie.load_hdf5(file_name)
+        im = mov.im_list()[0]
+        obsdate = at.Time(im.mjd, format="mjd")
+        obsdate = "%04d-%02d-%02d"%(obsdate.datetime.year,obsdate.datetime.month,obsdate.datetime.day)
+        imgprm["object"] = im.source
+        imgprm["x"] = im.ra * 12
+        imgprm["y"] = im.dec
+        imgprm["dx"] = -np.abs(im.psize * util.angconv("rad","deg"))
+        imgprm["dy"] = im.psize * util.angconv("rad","deg")
+        imgprm["nx"] = im.xdim
+        imgprm["ny"] = im.ydim
+        imgprm["nxref"] = im.xdim/2.+1
+        imgprm["nyref"] = im.ydim/2.+1
+        imgprm["f"] = im.rf
+        imgprm["dateobs"]=obsdate
+
+        # 3. Read images
+        Nx = imgprm["nx"]
+        Ny = imgprm["ny"]
+
+        image_org = imdata.IMFITS(**imgprm)
+        image_org.header["dx"] =  imgprm["dx"]
+        image_org.header["dy"] = imgprm["dy"]
+        images=[]
+        for it in range(Nt):
+            image = image_org.copy()
+            image.data[0,0,:,:] = file["I"][it,:,:]
+            images.append(image)
+
+    return Nt, timetable, images
