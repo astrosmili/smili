@@ -637,7 +637,7 @@ class MOVIE(object):
 
             # image table (Nt * Ny * Nx)
             name = "I"
-            frames = np.stack([self.images[it].data[0,0] for it in range(self.Nt)])
+            frames = np.stack([np.flipud(self.images[it].data[0,0]) for it in range(self.Nt)])
             dset = file.create_dataset(name, data=frames, dtype='f8')
 
 
