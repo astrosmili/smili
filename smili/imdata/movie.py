@@ -111,11 +111,11 @@ class MOVIE(object):
         '''
         return at.Time(np.datetime_as_string(self.timetable["utc"]), scale="utc")
 
-    def get_gst_datetime(self, continuous=False, wraphour=0):
+    def get_gst_datetime(self, continuous=True, wraphour=0):
         '''
         get GST in datetime
         '''
-        Ndata = len(self.utc)
+        Ndata = len(self.timetable)
 
         utc = self.get_utc()
         gsthour = self.timetable.gsthour.values
@@ -128,7 +128,7 @@ class MOVIE(object):
             gsthour[1:] += dgsthour[:]
             origin = utc.min().datetime.strftime("%Y-%m-%d")
         else:
-            gsthour = self.gsthour.values
+            gsthour = self.timetable.gsthour.values
             gsthour[np.where(gsthour<wraphour)]+=24
             origin = dt.datetime(2000,1,1,0,0,0)
 
