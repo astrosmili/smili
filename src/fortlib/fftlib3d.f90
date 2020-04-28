@@ -1087,10 +1087,9 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
     model(i) = atan2(dimag(Vcmp2),dreal(Vcmp2))*sign2 + model(i)
     model(i) = atan2(dimag(Vcmp3),dreal(Vcmp3))*sign3 + model(i)
     resid(i) = CP(i) - model(i)
-    resid(i) = atan2(sin(resid(i)),cos(resid(i)))
 
     ! compute chisquare
-    chisq = chisq + resid(i)**2/Varcp(i)
+    chisq = chisq + 2*(1-cos(resid(i)))/Varcp(i)
 
     ! compute residual vectors
     factor = -2*resid(i)/Varcp(i)
