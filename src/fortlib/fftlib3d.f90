@@ -1087,6 +1087,8 @@ subroutine model_cp(Iin,xidx,yidx,Nxref,Nyref,Nx,Ny,Nz,&
     model(i) = atan2(dimag(Vcmp2),dreal(Vcmp2))*sign2 + model(i)
     model(i) = atan2(dimag(Vcmp3),dreal(Vcmp3))*sign3 + model(i)
     resid(i) = CP(i) - model(i)
+    resid(i) = atan2(sin(resid(i)),cos(resid(i)))
+    model(i) = atan2(sin(model(i)),cos(model(i)))
 
     ! compute chisquare
     chisq = chisq + 2*(1-cos(resid(i)))/Varcp(i)

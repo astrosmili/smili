@@ -910,7 +910,7 @@ class BSTable(UVTable):
                 plt.ylabel(axislabels[1])
                 plt.ylim(deflims[1])
 
-    def  plot_model(self,outimage, filename=None, plotargs={'ms': 1., }):
+    def  plot_model(self,outimage, filename=None, plotargs={'ms': 1., }, histargs={"color":"blue"}):
         '''
         Make summary pdf figures and csv file of checking model, residual
         and chisq of closure phases for each triangle
@@ -933,7 +933,7 @@ class BSTable(UVTable):
         if filename is not None:
             pdf = PdfPages(filename)
         else:
-            filename = "model"
+            filename = "model.pdf"
             pdf = PdfPages(filename)
         # model,residual,chisq
         nullfmt = NullFormatter()
@@ -987,7 +987,7 @@ class BSTable(UVTable):
         plt.title("Histogram of residuals")
         N = len(resid["phase"])
         plt.hist(resid["phase"], bins=np.int(np.sqrt(N)),
-                 normed=True, orientation='vertical')
+                 normed=True, orientation='vertical',**histargs)
 
         # set xyrange
         plt.autoscale()
@@ -1007,7 +1007,7 @@ class BSTable(UVTable):
         normresid = resid["phase"] / (np.rad2deg(resid["sigma"] / resid["amp"]))
         N = len(normresid)
         plt.hist(normresid, bins=np.int(np.sqrt(N)),
-                 normed=True, orientation='vertical')
+                 normed=True, orientation='vertical',**histargs)
 
         # model line
         xmin, xmax = ax.get_xlim()
@@ -1052,6 +1052,7 @@ class BSTable(UVTable):
             frmid &= self["st3name"] == st3
             idx = np.where(frmid == True)
             single = self.loc[idx[0], :]
+            single=outimage.set_frmidx(single)
 
             nullfmt = NullFormatter()
             model        = single.eval_image(imfits=outimage,mask=None,istokes=0,ifreq=0)
@@ -1104,7 +1105,7 @@ class BSTable(UVTable):
             plt.title("Histogram of residuals")
             N = len(resid["phase"])
             plt.hist(resid["phase"], bins=np.int(np.sqrt(N)),
-                     normed=True, orientation='vertical')
+                     normed=True, orientation='vertical',**histargs)
 
             # set xyrange
             plt.autoscale()
@@ -1124,7 +1125,7 @@ class BSTable(UVTable):
             normresid = resid["phase"] / (np.rad2deg(resid["sigma"] / resid["amp"]))
             N = len(normresid)
             plt.hist(normresid, bins=np.int(np.sqrt(N)),
-                     normed=True, orientation='vertical')
+                     normed=True, orientation='vertical',**histargs)
             plt.xlabel("Normalized residuals")
             # model line
             xmin, xmax = ax.get_xlim()
