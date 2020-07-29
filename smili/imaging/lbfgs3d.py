@@ -61,6 +61,8 @@ def imaging3d(
         l1_lambda=-1.,
         l1_prior=None,
         l1_noise=1e-2,
+        l1_type=1,
+        l1_floor=1e-2,
         sm_lambda=-1,
         sm_maj=50.,
         sm_min=50.,
@@ -121,6 +123,14 @@ def imaging3d(
             This prior image will be normalized with the total flux estimator.
         l1_noise (float, default=1e-2):
             Typical noise levels relative to the peak value of l1_prior image.
+        l1_type (int, default=1):
+            Type of l1 definition.
+            1 : EHT paper 4
+            2 : test l1 description
+        l1_floor (float, default=1e-2):
+            Only for l1_type=2 case.
+            Flux ratio of the l1 noise floor: totalflux of the floor region is totalflux * l1_floor.
+            In this case, l1_noise is a cutoff vaule of the l1_prior.
         sm_lambda (float,default=-1):
             Regularization parameter for second moment.
             If negative then, this regularization won't be used.
@@ -165,7 +175,6 @@ def imaging3d(
             The target accracy of the total flux regulariztion. For instance,
             tfd_tgterror = 0.01 and tfd_lambda = 1 will give the cost function of
             unity when the fractional error of the total flux is 0.01.
-
         lc_lambda (float, default=-1):
             Regularization parameters for the light curve regularization.
             If negative then, this regularization won't be used.
@@ -175,7 +184,12 @@ def imaging3d(
             The target accuracy of the light curve regularization.
             The definition is the same as that of tfd_tgterror.
         lc_normalize (boolean, default=False):
-            If True, each regularizer are normalized by input light curve (lc_array).
+            Method for regularizer normalization with input light curve:
+                False     : use constant total flux
+                "static"  : static regularizers (l1, tv, tsv) are normalized
+                "dynamic" : dynamical regularizers are normalized
+                "both"    : both regularizers are normalized
+
         cen_lambda (float,default=-1.):
             Regularization parameter for the centroid regularization.
             If negative then, this regularization won't be used.
@@ -185,6 +199,32 @@ def imaging3d(
             The power to be used in the centroid regularizaion.
             cen_power = 1 gives the exact center-of-mass regularization, while
             higher value will work as the peak fixing regularization.
+
+        rt_lambda (float, default=-1.):
+            Regularization parameter for smoothing varying (Rt) regularizer.
+            If negative then, this regularization won't be used.
+        rt_prior  (IMFITS, default=None):
+            Prior image to be used to compute the weighted Rt term.
+            If not specified, the flat prior will be used.
+        ri_lambda (float, default=-1.):
+            Regularization parameter for averaged image (Ri) regularizer.
+            If negative then, this regularization won't be used.
+        ri_prior  (IMFITS, default=None):
+            Prior image to be used to compute the weighted Ri term.
+            If not specified, the flat prior will be used.
+        rs_lambda (float, default=-1):
+            Regularization parameter for dynamic entropy (Rs) regularizer.
+            If negative then, this regularization won't be used.
+        rs_prior  (IMFITS, default=None):
+            Prior image to be used to compute the weighted Rs term.
+            If not specified, the flat prior will be used.
+        rf_lambda (float, default=-1.):
+            Regularization parameter for totalflux continuous (Rf) regularizer.
+            If negative then, this regularization won't be used.
+        rf_prior  (IMFITS, default=None):
+            Prior image to be used to compute the weighted Rf term.
+            If not specified, the flat prior will be used.
+
         niter (int,defalut=100):
             The number of iterations.
         nonneg (boolean,default=True):
@@ -316,17 +356,43 @@ def imaging3d(
         if l1_prior is None:
             l1_priorarr = copy.deepcopy(Iin[0])
             l1_priorarr[:] = totalflux_scaled/Npix
+
         else:
-            if imregion is None:
-                l1_priorarr = l1_prior.data[0,0].reshape(Nyx)
-            else:
-                l1_priorarr = l1_prior.data[0,0][winidx]
-            l1_priorarr[np.where(np.abs(l1_priorarr)<np.abs(l1_priorarr).max()*l1_noise)] = np.abs(l1_priorarr).max()*l1_noise
-        l1_priorarr *= totalflux_scaled/l1_priorarr.sum()
-        l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
-        l1_nwgt = len(l1_wgt)
-        l1_l = l1_lambda
-        del l1_priorarr
+            l1_l = l1_lambda
+
+            if l1_type==1:
+                if imregion is None:
+                    l1_priorarr = l1_prior.data[0,0].reshape(Nyx)
+                else:
+                    l1_priorarr = l1_prior.data[0,0][winidx]
+                l1_priorarr[np.where(np.abs(l1_priorarr)<np.abs(l1_priorarr).max()*l1_noise)] = np.abs(l1_priorarr).max()*l1_noise
+                l1_priorarr *= totalflux_scaled/l1_priorarr.sum()
+                l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
+                l1_nwgt = len(l1_wgt)
+
+            elif l1_type==2:
+                print("Use preliminary L1 regularizer")
+                if imregion is None:
+                    l1_priorarr = l1_prior.data[0,0].reshape(Nyx)
+                else:
+                    l1_priorarr = l1_prior.data[0,0][winidx]
+
+                # Scale flux of an outer region
+                l1_outer = copy.deepcopy(l1_priorarr)
+                l1_outer[np.where(np.abs(l1_priorarr)>np.abs(l1_priorarr).max()*l1_noise)] = 0
+                l1_outer[np.where(np.abs(l1_priorarr)<=np.abs(l1_priorarr).max()*l1_noise)] = 1.
+                l1_outer = totalflux_scaled * l1_floor / l1_outer.sum()
+                # Scale flux of inner region
+                l1_inner = copy.deepcopy(l1_priorarr)
+                l1_inner[np.where(np.abs(l1_priorarr)<=np.abs(l1_priorarr).max()*l1_noise)] = 0
+                l1_inner *= totalflux_scaled / l1_inner.sum()
+                l1_priorarr = l1_inner + (l1_outer / l1_lambda)
+                # Concatenate each region
+                l1_priorarr = copy.deepcopy(l1_inner + l1_outer)
+                l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
+                l1_nwgt = len(l1_wgt)
+                del l1_priorarr
+
     #
     # Second momentum regularization functions
     if sm_lambda <= 0:
@@ -453,6 +519,9 @@ def imaging3d(
     if tfd_lambda <= 0:
         tfd_l = -1
         tfd_tgtfd = 1
+        if len(lc_array) > 0 and (lc_normalize=="static" or lc_normalize=="both"):
+            print("Calculate mean total flux for light curve renormalization")
+            tfd_tgtfd = np.mean(lc_array) * inormfactr
     else:
         print("  Initialize Total Flux Density regularization")
         tfd_tgtfd = np.float64(totalflux_scaled)
@@ -477,9 +546,16 @@ def imaging3d(
         lc_tgtfd = lc_array * inormfactr
         lc_l = lc_lambda / (lc_tgterror * lc_tgtfd)**2
         #print(lc_tgterror)
-        if lc_normalize:
-            print("Regularizer normalization with a light curve")
+        if lc_normalize=="static":
+            print("Static regularizers are normalized with a light curve")
             lc_nidx=1
+        elif lc_normalize=="dynamic":
+            print("Dynamic regularizers are normalized with a light curve")
+            lc_nidx=2
+        elif lc_normalize=="both":
+            print("Static and dynamic regularizers are normalized with a light curve")
+            lc_nidx=3
+
     #   Centroid regularization
     if cen_lambda <= 0:
         cen_l = -1
@@ -488,9 +564,109 @@ def imaging3d(
         cen_l = cen_lambda
 
     # Rt regularization
-    #lambrt_sim = rt_lambda / (2 * fluxscale**2 * Nyx * Nt)
+    if rt_lambda <= 0:
+        rt_wgt  = np.float64(np.asarray([0]))
+        rt_nwgt = 1
+        rt_l = -1
+    else:
+        print("  Initialize Rt regularization")
+        if rt_prior is None:
+            rt_priorarr = copy.deepcopy(Iin[0])
+            rt_priorarr[:] = 1./Npix
+        else:
+            if imregion is None:
+                rt_priorarr = rt_prior.data[0,0].reshape(Nyx)
+            else:
+                rt_priorarr = rt_prior.data[0,0][winidx]
+
+            rt_priorarr *= totalflux_scaled/rt_priorarr.sum()
+            zeroeps = np.float64(1.e-10)
+            rt_priorarr = np.sqrt(np.float64(rt_priorarr**2 + zeroeps))
+
+        rt_priorarr /= rt_priorarr.sum()
+        rt_wgt = 1. / (Nt * Npix * rt_priorarr)
+        rt_nwgt = len(rt_wgt)
+        rt_l = rt_lambda
+        del rt_priorarr
+
     # Ri regularization
-    #lambri_sim = ri_lambda / (fluxscale**2 * Nyx * Nt)
+    if ri_lambda <= 0:
+        ri_wgt  = np.float64(np.asarray([0]))
+        ri_nwgt = 1
+        ri_l = -1
+    else:
+        print("  Initialize Ri regularization")
+        if ri_prior is None:
+            ri_priorarr = copy.deepcopy(Iin[0])
+            ri_priorarr[:] = 1./Npix
+        else:
+            if imregion is None:
+                ri_priorarr = ri_prior.data[0,0].reshape(Nyx)
+            else:
+                ri_priorarr = ri_prior.data[0,0][winidx]
+
+            ri_priorarr *= totalflux_scaled/ri_priorarr.sum()
+            zeroeps = np.float64(1.e-10)
+            ri_priorarr = np.sqrt(np.float64(ri_priorarr**2 + zeroeps))
+
+        ri_priorarr /= ri_priorarr.sum()
+
+        ri_wgt = 1. / (Nt * Npix * ri_priorarr)
+        ri_nwgt = len(ri_wgt)
+        ri_l = ri_lambda
+        del ri_priorarr
+
+    # Rs regularization
+    if rs_lambda <= 0:
+        rs_wgt  = np.float64(np.asarray([0]))
+        rs_nwgt = 1
+        rs_l = -1
+    else:
+        print("  Initialize Rs regularization")
+        if rs_prior is None:
+            rs_priorarr = copy.deepcopy(Iin[0])
+            rs_priorarr[:] = 1./Npix
+        else:
+            if imregion is None:
+                rs_priorarr = rs_prior.data[0,0].reshape(Nyx)
+            else:
+                rs_priorarr = rs_prior.data[0,0][winidx]
+
+            rs_priorarr *= totalflux_scaled/rs_priorarr.sum()
+            zeroeps = np.float64(1.e-10)
+            rs_priorarr = np.sqrt(np.float64(rs_priorarr**2 + zeroeps))
+
+        rs_priorarr /= rs_priorarr.sum()
+        rs_wgt = 1. / (Nt * Npix * rs_priorarr)
+        rs_nwgt = len(rs_wgt)
+        rs_l = rs_lambda
+        del rs_priorarr
+
+    # Rs regularization
+    if rf_lambda <= 0:
+        rf_wgt  = np.float64(np.asarray([0]))
+        rf_nwgt = 1
+        rf_l = -1
+    else:
+        print("  Initialize Rf regularization")
+        if rf_prior is None:
+            rf_priorarr = copy.deepcopy(Iin[0])
+            rf_priorarr[:] = 1./Npix
+        else:
+            if imregion is None:
+                rf_priorarr = rf_prior.data[0,0].reshape(Nyx)
+            else:
+                rf_priorarr = rf_prior.data[0,0][winidx]
+            rf_priorarr *= totalflux_scaled/rf_priorarr.sum()
+            zeroeps = np.float64(1.e-10)
+            rf_priorarr = np.sqrt(np.float64(rf_priorarr**2 + zeroeps))
+
+        rf_priorarr /= rf_priorarr.sum()
+        rf_wgt = 1. / (Nt * Npix * rf_priorarr)
+        rf_nwgt = len(rf_wgt)
+        rf_l = rf_lambda
+        del rf_priorarr
+
 
     dammyreal = np.zeros(1, dtype=np.float64)
 
@@ -608,9 +784,17 @@ def imaging3d(
         cen_alpha=np.float64(cen_alpha),
         # Regularization Parameters for dynamical imaging
         rt_l=np.float64(rt_lambda),
+        rt_wgt=np.float64(rt_wgt),
+        rt_nwgt=np.float64(rt_nwgt),
         ri_l=np.float64(ri_lambda),
+        ri_wgt=np.float64(ri_wgt),
+        ri_nwgt=np.float64(ri_nwgt),
         rs_l=np.float64(rs_lambda),
+        rs_wgt=np.float64(rs_wgt),
+        rs_nwgt=np.float64(rs_nwgt),
         rf_l=np.float64(rf_lambda),
+        rf_wgt=np.float64(rf_wgt),
+        rf_nwgt=np.float64(rf_nwgt),
         # Full Complex Visibilities
         isfcv=isfcv,
         uvidxfcv=np.int32(uvidxfcv),

@@ -23,7 +23,10 @@ subroutine imaging(&
   tfd_l, tfd_tgtfd,&
   lc_l, lc_tgtfd,lc_nidx,&
   cen_l, cen_alpha,&
-  rt_l, ri_l, rs_l, rf_l, &
+  rt_l, rt_wgt, rt_Nwgt,&
+  ri_l, ri_wgt, ri_Nwgt,&
+  rs_l, rs_wgt, rs_Nwgt,&
+  rf_l, rf_wgt, rf_Nwgt,&
   isfcv,uvidxfcv,Vfcvr,Vfcvi,Varfcv,wfcv,&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
@@ -96,10 +99,22 @@ subroutine imaging(&
   real(dp), intent(in)  :: cen_alpha          ! alpha
 
   ! Regularization parameters of dynamical imaging
-  real(dp), intent(in) :: rt_l    ! Regularization Parameter for Dynamical Imaging (delta-t)
-  real(dp), intent(in) :: ri_l    ! Regularization Parameter for Dynamical Imaging (delta-I)
-  real(dp), intent(in) :: rs_l    ! Regularization Parameter for Dynamical Imaging (entropy continuity)
-  real(dp), intent(in) :: rf_l    ! Regularization Parameter for Dynamical Imaging (total flux continuity)
+  ! Regularization Parameter for Dynamical Imaging (delta-t)
+  real(dp), intent(in) :: rt_l            ! lambda
+  integer,  intent(in) :: rt_Nwgt         ! size of weight vector
+  real(dp), intent(in) :: rt_wgt(rt_Nwgt) ! weight
+  ! Regularization Parameter for Dynamical Imaging (delta-I)
+  real(dp), intent(in) :: ri_l            ! lambda
+  integer,  intent(in) :: ri_Nwgt         ! size of weight vector
+  real(dp), intent(in) :: ri_wgt(ri_Nwgt) ! weight
+  ! Regularization Parameter for Dynamical Imaging (entropy continuity)
+  real(dp), intent(in) :: rs_l            ! lambda
+  real(dp), intent(in) :: rs_wgt(rs_Nwgt) ! weight
+  integer,  intent(in) :: rs_Nwgt         ! size of weight vector
+  ! Regularization Parameter for Dynamical Imaging (total flux continuity)
+  real(dp), intent(in) :: rf_l            ! lambda
+  real(dp), intent(in) :: rf_wgt(rf_Nwgt) ! weight
+  integer,  intent(in) :: rf_Nwgt         ! size of weight vector
 
   ! Parameters related to full complex visibilities
   logical,  intent(in) :: isfcv           ! is data?
@@ -294,7 +309,10 @@ subroutine imaging(&
     tfd_l, tfd_tgtfd,&
     lc_l, lc_tgtfd,lc_nidx,&
     cen_l, cen_alpha,&
-    rt_l,ri_l,rs_l, rf_l, &
+    rt_l, rt_wgt, rt_Nwgt,&
+    ri_l, ri_wgt, ri_Nwgt,&
+    rs_l, rs_wgt, rs_Nwgt,&
+    rf_l, rf_wgt, rf_Nwgt,&
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
@@ -354,7 +372,10 @@ subroutine imaging(&
         tfd_l, tfd_tgtfd,&
         lc_l, lc_tgtfd,lc_nidx,&
         cen_l, cen_alpha,&
-        rt_l, ri_l, rs_l, rf_l, &
+        rt_l, rt_wgt, rt_Nwgt,&
+        ri_l, ri_wgt, ri_Nwgt,&
+        rs_l, rs_wgt, rs_Nwgt,&
+        rf_l, rf_wgt, rf_Nwgt,&
         isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
         isamp,uvidxamp,Vamp,Varamp,wamp_n,&
         iscp,uvidxcp,CP,Varcp,wcp_n,&
@@ -386,7 +407,10 @@ subroutine imaging(&
           tfd_l, tfd_tgtfd,&
           lc_l, lc_tgtfd,lc_nidx,&
           cen_l, cen_alpha,&
-          rt_l, ri_l, rs_l, rf_l, &
+          rt_l, rt_wgt, rt_Nwgt,&
+          ri_l, ri_wgt, ri_Nwgt,&
+          rs_l, rs_wgt, rs_Nwgt,&
+          rf_l, rf_wgt, rf_Nwgt,&
           isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
           isamp,uvidxamp,Vamp,Varamp,wamp_n,&
           iscp,uvidxcp,CP,Varcp,wcp_n,&
@@ -405,7 +429,7 @@ subroutine imaging(&
 
   ! Finary print summary again
   print '("Final Summary")'
-  print '("  Iteration ent at ",I5,"/",I5)',isave(30),Niter
+  print '("  Iteration end at ",I5,"/",I5)',isave(30),Niter
   call calc_cost(&
     Iout,xidx,yidx,Nxref,Nyref,Nx,Ny, Nz,&
     u,v,Nuvs,Nuvs_sum,&
@@ -418,7 +442,10 @@ subroutine imaging(&
     tfd_l, tfd_tgtfd,&
     lc_l, lc_tgtfd,lc_nidx,&
     cen_l, cen_alpha,&
-    rt_l, ri_l, rs_l, rf_l, &
+    rt_l, rt_wgt, rt_Nwgt,&
+    ri_l, ri_wgt, ri_Nwgt,&
+    rs_l, rs_wgt, rs_Nwgt,&
+    rf_l, rf_wgt, rf_Nwgt,&
     isfcv,uvidxfcv,Vfcv,Varfcv,wfcv_n,&
     isamp,uvidxamp,Vamp,Varamp,wamp_n,&
     iscp,uvidxcp,CP,Varcp,wcp_n,&
@@ -454,7 +481,10 @@ subroutine calc_cost(&
   tfd_l, tfd_tgtfd,&
   lc_l, lc_tgtfd,lc_nidx,&
   cen_l, cen_alpha,&
-  rt_l, ri_l, rs_l, rf_l,&
+  rt_l, rt_wgt, rt_Nwgt,&
+  ri_l, ri_wgt, ri_Nwgt,&
+  rs_l, rs_wgt, rs_Nwgt,&
+  rf_l, rf_wgt, rf_Nwgt,&
   isfcv,uvidxfcv,Vfcv,Varfcv,wfcv,&
   isamp,uvidxamp,Vamp,Varamp,wamp,&
   iscp,uvidxcp,CP,Varcp,wcp,&
@@ -518,9 +548,23 @@ subroutine calc_cost(&
   real(dp), intent(in)  :: cen_l              ! lambda (Normalized)
   real(dp), intent(in)  :: cen_alpha          ! alpha
 
-  ! Regularization parameters for dynamical imagings
-  real(dp), intent(in)  :: rt_l, ri_l, rs_l
-  real(dp), intent(in)  ::  rf_l
+  ! Regularization parameters of dynamical imaging
+  ! Regularization Parameter for Dynamical Imaging (delta-t)
+  real(dp), intent(in) :: rt_l            ! lambda
+  real(dp), intent(in) :: rt_wgt(rt_Nwgt) ! weight
+  integer,  intent(in) :: rt_Nwgt         ! size of weight vector
+  ! Regularization Parameter for Dynamical Imaging (delta-I)
+  real(dp), intent(in) :: ri_l            ! lambda
+  real(dp), intent(in) :: ri_wgt(ri_Nwgt) ! weight
+  integer,  intent(in) :: ri_Nwgt         ! size of weight vector
+  ! Regularization Parameter for Dynamical Imaging (entropy continuity)
+  real(dp), intent(in) :: rs_l            ! lambda
+  real(dp), intent(in) :: rs_wgt(rs_Nwgt) ! weight
+  integer,  intent(in) :: rs_Nwgt         ! size of weight vector
+  ! Regularization Parameter for Dynamical Imaging (total flux continuity)
+  real(dp), intent(in) :: rf_l            ! lambda
+  real(dp), intent(in) :: rf_wgt(rf_Nwgt) ! weight
+  integer,  intent(in) :: rf_Nwgt         ! size of weight vector
 
   ! Parameters related to full complex visibilities
   logical,      intent(in) :: isfcv           ! is data?
@@ -629,7 +673,10 @@ subroutine calc_cost(&
       tfd_l, tfd_tgtfd,&
       lc_l, lc_tgtfd,lc_nidx,&
       cen_l, cen_alpha,&
-      rt_l, ri_l, rs_l, rf_l, &
+      rt_l, rt_wgt, rt_Nwgt,&
+      ri_l, ri_wgt, ri_Nwgt,&
+      rs_l, rs_wgt, rs_Nwgt,&
+      rf_l, rf_wgt, rf_Nwgt,&
       l1_cost, sm_cost, tv_cost, tsv_cost, kl_cost, gs_cost,&
       tfd_cost, lc_cost, cen_cost,&
       rt_cost, ri_cost, rs_cost, rf_cost,&

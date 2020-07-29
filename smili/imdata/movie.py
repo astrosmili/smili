@@ -365,6 +365,24 @@ class MOVIE(object):
         return outmovie
 
     #
+    def rotate(self, angle=0, deg=True, save_totalflux=False):
+        '''
+        Rotate an input movie
+
+        Args:
+          angle (float): Rotational Angle. Anti-clockwise direction will be positive (same to the Position Angle).
+          deg (boolean): It true, then the unit of angle will be degree. Otherwise, it will be radian.
+          save_totalflux (boolean): If true, the total flux of the image will be conserved.
+        Returns:
+          imdata.MOVIE object
+        '''
+
+        image_list = []
+        for image in self.images:
+            image_list.append(image.rotate(angle, deg, save_totalflux))
+        outmovie = self.copy()
+        outmovie.images = image_list
+        return outmovie
 
     #---------------------------------------------------------------------------
     # Edit other objects
