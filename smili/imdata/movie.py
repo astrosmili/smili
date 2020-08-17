@@ -460,7 +460,7 @@ class MOVIE(object):
                 utc_uvfits = uvfits_frm.get_utc()
 
                 idx = np.array([True for i in range(Ndata)])
-                if ifrm > 1:
+                if ifrm > 0:
                     idx &= utc_uvfits > utcbound[ifrm-1]
                 if ifrm < self.Nt-1:
                     idx &= utc_uvfits < utcbound[ifrm]
