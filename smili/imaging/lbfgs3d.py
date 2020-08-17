@@ -62,7 +62,7 @@ def imaging3d(
         l1_prior=None,
         l1_noise=1e-2,
         l1_type=1,
-        l1_floor=1e-2,
+        l1_floor=1e-1,
         sm_lambda=-1,
         sm_maj=50.,
         sm_min=50.,
@@ -127,7 +127,7 @@ def imaging3d(
             Type of l1 definition.
             1 : EHT paper 4
             2 : test l1 description
-        l1_floor (float, default=1e-2):
+        l1_floor (float, default=1e-1):
             Only for l1_type=2 case.
             Flux ratio of the l1 noise floor: totalflux of the floor region is totalflux * l1_floor.
             In this case, l1_noise is a cutoff vaule of the l1_prior.
@@ -377,18 +377,10 @@ def imaging3d(
                 else:
                     l1_priorarr = l1_prior.data[0,0][winidx]
 
-                # Scale flux of an outer region
-                l1_outer = copy.deepcopy(l1_priorarr)
-                l1_outer[np.where(np.abs(l1_priorarr)>np.abs(l1_priorarr).max()*l1_noise)] = 0
-                l1_outer[np.where(np.abs(l1_priorarr)<=np.abs(l1_priorarr).max()*l1_noise)] = 1.
-                l1_outer = totalflux_scaled * l1_floor / l1_outer.sum()
-                # Scale flux of inner region
-                l1_inner = copy.deepcopy(l1_priorarr)
-                l1_inner[np.where(np.abs(l1_priorarr)<=np.abs(l1_priorarr).max()*l1_noise)] = 0
-                l1_inner *= totalflux_scaled / l1_inner.sum()
-                l1_priorarr = l1_inner + (l1_outer / l1_lambda)
+                l1_priorarr *= totalflux_scaled/np.sum(l1_priorarr)
+                l1_priorarr[np.where(np.abs(l1_priorarr)<np.abs(l1_priorarr).max()*l1_noise)] = np.abs(l1_priorarr).max()*l1_floor
+
                 # Concatenate each region
-                l1_priorarr = copy.deepcopy(l1_inner + l1_outer)
                 l1_wgt = fortlib.image.init_l1reg(np.float64(l1_priorarr))
                 l1_nwgt = len(l1_wgt)
                 del l1_priorarr
