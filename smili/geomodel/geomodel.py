@@ -357,42 +357,51 @@ def Gaussian(x0=0,y0=0,totalflux=1,majsize=1,minsize=None,pa=0,angunit="mas"):
     return output
 
 
-def Rectangular(totalflux=1,x0=0,y0=0,dx=1,dy=None,angunit="mas"):
+def Rectangular(totalflux=1,x0=0,y0=0,dx=1,dy=None,Lx=1.,Ly=None,angunit="mas"):
     '''
     Create geomodel.geomodel.GeoModel Object for the specified RectAngular function
     Args:
         x0=0.0, y0=0.0: position of the centorid
-        totalflux=1.0: total flux of the Gaussian
-        dx, dy: the size of the rectangular function
+        totalflux=1.0: total flux of the model in Jy
+        Lx, Ly: the size of the rectangular function.
+        dx, dy: the pixel size of the image
         angunit="mas": angular unit of x0, y0, dx, dy (uas, mas, asec, amin, deg, rad)
     Returns:
         geomodel.geomodel.GeoModel Object for the specified RectAngular function
     '''
+    from numpy import where, abs, sinc, pi, exp, isnan
+    
     if dy is None:
         dy = dx
+    if Ly is None:
+        Ly = Lx
 
     # define a Gaussian with F=1 jy, size = 1 (angunit)
-    conv = angconv(angunit, "rad")
-    dxrad = np.abs(conv*dx)
-    dyrad = np.abs(conv*dy)
-    dxyinv = 1./dxrad/dyrad
+    factor = angconv(angunit, "rad")
 
-    def I(x,y):
-        xnorm = np.abs(x/dxrad)
-        ynorm = np.abs(y/dyrad)
-        return np.where(xnorm<=0.5, 1, 0)*np.where(ynorm<=0.5, 1, 0)
+    x0rad = x0 * factor
+    y0rad = y0 * factor
+    Lxrad = abs(factor*Lx)
+    Lyrad = abs(factor*Ly)
+    dxrad = abs(factor*dx)
+    dyrad = abs(factor*dy)
 
-    def V(u,v):
-        unorm = np.pi*dxrad*u
-        vnorm = np.pi*dyrad*v
-        return np.sin(unorm)*np.sin(vnorm)/unorm/vnorm
+    # get the mean intensity = Total flux / (the number of pixels in the rect angular)
+    Imean = totalflux / Lxrad / Lyrad * dxrad * dyrad
 
-    output = GeoModel(V=V, I=I)
-    if totalflux != 1:
-        output = output * totalflux
-    if x0 != 0 or y0 != 0:
-        output = output.shift(deltax=x0, deltay=y0, angunit=angunit)
-    return output
+    def I(x, y):
+        xnorm = abs((x-x0rad)/Lxrad)
+        ynorm = abs((y-y0rad)/Lyrad)
+        return where(xnorm <= 0.5, 1, 0)*where(ynorm <= 0.5, 1, 0)*Imean
+
+    def V(u, v):
+        unorm = Lxrad*u
+        vnorm = Lyrad*v
+        amp = totalflux * sinc(unorm)*sinc(vnorm)
+        phase = 2*pi*(u*x0rad+v*y0rad)
+        return amp*exp(1j*phase)
+
+    return GeoModel(V=V, I=I)
 
 
 def Triangular(totalflux=1,x0=0,y0=0,dx=1,dy=None,angunit="mas"):
