@@ -736,7 +736,7 @@ class VisTable(UVTable):
         return vistable_d
 
 
-    def make_bstable(self, redundant=None, dependent=False,reorder_st=False):
+    def make_bstable(self, redundant=None, dependent=False,reorder_st=True):
         '''
         Form bi-spectra from complex visibilities.
 
@@ -749,8 +749,8 @@ class VisTable(UVTable):
             dependent (boolean; default=False):
                 If False, only independent dependent closure amplitudes will be formed.
                 Otherwise, dependent closure amplitudes also will be formed as well.
-            reorder_snr (default=False):
-                If snr, the station indeices are aligned using median SNRs for each station.
+            reorder_snr (default=True):
+                If True, the station indices are aligned using median SNRs for each station.
         Returns:
             uvdata.BSTable object
         '''
@@ -1534,7 +1534,7 @@ class VisTable(UVTable):
         return outtab
 
 
-    def make_catable(self, redundant=None, dependent=False, debias=True,reorder_st=False):
+    def make_catable(self, redundant=None, dependent=False, debias=True,reorder_st=True):
         '''
         Form closure amplitudes from complex visibilities.
 
@@ -1550,8 +1550,8 @@ class VisTable(UVTable):
             debias (boolean; default=True):
                 If True, visibility amplitudes will be debiased before closing
                 closure amplitudes.
-            reorder_snr (default=False):
-                If snr, the station indeices are aligned using median SNRs for each station.
+            reorder_snr (default=True):
+                If True, the station indices are aligned using median SNRs for each station.
 
         Returns:
             uvdata.CATable object
