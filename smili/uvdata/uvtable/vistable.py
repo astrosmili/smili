@@ -756,7 +756,7 @@ class VisTable(UVTable):
         '''
         if not reorder_st:
             vistable = copy.deepcopy(self)
-        elif reorder_st=="snr":
+        else:
             print("(0/5) Align vistable using median SNR values")
             vistable = copy.deepcopy(self.reorder_st_snr(avgtype="median"))
 
@@ -1560,7 +1560,7 @@ class VisTable(UVTable):
 
         if not reorder_st:
             vistable = copy.deepcopy(self)
-        elif reorder_st=="snr":
+        else:
             print("(0/5) Align vistable using median SNR values")
             vistable = copy.deepcopy(self.reorder_st_snr(avgtype="median"))
 
