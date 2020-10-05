@@ -100,9 +100,11 @@ class VisTable(UVTable):
             else:
                 col1name = "%s1"%(colname)
                 col2name = "%s2"%(colname)
-            newcol1 = outdata.loc[t, col2name].reset_index(drop=True)
-            outdata.loc[t, col2name] = outdata.loc[t, col1name].reset_index(drop=True)
-            outdata.loc[t, col1name] = newcol1
+            newcol1 = outdata.loc[t, col2name].values.copy()
+            newcol2 = outdata.loc[t, col1name].values.copy()
+            outdata.loc[t, col2name] = newcol2.copy()
+            outdata.loc[t, col1name] = newcol1.copy()
+        # flip sign of stations
         outdata.loc[t, ["u","v","phase"]] *= -1
 
         # sort with time, and stations
@@ -248,9 +250,9 @@ class VisTable(UVTable):
         Args:
             avgtype: method for calculating SNRs of each station (median or mean).
         '''
-
-        stnamelist = list(self.station_dic().values())
-        stlist     = list(self.station_dic().keys())
+        stdic = self.station_dic()
+        stnamelist = list(stdic.values())
+        stlist     = list(stdic.keys())
         snrlist = []
         table = pd.DataFrame([])
         for stname in stnamelist:
@@ -277,11 +279,17 @@ class VisTable(UVTable):
             avgtype: method for calculating SNRs of each station (median or mean).
         '''
         Ndata = len(self["utc"])
-        indice = self.check_snr(id=True,avgtype=avgtype)
-        vistable = copy.deepcopy(self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True))
-        vistable["st1"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
-        vistable["st2"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
-        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        stids_ordered = self.check_snr(id=True,avgtype=avgtype)
+        Nant = len(stids_ordered)
+
+        # relabel station ids
+        vistable = copy.deepcopy(self)
+        for i in range(Nant):
+            stid_old = stids_ordered[i]
+            stid_new = i+1
+            for i in range(2):
+                colname = "st%d"%(i+1)
+                vistable.loc[self[colname]==stid_old, colname] = stid_new
         return vistable.uvsort()
 
     def station_dic(self, id2name=True):
