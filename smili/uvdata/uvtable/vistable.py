@@ -92,10 +92,14 @@ class VisTable(UVTable):
 
         # search where st1 > st2
         t = outdata["st1"] > outdata["st2"]
-        dammy = outdata.loc[t, "st2"]
-        outdata.loc[t, "st2"] = outdata.loc[t, "st1"]
-        outdata.loc[t, "st1"] = dammy
-        outdata.loc[t, "phase"] *= -1
+        # exchange orders
+        for col in ["st","stname"]:
+            col1 = "%s1"%(col)
+            col2 = "%s2"%(col)
+            dammy = outdata.loc[t, col2].reset_index(drop=True)
+            outdata.loc[t, col2] = outdata.loc[t, col1].reset_index(drop=True)
+            outdata.loc[t, col1] = dammy
+        outdata.loc[t, ["u","v","phase"]] *= -1
 
         # sort with time, and stations
         outdata = outdata.sort_values(
