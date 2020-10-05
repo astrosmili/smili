@@ -273,19 +273,17 @@ class VisTable(UVTable):
         vistable["st1"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
         vistable["st2"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
         vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-        for i in range(Ndata):
-            if vistable.loc[i,"st1"]>vistable.loc[i,"st2"]:
-                st1=vistable.loc[i,"st2"]
-                st2=vistable.loc[i,"st1"]
-                vistable.loc[i,"st1"]=st1
-                vistable.loc[i,"st2"]=st2
-                st1name=vistable.loc[i,"st1name"]
-                st2name=vistable.loc[i,"st2name"]
-                vistable.loc[i,"st1name"]=st2name
-                vistable.loc[i,"st2name"]=st1name
-                vistable.loc[i,"u"]*=-1
-                vistable.loc[i,"v"]*=-1
-                vistable.loc[i,"phase"]*=-1
+
+        idx = vistable["st1"]>vistable["st2"]
+        st1=vistable.loc[idx,"st2"].reset_index(drop=True)
+        st2=vistable.loc[idx,"st1"].reset_index(drop=True)
+        st1name=vistable.loc[idx,"st1name"]
+        st2name=vistable.loc[idx,"st2name"]
+        vistable.loc[idx,"st1"]=st1
+        vistable.loc[idx,"st2"]=st2
+        vistable.loc[idx,"st1name"]=st2name
+        vistable.loc[idx,"st2name"]=st1name
+        vistable.loc[idx,["u","v","phase"]]*=-1
         return vistable
 
     def station_dic(self, id2name=True):
