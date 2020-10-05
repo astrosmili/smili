@@ -93,17 +93,22 @@ class VisTable(UVTable):
         # search where st1 > st2
         t = outdata["st1"] > outdata["st2"]
         # exchange orders
-        for col in ["st","stname"]:
-            col1 = "%s1"%(col)
-            col2 = "%s2"%(col)
-            dammy = outdata.loc[t, col2].reset_index(drop=True)
-            outdata.loc[t, col2] = outdata.loc[t, col1].reset_index(drop=True)
-            outdata.loc[t, col1] = dammy
+        for colname in ["st","stname"]:
+            if colname == "stname":
+                col1name = "st1name"
+                col2name = "st2name"
+            else:
+                col1name = "%s1"%(colname)
+                col2name = "%s2"%(colname)
+            newcol1 = outdata.loc[t, col2name].reset_index(drop=True)
+            outdata.loc[t, col2name] = outdata.loc[t, col1name].reset_index(drop=True)
+            outdata.loc[t, col1name] = newcol1
         outdata.loc[t, ["u","v","phase"]] *= -1
 
         # sort with time, and stations
         outdata = outdata.sort_values(
-            by=["utc", "st1", "st2", "stokesid", "ch"])
+            by=["utc", "st1", "st2", "stokesid", "ch"]
+        )
 
         return outdata
 
@@ -277,18 +282,7 @@ class VisTable(UVTable):
         vistable["st1"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
         vistable["st2"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
         vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-
-        idx = vistable["st1"]>vistable["st2"]
-        st1=vistable.loc[idx,"st2"].reset_index(drop=True)
-        st2=vistable.loc[idx,"st1"].reset_index(drop=True)
-        st1name=vistable.loc[idx,"st1name"]
-        st2name=vistable.loc[idx,"st2name"]
-        vistable.loc[idx,"st1"]=st1
-        vistable.loc[idx,"st2"]=st2
-        vistable.loc[idx,"st1name"]=st2name
-        vistable.loc[idx,"st2name"]=st1name
-        vistable.loc[idx,["u","v","phase"]]*=-1
-        return vistable
+        return vistable.uvsort()
 
     def station_dic(self, id2name=True):
         '''
