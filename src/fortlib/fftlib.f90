@@ -9,7 +9,7 @@ module fftlib
   real(dp), parameter :: ffteps=1d-12
 
   interface
-    subroutine finufft2d1_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
+    subroutine finufft2d1(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
       integer :: nj, iflag, ms, mt, ier
       real(kind(1.0d0)) :: xj(nj), yj(nj), eps
       complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
@@ -17,7 +17,7 @@ module fftlib
   end interface
 
   interface
-    subroutine finufft2d2_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
+    subroutine finufft2d2(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
       integer :: nj, iflag, ms, mt, ier
       real(kind(1.0d0)) :: xj(nj), yj(nj), eps
       complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
@@ -51,7 +51,7 @@ subroutine NUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
   integer :: ier
 
   ! Call FINUFFT subroutine
-  call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
+  call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
 
   ! debug
   !print *, ' ier = ',ier
@@ -84,7 +84,7 @@ subroutine NUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
   integer :: ier
 
   ! Call FINUFFT subroutine
-  call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
+  call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
 
   ! Take real & imaginary parts
   Vreal = dreal(Vcmp)
@@ -119,7 +119,7 @@ subroutine NUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
   integer :: ier
 
   ! Call FINUFFT subroutine
-  call finufft2d1_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,ier)
+  call finufft2d1(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,ier)
 
   ! debug
   !print *, ' ier = ',ier
@@ -150,7 +150,7 @@ subroutine NUFFT_adj_real1D(u,v,Vreal,Vimag,I2d,Nx,Ny,Nuv)
   integer :: ier
   ! Call FINUFFT subroutine
 
-  call finufft2d1_f(Nuv,u,v,dcmplx(Vreal,Vimag),iflag,eps,Nx,Ny,I2d_cmp,ier)
+  call finufft2d1(Nuv,u,v,dcmplx(Vreal,Vimag),iflag,eps,Nx,Ny,I2d_cmp,ier)
   I2d = reshape(realpart(I2d_cmp), (/Nx*Ny/))
 
   ! debug
@@ -186,7 +186,7 @@ subroutine NUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
   integer :: ier
 
   ! Call FINUFFT subroutine
-  call finufft2d1_f(Nuv,u,v,Vreal+i_dpc*Vimag,iflag,eps,Nx,Ny,I2d,ier)
+  call finufft2d1(Nuv,u,v,Vreal+i_dpc*Vimag,iflag,eps,Nx,Ny,I2d,ier)
   Ireal = reshape(realpart(I2d), (/Nx*Ny/))
   Iimag = reshape(imagpart(I2d), (/Nx*Ny/))
 end subroutine

@@ -167,7 +167,7 @@ macOS.
     cd fftw-3.3.X
 
     # Compile and install
-    ./configure --prefix="Your prefix, e.g. $HOME/local" --enable-openmp --enable-threads --enable-shared
+    ./configure --prefix="Your prefix, e.g. $HOME/local" --enable-openmp --enable-threads --enable-shared --enable-float
     make
     make install
 

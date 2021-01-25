@@ -13,7 +13,7 @@ module fftlib3d
   ! real(dp), parameter :: ffteps=1d-12
   !
   ! interface
-  !   subroutine finufft2d1_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
+  !   subroutine finufft2d1(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
   !     integer :: nj, iflag, ms, mt, ier
   !     real(kind(1.0d0)) :: xj(nj), yj(nj), eps
   !     complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
@@ -21,7 +21,7 @@ module fftlib3d
   ! end interface
   !
   ! interface
-  !   subroutine finufft2d2_f(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
+  !   subroutine finufft2d2(nj,xj,yj,cj,iflag,eps,ms,mt,fk,ier)
   !     integer :: nj, iflag, ms, mt, ier
   !     real(kind(1.0d0)) :: xj(nj), yj(nj), eps
   !     complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
@@ -55,7 +55,7 @@ contains
 !   integer :: ier
 !
 !   ! Call FINUFFT subroutine
-!   call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
+!   call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
 !
 !   ! debug
 !   !print *, ' ier = ',ier
@@ -88,7 +88,7 @@ contains
 !   integer :: ier
 !
 !   ! Call FINUFFT subroutine
-!   call finufft2d2_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
+!   call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),ier)
 !
 !   ! Take real & imaginary parts
 !   Vreal = dreal(Vcmp)
@@ -123,7 +123,7 @@ contains
 !   integer :: ier
 !
 !   ! Call FINUFFT subroutine
-!   call finufft2d1_f(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,ier)
+!   call finufft2d1(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,ier)
 !
 !   ! debug
 !   !print *, ' ier = ',ier
