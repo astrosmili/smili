@@ -39,7 +39,7 @@ endif
 # other ocmmand options
 FCLIBS_OMP=-fopenmp
 FCLIBS_OPENBLAS=@OPENBLAS_LIBS@
-FCLIBS_FINUFFT=@FINUFFT_LIBS@ -lstdc++ @FFTW3_LIBS@ @FFTW3TH_LIBS@
+FCLIBS_FINUFFT=@FINUFFT_CFLAGS@ @FINUFFT_LIBS@ -lstdc++ @FFTW3_LIBS@ @FFTW3TH_LIBS@
 FCLIBS_LBFGSB=-L../lbfgsb -llbfgsb
 
 # set command options
@@ -103,7 +103,7 @@ F2PYFLAGS2+=$(F2PYLIBS_OMP)
 #-------------------------------------------------------------------------------
 # Main description
 #-------------------------------------------------------------------------------
-SRCS=param.f90
+SRCS=param.f90 finufft_fh.f90
 SRCS+=interp.f90 phasecon.f90 houghlib.f90
 SRCS+=image.f90 fftlib.f90 fftim2d.f90
 SRCS+=fftlibqu.f90
@@ -111,7 +111,7 @@ SRCS+=image3d.f90 fftlib3d.f90 fftim3d.f90
 SRCS+=dftlib.f90 dftim2d.f90
 SRCS+=coord.f90 uvdata.f90
 
-OBJS=param.o
+OBJS=param.o finufft_fh.o
 OBJS+=interp.o phasecon.o houghlib.o
 OBJS+=image.o fftlib.o fftim2d.o
 OBJS+=fftlibqu.o
