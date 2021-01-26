@@ -268,7 +268,7 @@ macOS.
     #     copy to a directory specified in $PKG_CONFIG_PATH
     finufftdir=$(HOME)/local/finufft
     libdir=${finufftdir}/lib-static
-    includedir=${finufftdir}/src
+    includedir=${finufftdir}/include
 
     Name: FINUFFT
     Description: Flatiron Institute Nonuniform Fast Fourier Transform libraries
