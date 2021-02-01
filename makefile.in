@@ -1,6 +1,7 @@
 # INSTALLDIR
 all:
 	cd src/lbfgsb; make install
+	cd src/wrapfinufft; make install
 	cd src/fortlib; make install
 
 install: all
@@ -8,6 +9,7 @@ install: all
 
 clean:
 	cd src/lbfgsb; make clean
+	cd src/wrapfinufft; make clean
 	cd src/fortlib; make clean
 	rm -f smili/*.pyf
 	rm -f smili/*.pyc
@@ -21,6 +23,7 @@ clean:
 
 uninstall: clean
 	cd src/lbfgsb; make uninstall
+	cd src/wrapfinufft; make uninstall
 	cd src/fortlib; make uninstall
 	rm -rf autom4te.cache
 	rm -f config.log

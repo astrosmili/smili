@@ -7,10 +7,10 @@ The module includes following submodules.
 __author__ = "Smili Developper Team"
 
 # Imaging
-from . import imdata
-from . import uvdata
-from . import imaging
-from . import geomodel
+#from . import imdata
+#from . import uvdata
+#from . import imaging
+#from . import geomodel
 
 # Common module
-from . import util
+#from . import util

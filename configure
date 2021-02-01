@@ -3553,7 +3553,7 @@ fi
 
 #-------------------------------------------------------------------------------
 # Makefiles
-ac_config_files="$ac_config_files makefile src/lbfgsb/makefile src/fortlib/makefile"
+ac_config_files="$ac_config_files makefile src/lbfgsb/makefile src/wrapfinufft/makefile src/fortlib/makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -4262,6 +4262,7 @@ do
   case $ac_config_target in
     "makefile") CONFIG_FILES="$CONFIG_FILES makefile" ;;
     "src/lbfgsb/makefile") CONFIG_FILES="$CONFIG_FILES src/lbfgsb/makefile" ;;
+    "src/wrapfinufft/makefile") CONFIG_FILES="$CONFIG_FILES src/wrapfinufft/makefile" ;;
     "src/fortlib/makefile") CONFIG_FILES="$CONFIG_FILES src/fortlib/makefile" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;

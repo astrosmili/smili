@@ -124,5 +124,6 @@ AC_SUBST([dbg_flag])
 # Makefiles
 AC_CONFIG_FILES([makefile
                  src/lbfgsb/makefile
+                 src/wrapfinufft/makefile
                  src/fortlib/makefile])
 AC_OUTPUT

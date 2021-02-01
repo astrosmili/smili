@@ -1,0 +1,82 @@
+.SUFFIXES: .f90 .o
+#-------------------------------------------------------------------------------
+# Check OS
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+  OSTYPE="LINUX"
+else
+  ifeq ($(UNAME_S),Darwin)
+    OSTYPE="OSX"
+	else
+	  OSTYPE="OSX"
+	endif
+endif
+#-------------------------------------------------------------------------------
+# Fortran Compiler
+FC=@FC@
+
+# Optimization Flag
+ifeq ($(OSTYPE),"LINUX")
+  FCFLAGS_OPT=-O3 -march=native
+else
+  FCFLAGS_OPT=-O3 -march=core2
+endif
+
+# command options for Debugging
+DBG_FLAG=@dbg_flag@
+FCFLAGS_DBG=
+ifeq ($(DBG_FLAG),True)
+	FCFLAGS_DBG+=-g
+	FCFLAGS_DBG+=-Wall
+	FCFLAGS_DBG+=-pedantic
+	FCFLAGS_DBG+=-fbounds-check
+	FCFLAGS_DBG+=-O
+	FCFLAGS_DBG+=-Wuninitialized
+	FCFLAGS_DBG+=-ffpe-trap=invalid,zero,overflow
+	FCFLAGS_DBG+=-fbacktrace
+endif
+
+# other ocmmand options
+FCLIBS_OMP=-fopenmp
+FCLIBS_OPENBLAS=@OPENBLAS_LIBS@
+FCLIBS_FINUFFT=@FINUFFT_CFLAGS@ @FINUFFT_LIBS@ -lstdc++ @FFTW3_LIBS@ @FFTW3TH_LIBS@
+FCLIBS_LBFGSB=-L../lbfgsb -llbfgsb
+
+# set command options
+FCFLAGS=-fPIC @FCFLAGS@
+FCFLAGS+=$(FCFLAGS_OPT)
+FCFLAGS+=$(FCFLAGS_DBG)
+FCFLAGS+=$(FCLIBS_OMP)
+FCFLAGS+=$(FCLIBS_OPENBLAS)
+#FCFLAGS+=$(FCLIBS_FINUFFT)
+#FCFLAGS+=$(FCLIBS_LBFGSB)
+#FCFLAGS+=@OPENBLAS_CFLAGS@
+#FCFLAGS+=@FFTW3_CFLAGS@
+
+#-------------------------------------------
+#-------------------------------------------------------------------------------
+# Main description
+#-------------------------------------------------------------------------------
+SRCS=finufft_fh.f90 wrapfinufft.f90
+
+OBJS=finufft_fh.o wrapfinufft.o
+
+all: libwrapfinufft.a
+
+.f90.o: $(SRCS)
+	$(FC) -Wall -c $< $(FCFLAGS)
+
+libwrapfinufft.a: $(OBJS)
+	ar rsc libwrapfinufft.a $(OBJS)
+
+install: all
+
+clean:
+	rm -f *__genmod.f90
+	rm -f *.mod
+	rm -f *.o
+	rm -f *.pyf
+	rm -f *.a
+
+uninstall: clean
+	rm -f makefile

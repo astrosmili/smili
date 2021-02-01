@@ -2,39 +2,67 @@ module fftlib
   !$use omp_lib
   use param, only : dp, dpc, pi, i_dpc
   use image, only: I1d_I2d_fwd, I1d_I2d_inv
-  use finufft_fh
+  use wrapfinufft, only: &
+    FINUFFT_fwd, FINUFFT_fwd_real, &
+    FINUFFT_adj, FINUFFT_adj_real, FINUFFT_adj_real1D
   implicit none
 
-  ! Parameters related to NuFFT
-  !   FINUFFT's numerical accracy is around 1d-13
-  real(dp), parameter :: ffteps=1d-12
-
-  interface
-    subroutine finufft2d1(nj,xj,yj,cj,iflag,eps,ms,mt,fk,opts,ier)
-      use finufft_fh
-      type(nufft_opts) opts
-      integer :: nj, iflag, ms, mt, ier
-      real(kind(1.0d0)) :: xj(nj), yj(nj), eps
-      complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
-    end subroutine
-  end interface
-
-  interface
-    subroutine finufft2d2(nj,xj,yj,cj,iflag,eps,ms,mt,fk,opts,ier)
-      use finufft_fh
-      type(nufft_opts) opts
-      integer :: nj, iflag, ms, mt, ier
-      real(kind(1.0d0)) :: xj(nj), yj(nj), eps
-      complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
-    end subroutine
-  end interface
-
-  interface
-    subroutine finufft_default_opts(opts)
-      use finufft_fh
-      type(nufft_opts) opts
-    end subroutine
-  end interface
+  ! interface
+  !   subroutine FINUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
+  !     implicit none
+  !     integer,  intent(in)  :: Nx, Ny, Nuv
+  !     real(kind(1.0d0)), intent(in)  :: u(Nuv),v(Nuv)  ! uv coordinates
+  !                                             ! multiplied by 2*pi*dx, 2*pi*dy
+  !     real(kind(1.0d0)), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
+  !     complex(kind((1.0d0,1.0d0))), intent(out) :: Vcmp(Nuv)  ! Complex Visibility
+  !   end subroutine
+  ! end interface
+  
+  ! interface
+  !   subroutine FINUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
+  !     implicit none
+  !     integer,  intent(in)  :: Nx, Ny, Nuv
+  !     real(kind(1.0d0)), intent(in)  :: u(Nuv),v(Nuv)  ! uv coordinates
+  !                                             ! multiplied by 2*pi*dx, 2*pi*dy
+  !     real(kind(1.0d0)), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
+  !     real(kind(1.0d0)), intent(out) :: Vreal(Nuv), Vimag(Nuv) ! Complex Visibility
+  !   end subroutine
+  ! end interface
+  
+  ! interface
+  !   subroutine FINUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
+  !     implicit none
+  !     integer,  intent(in) :: Nx, Ny, Nuv
+  !     real(kind(1.0d0)), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
+  !                                           ! multiplied by 2*pi*dx, 2*pi*dy
+  !     complex(kind((1.0d0,1.0d0))), intent(in) :: Vcmp(Nuv)  ! Complex Visibility
+  !     complex(kind((1.0d0,1.0d0))), intent(out):: I2d(Nx,Ny) ! Two Dimensional Image
+  !   end subroutine
+  ! end interface
+  
+  ! interface
+  !   subroutine FINUFFT_adj_real1D(u,v,Vreal,Vimag,I2d,Nx,Ny,Nuv)
+  !     implicit none
+  !     integer,  intent(in) :: Nx, Ny, Nuv
+  !     real(kind(1.0d0)), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
+  !                                           ! multiplied by 2*pi*dx, 2*pi*dy
+  !     real(kind(1.0d0)), intent(in) :: Vreal(Nuv),Vimag(Nuv)  ! Complex Visibility
+  !     real(kind(1.0d0)), intent(out):: I2d(Nx*Ny) ! Two Dimensional Image
+  !   end subroutine
+  ! end interface
+  
+  ! interface
+  !   subroutine FINUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
+  !     implicit none
+  !     integer,  intent(in) :: Nx, Ny, Nuv
+  !     real(kind(1.0d0)), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
+  !                                           ! multiplied by 2*pi*dx, 2*pi*dy
+  !     real(kind(1.0d0)), intent(in) :: Vreal(Nuv)  ! Complex Visibility
+  !     real(kind(1.0d0)), intent(in) :: Vimag(Nuv)  ! Complex Visibility
+  !     real(kind(1.0d0)), intent(out):: Ireal(Nx*Ny) ! Two Dimensional Image
+  !     real(kind(1.0d0)), intent(out):: Iimag(Nx*Ny) ! Two Dimensional Image
+  !   end subroutine
+  ! end interface
 contains
 !-------------------------------------------------------------------------------
 ! NuFFT related functions
@@ -52,30 +80,8 @@ subroutine NUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
   real(dp), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
   complex(dpc), intent(out) :: Vcmp(Nuv)  ! Complex Visibility
 
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the forward Fourier Transformation
-  !     0: positive (the standard in Radio Astronomy)
-  !     1: negative (the textbook standard; e.g. TMS)
-  integer,  parameter :: iflag=0
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  !   error log
-  integer :: ier
-
-  !include 'finufft.fh'
-  type(nufft_opts) opts
-
-  ! init FINUFT options
-  call finufft_default_opts(opts)
-  opts%debug = 2
-
-  ! Call FINUFFT subroutine
-  call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),opts,ier)
-
-  ! debug
-  !print *, ' ier = ',ier
+  call FINUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
 end subroutine
-
 
 subroutine NUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
   !
@@ -90,36 +96,8 @@ subroutine NUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
   real(dp), intent(in)  :: I2d(Nx,Ny)     ! Two Dimensional Image
   real(dp), intent(out) :: Vreal(Nuv), Vimag(Nuv) ! Complex Visibility
 
-  complex(dpc) :: Vcmp(Nuv)
-
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the forward Fourier Transformation
-  !     0: positive (the standard in Radio Astronomy)
-  !     1: negative (the textbook standard; e.g. TMS)
-  integer,  parameter  :: iflag=0
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  !   error log
-  integer :: ier
-
-  !include 'finufft.fh'
-  type(nufft_opts) opts
-
-  ! init FINUFT options
-  call finufft_default_opts(opts)
-  opts%debug = 2
-
-  ! Call FINUFFT subroutine
-  call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),opts,ier)
-
-  ! Take real & imaginary parts
-  Vreal = dreal(Vcmp)
-  Vimag = dimag(Vcmp)
-
-  ! debug
-  !print *, ' ier = ',ier
+  call FINUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
 end subroutine
-
 
 subroutine NUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
   !
@@ -130,32 +108,11 @@ subroutine NUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
 
   integer,  intent(in) :: Nx, Ny, Nuv
   real(dp), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
-                                         ! multiplied by 2*pi*dx, 2*pi*dy
+                                        ! multiplied by 2*pi*dx, 2*pi*dy
   complex(dpc), intent(in) :: Vcmp(Nuv)  ! Complex Visibility
   complex(dpc), intent(out):: I2d(Nx,Ny) ! Two Dimensional Image
 
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the adjoint Fourier Transformation
-  !     0: positive (the textbook standard TMS)
-  !     1: negative (the standard in Radio Astronomy)
-  integer, parameter:: iflag=1
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  !   error log
-  integer :: ier
-
-  !include 'finufft.fh'
-  type(nufft_opts) opts
-
-  ! init FINUFT options
-  call finufft_default_opts(opts)
-  opts%debug = 2
-  
-  ! Call FINUFFT subroutine
-  call finufft2d1(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,opts,ier)
-
-  ! debug
-  !print *, ' ier = ',ier
+  call FINUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
 end subroutine
 
 subroutine NUFFT_adj_real1D(u,v,Vreal,Vimag,I2d,Nx,Ny,Nuv)
@@ -167,36 +124,12 @@ subroutine NUFFT_adj_real1D(u,v,Vreal,Vimag,I2d,Nx,Ny,Nuv)
 
   integer,  intent(in) :: Nx, Ny, Nuv
   real(dp), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
-                                         ! multiplied by 2*pi*dx, 2*pi*dy
+                                        ! multiplied by 2*pi*dx, 2*pi*dy
   real(dp), intent(in) :: Vreal(Nuv),Vimag(Nuv)  ! Complex Visibility
   real(dp), intent(out):: I2d(Nx*Ny) ! Two Dimensional Image
-  complex(dpc):: I2d_cmp(Nx,Ny) ! Two Dimensional Image
-
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the adjoint Fourier Transformation
-  !     0: positive (the textbook standard TMS)
-  !     1: negative (the standard in Radio Astronomy)
-  integer, parameter:: iflag=1
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  !   error log
-  integer :: ier
-  ! Call FINUFFT subroutine
-
-  !include 'finufft.fh'
-  type(nufft_opts) opts
-
-  ! init FINUFT options
-  call finufft_default_opts(opts)
-  opts%debug = 2
   
-  call finufft2d1(Nuv,u,v,dcmplx(Vreal,Vimag),iflag,eps,Nx,Ny,I2d_cmp,opts,ier)
-  I2d = reshape(realpart(I2d_cmp), (/Nx*Ny/))
-
-  ! debug
-  !print *, ' ier = ',ier
+  call FINUFFT_adj_real1D(u,v,Vreal,Vimag,I2d,Nx,Ny,Nuv)
 end subroutine
-
 
 subroutine NUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
   !
@@ -207,37 +140,14 @@ subroutine NUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
 
   integer,  intent(in) :: Nx, Ny, Nuv
   real(dp), intent(in) :: u(Nuv),v(Nuv)  ! uv coordinates
-                                         ! multiplied by 2*pi*dx, 2*pi*dy
+                                        ! multiplied by 2*pi*dx, 2*pi*dy
   real(dp), intent(in) :: Vreal(Nuv)  ! Complex Visibility
   real(dp), intent(in) :: Vimag(Nuv)  ! Complex Visibility
   real(dp), intent(out):: Ireal(Nx*Ny) ! Two Dimensional Image
   real(dp), intent(out):: Iimag(Nx*Ny) ! Two Dimensional Image
 
-  ! Some Other Parameters for FINUFFT
-  !   Sign of the exponent in the adjoint Fourier Transformation
-  !     0: positive (the textbook standard TMS)
-  !     1: negative (the standard in Radio Astronomy)
-  integer, parameter:: iflag=1
-  !   numerical Accuracy required for FINUFFT
-  real(dp),  parameter :: eps=ffteps
-  complex(dpc) :: I2d(Nx,Ny) ! Two Dimensional Image
-
-  !   error log
-  integer :: ier
-
-  !include 'finufft.fh'
-  type(nufft_opts) opts
-
-  ! init FINUFT options
-  call finufft_default_opts(opts)
-  opts%debug = 2
-  
-  ! Call FINUFFT subroutine
-  call finufft2d1(Nuv,u,v,Vreal+i_dpc*Vimag,iflag,eps,Nx,Ny,I2d,opts,ier)
-  Ireal = reshape(realpart(I2d), (/Nx*Ny/))
-  Iimag = reshape(imagpart(I2d), (/Nx*Ny/))
+  call FINUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
 end subroutine
-
 
 subroutine NUFFT_adj_resid(u,v,Vre,Vim,I2d,Nx,Ny,Nuv)
   !
