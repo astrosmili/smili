@@ -13,7 +13,8 @@ module wrapfinufft
       use finufft_fh, only: nufft_opts
       implicit none
       type(nufft_opts) opts
-      integer :: nj, iflag, ms, mt, ier
+      integer*8 :: nj, ms, mt
+      integer*4 :: ier, iflag
       real(kind(1.0d0)) :: xj(nj), yj(nj), eps
       complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
     end subroutine
@@ -24,7 +25,8 @@ module wrapfinufft
       use finufft_fh, only: nufft_opts
       implicit none
       type(nufft_opts) opts
-      integer :: nj, iflag, ms, mt, ier
+      integer*8 :: nj, ms, mt
+      integer*4 :: ier, iflag
       real(kind(1.0d0)) :: xj(nj), yj(nj), eps
       complex(kind((1.0d0,1.0d0))) :: cj(nj), fk(-ms/2:(ms-1)/2,-mt/2:(mt-1)/2)
     end subroutine
@@ -42,31 +44,31 @@ contains
 ! NuFFT related functions
 !------------------------------------------------------------------------------
 subroutine init_opts(opts)
+  implicit none
   type(nufft_opts), intent(inout):: opts
-
   call finufft_default_opts(opts)
-
   ! init FINUFT options
-  opts%modeord = 0
-  opts%chkbnds = 1
+  ! opts%modeord = 0
+  ! opts%chkbnds = 1
 
-  opts%debug = 2
-  opts%spread_debug = 2
-  opts%showwarn = 1
+  ! opts%debug = 2
+  ! opts%spread_debug = 2
+  ! opts%showwarn = 1
 
-  opts%nthreads = 1
-  !opts%fftw = FFTW_ESTIMATE;
-  opts%spread_sort = 2
-  opts%spread_kerevalmeth = 1
-  opts%spread_kerpad = 1
-  opts%upsampfac = 1.25d0
-  opts%spread_thread = 0
-  opts%maxbatchsize = 0
-  opts%spread_nthr_atomic = -1
-  opts%spread_max_sp_size = 0
+  ! opts%nthreads = 1
+  ! !opts%fftw = FFTW_ESTIMATE;
+  ! opts%spread_sort = 2
+  ! opts%spread_kerevalmeth = 1
+  ! opts%spread_kerpad = 1
+  ! opts%upsampfac = 1.25d0
+  ! opts%spread_thread = 0
+  ! opts%maxbatchsize = 0
+  ! opts%spread_nthr_atomic = -1
+  ! opts%spread_max_sp_size = 0
 end subroutine
 
 subroutine print_opts(opts)
+  implicit none
   type(nufft_opts), intent(in):: opts
 
   ! init FINUFT options
@@ -117,10 +119,9 @@ subroutine FINUFFT_fwd(u,v,I2d,Vcmp,Nx,Ny,Nuv)
 
   ! initialize finufft options
   call init_opts(opts)
-  call print_opts(opts)
 
   ! Call FINUFFT subroutine
-  call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),opts,ier)
+  call finufft2d2(int8(Nuv),u,v,Vcmp,iflag,eps,int8(Nx),int8(Ny),dcmplx(I2d),opts,ier)
 
   ! debug
   !print *, ' ier = ',ier
@@ -158,7 +159,7 @@ subroutine FINUFFT_fwd_real(u,v,I2d,Vreal,Vimag,Nx,Ny,Nuv)
   call init_opts(opts)
 
   ! Call FINUFFT subroutine
-  call finufft2d2(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,dcmplx(I2d),opts,ier)
+  call finufft2d2(int8(Nuv),u,v,Vcmp,iflag,eps,int8(Nx),int8(Ny),dcmplx(I2d),opts,ier)
 
   ! Take real & imaginary parts
   Vreal = dreal(Vcmp)
@@ -198,7 +199,7 @@ subroutine FINUFFT_adj(u,v,Vcmp,I2d,Nx,Ny,Nuv)
   call init_opts(opts)
   
   ! Call FINUFFT subroutine
-  call finufft2d1(Nuv,u,v,Vcmp,iflag,eps,Nx,Ny,I2d,opts,ier)
+  call finufft2d1(int8(Nuv),u,v,Vcmp,iflag,eps,int8(Nx),int8(Ny),I2d,opts,ier)
 
   ! debug
   !print *, ' ier = ',ier
@@ -235,7 +236,7 @@ subroutine FINUFFT_adj_real1D(u,v,Vreal,Vimag,I2d,Nx,Ny,Nuv)
   ! initialize finufft options
   call init_opts(opts)
   
-  call finufft2d1(Nuv,u,v,dcmplx(Vreal,Vimag),iflag,eps,Nx,Ny,I2d_cmp,opts,ier)
+  call finufft2d1(int8(Nuv),u,v,dcmplx(Vreal,Vimag),iflag,eps,int8(Nx),int8(Ny),I2d_cmp,opts,ier)
   I2d = reshape(realpart(I2d_cmp), (/Nx*Ny/))
 
   ! debug
@@ -276,7 +277,7 @@ subroutine FINUFFT_adj_real(u,v,Vreal,Vimag,Nx,Ny,Ireal,Iimag,Nuv)
   call init_opts(opts)
   
   ! Call FINUFFT subroutine
-  call finufft2d1(Nuv,u,v,Vreal+i_dpc*Vimag,iflag,eps,Nx,Ny,I2d,opts,ier)
+  call finufft2d1(int8(Nuv),u,v,Vreal+i_dpc*Vimag,iflag,eps,int8(Nx),int8(Ny),I2d,opts,ier)
   Ireal = reshape(realpart(I2d), (/Nx*Ny/))
   Iimag = reshape(imagpart(I2d), (/Nx*Ny/))
 end subroutine
