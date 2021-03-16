@@ -459,6 +459,9 @@ class UVFITS(object):
                         jd2 *= np.float64(hdu.header["PSCAL%d"%(i+1)])
                     if "PZERO%d"%(i+1) in headlist:
                         jd2 += np.float64(hdu.header["PZERO%d"%(i+1)])
+                else:
+                     errmsg = "Random Parameters have too many 'DATE' columns."
+                     raise ValueError(errmsg)
 
             if "BASELINE" in parname:
                 paridxes[5] = i+1
@@ -519,7 +522,7 @@ class UVFITS(object):
         visdata.check()
 
         self.visdata = visdata
-        #self.update_scan(minint=86400)
+        self.update_scan(minint=86400)
 
     def to_uvfits(self, filename=None, overwrite=True):
         '''
