@@ -425,40 +425,40 @@ class UVFITS(object):
                 paridxes[0] = i+1
                 visdata.coord["usec"] = np.float64(hdu.data.par(i))
 
-                if "PSCAL%d"%(i+1) in headlist:
-                    visdata.coord["usec"] *= hdu.header["PSCAL%d"%(i+1)]
-                if "PZERO%d"%(i+1) in headlist:
-                    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
+                #if "PSCAL%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] *= hdu.header["PSCAL%d"%(i+1)]
+                #if "PZERO%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
             if "VV" in parname:
                 paridxes[1] = i+1
                 visdata.coord["vsec"] = np.float64(hdu.data.par(i))
-                if "PSCAL%d"%(i+1) in headlist:
-                    visdata.coord["vsec"] *= hdu.header["PSCAL%d"%(i+1)]
-                if "PZERO%d"%(i+1) in headlist:
-                    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
+                #if "PSCAL%d"%(i+1) in headlist:
+                #    visdata.coord["vsec"] *= hdu.header["PSCAL%d"%(i+1)]
+                #if "PZERO%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
             if "WW" in parname:
                 paridxes[2] = i+1
                 visdata.coord["wsec"] = np.float64(hdu.data.par(i))
-                if "PSCAL%d"%(i+1) in headlist:
-                    visdata.coord["wsec"] *= hdu.header["PSCAL%d"%(i+1)]
-                if "PZERO%d"%(i+1) in headlist:
-                    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
+                #if "PSCAL%d"%(i+1) in headlist:
+                #    visdata.coord["wsec"] *= hdu.header["PSCAL%d"%(i+1)]
+                #if "PZERO%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
             if "DATE" in parname:
                 if paridxes[3] is None:
                     paridxes[3] = i+1
                     jd1 = np.float64(hdu.data.par(i))
-                    if "PSCAL%d"%(i+1) in headlist:
-                        jd1 *= np.float64(hdu.header["PSCAL%d"%(i+1)])
-                    if "PZERO%d"%(i+1) in headlist:
-                        jd1 += np.float64(hdu.header["PZERO%d"%(i+1)])
+                    #if "PSCAL%d"%(i+1) in headlist:
+                    #    jd1 *= np.float64(hdu.header["PSCAL%d"%(i+1)])
+                    #if "PZERO%d"%(i+1) in headlist:
+                    #    jd1 += np.float64(hdu.header["PZERO%d"%(i+1)])
 
                 elif paridxes[4] is None:
                     paridxes[4] = i+1
                     jd2 = np.float64(hdu.data.par(i))
-                    if "PSCAL%d"%(i+1) in headlist:
-                        jd2 *= np.float64(hdu.header["PSCAL%d"%(i+1)])
-                    if "PZERO%d"%(i+1) in headlist:
-                        jd2 += np.float64(hdu.header["PZERO%d"%(i+1)])
+                    #if "PSCAL%d"%(i+1) in headlist:
+                    #    jd2 *= np.float64(hdu.header["PSCAL%d"%(i+1)])
+                    #if "PZERO%d"%(i+1) in headlist:
+                    #    jd2 += np.float64(hdu.header["PZERO%d"%(i+1)])
                 else:
                      errmsg = "Random Parameters have too many 'DATE' columns."
                      raise ValueError(errmsg)
