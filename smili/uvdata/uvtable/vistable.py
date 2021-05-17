@@ -971,9 +971,9 @@ class VisTable(UVTable):
             outtab[column] = BSTable.bstable_types[i](outtab[column])
         return outtab
 
-    def make_bstable_snr(self, redundant=None, dependent=False):
+    def make_bstable_min(self, redundant=None, dependent=False,reorder_st=True):
         '''
-        Form bi-spectra from complex visibilities.
+        Form bi-spectra from complex visibilities with minimal triangle set.
 
         Args:
             redandant (list of sets of redundant station IDs or names; default=None):
@@ -984,17 +984,19 @@ class VisTable(UVTable):
             dependent (boolean; default=False):
                 If False, only independent dependent closure amplitudes will be formed.
                 Otherwise, dependent closure amplitudes also will be formed as well.
+            reorder_snr (default=True):
+                If True, the station indices are aligned using median SNRs for each station.
         Returns:
             uvdata.BSTable object
         '''
+        if not reorder_st:
+            vistable = copy.deepcopy(self)
+        else:
+            print("(0/5) Align vistable using median SNR values")
+            vistable = copy.deepcopy(self.reorder_st_snr(avgtype="median"))
+
         # Number of Stations
-        Ndata = len(self["ch"])
-        print("(0/5) Align vistable using median SNR values")
-        indice = self.check_snr(id=True)
-        vistable = copy.deepcopy(self.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True))
-        vistable["st1"] = [indice.index(vistable.loc[i,"st1"])+1 for i in range(Ndata)]
-        vistable["st2"] = [indice.index(vistable.loc[i,"st2"])+1 for i in range(Ndata)]
-        vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
+        Ndata = len(vistable["ch"])
 
         # make dictionary of stations
         stdict = vistable.station_dic(id2name=True)
@@ -1013,25 +1015,8 @@ class VisTable(UVTable):
                 redundant[i] = sorted(set(stationids))
             del stid, stdict2
 
-        for i in range(Ndata):
-            if vistable.loc[i,"st1"]>vistable.loc[i,"st2"]:
-                st1=vistable.loc[i,"st2"]
-                st2=vistable.loc[i,"st1"]
-                vistable.loc[i,"st1"]=st1
-                vistable.loc[i,"st2"]=st2
-
-                st1name=vistable.loc[i,"st1name"]
-                st2name=vistable.loc[i,"st2name"]
-                vistable.loc[i,"st1name"]=st2name
-                vistable.loc[i,"st2name"]=st1name
-
-                vistable.loc[i,"u"]*=-1
-                vistable.loc[i,"v"]*=-1
-                vistable.loc[i,"phase"]*=-1
-
         print("(1/5) Sort data")
         vistable = vistable.sort_values(by=["utc", "stokesid", "ch", "st1", "st2"]).reset_index(drop=True)
-
         vistable["bl"] = vistable["st1"] * 256 + vistable["st2"]
 
         print("(2/5) Tagging data")
@@ -1092,12 +1077,12 @@ class VisTable(UVTable):
             rank = 0
             cblset = []
             cstset = []
-            #for stid1, stid2, stid3 in itertools.product(range(Nst),range(Nst),range(Nst)):
-            for stid1, stid2, stid3 in itertools.combinations(list(range(Nst)), 3):
-                Ncomb=0
 
+            stid1=0
+            st1 =stset[stid1]
+            for stid2, stid3 in itertools.combinations(list(range(1, Nst,1)), 2):
+                Ncomb=0
                 # Stations
-                st1 = stset[stid1]
                 st2 = stset[stid2]
                 st3 = stset[stid3]
 
