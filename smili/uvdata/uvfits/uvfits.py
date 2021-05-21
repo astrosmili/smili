@@ -81,6 +81,7 @@ class UVFITS(object):
             hdulist = pf.open(uvfits)
         else:
             hdulist = uvfits
+
         hdulist.info()
         print("")
         hduinfo = hdulist.info(output=False)
@@ -235,6 +236,44 @@ class UVFITS(object):
             prt(arrdata, indent)
         self.subarrays = subarrays
 
+    def _clear_ptime(self, hdulist, reverse=True):
+        timescale="utc"
+
+        hduinfo = hdulist.info(output=False)
+        Nhdu = len(hduinfo)
+        for ihdu in range(Nhdu):
+            hduname = hduinfo[ihdu][1]
+            if hduname == "PRIMARY":
+                hdu = hdulist[ihdu]
+                ihdu_select = ihdu
+
+        paridxes = [None for i in range(9)]
+        parnames = hdu.data.parnames
+        Npar = len(parnames)
+        headlist =  list(hdu.header.keys())
+        for i in range(Npar):
+            parname = parnames[i]
+            if "DATE" in parname:
+                if paridxes[3] is None:
+                    paridxes[3] = i+1
+                    jd1 = np.float64(hdu.data.par(i))
+                    if reverse:
+                        if "PSCAL%d"%(i+1) in headlist:
+                            hdulist[ihdu_select].header["PSCAL%d"%(i+1)]=1
+                        if "PZERO%d"%(i+1) in headlist:
+                            hdulist[ihdu_select].header["PZERO%d"%(i+1)]=0
+
+                elif paridxes[4] is None:
+                    paridxes[4] = i+1
+                    jd2 = np.float64(hdu.data.par(i))
+                    if reverse:
+                        if "PSCAL%d"%(i+1) in headlist:
+                            hdulist[ihdu_select].header["PSCAL%d"%(i+1)]=1
+                        if "PZERO%d"%(i+1) in headlist:
+                            hdulist[ihdu_select].header["PZERO%d"%(i+1)]=0
+
+        return hdulist
+
     def _read_freqdata(self, FQtab):
         freqdata = FrequencyData()
 
@@ -378,27 +417,52 @@ class UVFITS(object):
         parnames = hdu.data.parnames
         Npar = len(parnames)
         visdata.coord = pd.DataFrame()
+        headlist =  list(hdu.header.keys())
+
         for i in range(Npar):
             parname = parnames[i]
             if "UU" in parname:
                 paridxes[0] = i+1
                 visdata.coord["usec"] = np.float64(hdu.data.par(i))
+
+                #if "PSCAL%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] *= hdu.header["PSCAL%d"%(i+1)]
+                #if "PZERO%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
             if "VV" in parname:
                 paridxes[1] = i+1
                 visdata.coord["vsec"] = np.float64(hdu.data.par(i))
+                #if "PSCAL%d"%(i+1) in headlist:
+                #    visdata.coord["vsec"] *= hdu.header["PSCAL%d"%(i+1)]
+                #if "PZERO%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
             if "WW" in parname:
                 paridxes[2] = i+1
                 visdata.coord["wsec"] = np.float64(hdu.data.par(i))
+                #if "PSCAL%d"%(i+1) in headlist:
+                #    visdata.coord["wsec"] *= hdu.header["PSCAL%d"%(i+1)]
+                #if "PZERO%d"%(i+1) in headlist:
+                #    visdata.coord["usec"] += hdu.header["PZERO%d"%(i+1)]
             if "DATE" in parname:
                 if paridxes[3] is None:
                     paridxes[3] = i+1
                     jd1 = np.float64(hdu.data.par(i))
+                    #if "PSCAL%d"%(i+1) in headlist:
+                    #    jd1 *= np.float64(hdu.header["PSCAL%d"%(i+1)])
+                    #if "PZERO%d"%(i+1) in headlist:
+                    #    jd1 += np.float64(hdu.header["PZERO%d"%(i+1)])
+
                 elif paridxes[4] is None:
                     paridxes[4] = i+1
                     jd2 = np.float64(hdu.data.par(i))
+                    #if "PSCAL%d"%(i+1) in headlist:
+                    #    jd2 *= np.float64(hdu.header["PSCAL%d"%(i+1)])
+                    #if "PZERO%d"%(i+1) in headlist:
+                    #    jd2 += np.float64(hdu.header["PZERO%d"%(i+1)])
                 else:
-                    errmsg = "Random Parameters have too many 'DATE' columns."
-                    raise ValueError(errmsg)
+                     errmsg = "Random Parameters have too many 'DATE' columns."
+                     raise ValueError(errmsg)
+
             if "BASELINE" in parname:
                 paridxes[5] = i+1
                 bl = np.float64(hdu.data.par(i))
@@ -614,7 +678,10 @@ class UVFITS(object):
             ghdu.header.insert("PTYPE%d"%(i+1), card, after=True)
 
         # Other Header
+        jds = np.asarray(utc.jd1, dtype=np.float64)+np.asarray(utc.jd2, dtype=np.float64)
+        mjd = np.float64(int(np.min(jds) - 2400000.5))
         cards = []
+        cards.append(("MJD", mjd))
         cards.append(("DATE-OBS", utc[0].isot[0:10]))
         cards.append(("TELESCOP", self.subarrays[frqsel].header["ARRNAM"]))
         cards.append(("INSTRUME", self.subarrays[frqsel].header["ARRNAM"]))
