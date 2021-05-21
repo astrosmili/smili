@@ -1,34 +1,37 @@
 # We will use ubuntu 18.04 as the base image
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 # use bash to setup
 SHELL ["/bin/bash", "-c"]
 
 # apt update and install commands
-RUN apt-get update -y && \
-    apt-get install -y sudo && \
-    apt-get install -y wget && \
-    apt-get install -y build-essential && \
-    apt-get install -y gfortran && \
-    apt-get install -y pkg-config && \
-    apt-get install -y git && \
-    apt-get clean
+RUN apt-get update -y
+RUN apt-get install -y sudo
+RUN apt-get install -y wget
+RUN apt-get install -y build-essential
+RUN apt-get install -y gfortran
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y pkg-config
+RUN apt-get install -y git
+RUN apt-get clean
 
 # add smili user
-RUN adduser --disabled-password --gecos '' smiliuser && \
-    echo 'smiliuser:lovesmili' | chpasswd && \
-    gpasswd -a smiliuser sudo
+RUN adduser --disabled-password --gecos '' smiliuser
+RUN echo 'smiliuser:smiligroup' | chpasswd
+
+# set up sudo
+RUN gpasswd -a smiliuser sudo
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # switch user
 USER smiliuser
 ENV HOME /home/smiliuser
 
 # create a local dir
-RUN mkdir $HOME/local && \
-    mkdir $HOME/local/lib && \
-    mkdir $HOME/local/bin
+RUN mkdir $HOME/local
+RUN mkdir $HOME/local/lib
+RUN mkdir $HOME/local/bin
 
-# pyenv
+# install pyenv
 RUN cd $HOME/local && \
     git clone https://github.com/pyenv/pyenv && \
     cd $HOME && \
@@ -47,6 +50,7 @@ RUN echo 'export PATH=$HOME/local/bin:$PATH' >> ~/.bashrc  && \
     echo 'export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH' >> ~/.bashrc  && \
     echo 'export PKG_CONFIG_PATH=$HOME/local/lib/pkgconfig:$PKG_CONFIG_PATH' >> ~/.bashrc
 
+
 # miniconda3
 RUN pyenv install miniconda3-latest && \
     pyenv global  miniconda3-latest
@@ -60,10 +64,14 @@ RUN cd $HOME/local && \
 
 # FFTW3
 RUN cd $HOME/local && \
-    wget http://www.fftw.org/fftw-3.3.8.tar.gz && \
-    tar xzvf fftw-3.3.8.tar.gz && \
-    cd fftw-3.3.8 && \
-    ./configure --prefix=$HOME/local --enable-openmp --enable-threads --enable-shared && \
+    wget http://www.fftw.org/fftw-3.3.9.tar.gz && \
+    tar xzvf fftw-3.3.9.tar.gz && \
+    cd fftw-3.3.9 && \
+    ./configure --prefix=$HOME/local --enable-openmp --enable-threads --enable-shared --enable-float --enable-type-prefix && \
+    make && \
+    make install && \
+    make clean && \
+    ./configure --prefix=$HOME/local --enable-openmp --enable-threads --enable-shared --enable-type-prefix && \
     make && \
     make install
 
@@ -90,6 +98,11 @@ RUN cd $HOME/local && \
     echo 'Version: github'                                                             >> $HOME/local/lib/pkgconfig/finufft.pc && \
     echo 'Libs: -L${libdir} -lfinufft'                                                 >> $HOME/local/lib/pkgconfig/finufft.pc && \
     echo 'Cflags: -I${includedir}'                                                     >> $HOME/local/lib/pkgconfig/finufft.pc
+
+# python packages
+RUN conda install ipython jupyter numpy scipy matplotlib pandas astropy seaborn h5py xarray # basic scientific python
+RUN conda install ephem scikit-image scikit-learn # extras utils
+RUN conda install tqdm # extras utils
 
 # ehtim
 RUN cd $HOME/local && \
