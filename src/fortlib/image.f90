@@ -246,6 +246,14 @@ real(dp) function l1_e(I)
   implicit none
   real(dp), intent(in) :: I
   l1_e = smabs(I)
+
+  !if (I > zeroeps) then
+  !  l1_e = smabs(I)
+  !  l1_e = abs(I)
+  !else
+  !  l1_e = 0d0
+  !end if
+
 end function
 
 
@@ -254,6 +262,11 @@ real(dp) function l1_grade(I)
   implicit none
   real(dp), intent(in) :: I
   l1_grade = smabs_diff(I)
+  !if (I>zeroeps) then
+  !  l1_grade = smabs_diff(I)
+  !else
+  !  l1_grade = 0d0
+  !end if
 end function
 
 
@@ -490,7 +503,8 @@ real(dp) function tv_e(xidx,yidx,I2d,Nx,Ny)
   end if
   !
   ! smooth TV
-  tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
+  !tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
+  tv_e = sqrt(dIx*dIx+dIy*dIy)
 end function
 !
 !
@@ -534,14 +548,14 @@ real(dp) function tv_grade(xidx,yidx,I2d,Nx,Ny)
     dIy = I2d(i1,j2) - I2d(i1,j1)
   end if
   !
-  !tv_e = sqrt(dIx*dIx+dIy*dIy)
-  !if (tv_e > zeroeps) then
-  !  tv_grade = tv_grade - (dIx + dIy)/tv_e
-  !end if
+  tv_e = sqrt(dIx*dIx+dIy*dIy)
+  if (tv_e > zeroeps) then
+    tv_grade = tv_grade - (dIx + dIy)/tv_e
+  end if
   !
   ! Smooth TV
-  tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
-  tv_grade = tv_grade - (dIx + dIy)/tv_e
+  !tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
+  !tv_grade = tv_grade - (dIx + dIy)/tv_e
   !
   !-------------------------------------
   ! (i1,j1)-(i0,j1), (i0,j2)-(i0,j1)
@@ -557,14 +571,16 @@ real(dp) function tv_grade(xidx,yidx,I2d,Nx,Ny)
       dIy = I2d(i0,j2) - I2d(i0,j1)
     end if
 
-    !tv_e = sqrt(dIx*dIx+dIy*dIy)
-    !if (tv_e > zeroeps) then
-    !  tv_grade = tv_grade + dIx/tv_e
-    !end if
+    tv_e = sqrt(dIx*dIx+dIy*dIy)
+    if (tv_e > zeroeps) then
+      tv_grade = tv_grade + dIx/tv_e
+    else
+      tv_grade = 0d0
+    end if
     !
     ! Smooth TV
-    tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
-    tv_grade = tv_grade + dIx/tv_e
+    !tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
+    !tv_grade = tv_grade + dIx/tv_e
   end if
   !
   !-------------------------------------
@@ -581,14 +597,16 @@ real(dp) function tv_grade(xidx,yidx,I2d,Nx,Ny)
       dIx = I2d(i2,j0) - I2d(i1,j0)
     end if
 
-    !tv_e = sqrt(dIx*dIx+dIy*dIy)
-    !if (tv_e > zeroeps) then
-    !  tv_grade = tv_grade + dIy/tv_e
-    !end if
+    tv_e = sqrt(dIx*dIx+dIy*dIy)
+    if (tv_e > zeroeps) then
+      tv_grade = tv_grade + dIy/tv_e
+    else
+      tv_grade = 0d0
+    end if
     !
     ! Smooth TV
-    tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
-    tv_grade = tv_grade + dIx/tv_e
+    !tv_e = sqrt(dIx*dIx+dIy*dIy+zeroeps)
+    !tv_grade = tv_grade + dIx/tv_e
   end if
   !
 end function
