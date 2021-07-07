@@ -323,7 +323,7 @@ subroutine calc_cost_dynamical(&
 
   integer :: ipix, iz
   real(dp) :: totalflux, stotal
-  real(dp) :: gradcost_cen(Npix), Fnorm
+  real(dp) :: gradcost_cen(Npix), Fnorm, norm, norm_l, norm_u
 
   real(dp)  :: tmp
   real(dp), allocatable :: tmp1d(:)
@@ -346,8 +346,11 @@ subroutine calc_cost_dynamical(&
     Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
     Iavg = Iavg + Iin_frm / Nz
   end do
-
-  ! Calculate each cost functions
+  norm = sum(Iavg)
+  if (norm>zeroeps) then
+    Iavg = Iavg/norm
+  end if
+  ! Calculate each cost
   ! Center of the mass regularizer
   if (cen_l > 0) then
     allocate(tmp1d(Npix))
@@ -365,28 +368,51 @@ subroutine calc_cost_dynamical(&
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP FIRSTPRIVATE(Nz, Npix, Iin, Iavg, rt_l, ri_l, rt_wgt, ri_wgt, &
   !$OMP              rs_l, rf_l, rs_wgt, rf_wgt, lc_nidx) &
-  !$OMP PRIVATE(iz, ipix, II, Iu, Il, Fnorm, su, sl, fu, fl, s, f) &
+  !$OMP PRIVATE(iz, ipix, II, Iu, Il, Fnorm, norm, norm_l, norm_u, su, sl, fu, fl, s, f) &
   !$OMP REDUCTION(+: rt_cost, ri_cost, rs_cost, rf_cost, gradcost)
 
-  ! Dynamical regularizers
+  ! Rt and Ri regularizers
   do iz=1,Nz
     if (lc_nidx >1) then
-      Fnorm = (totalflux / lc_tgtfd(iz))**2
-      Fnorm = (totalflux / lc_tgtfd(iz))**2
+      Fnorm = totalflux / lc_tgtfd(iz)
+      Fnorm = totalflux / lc_tgtfd(iz)
     else
       Fnorm = 1.
       Fnorm = 1.
     end if
 
-    do ipix=1,Npix
-      II = Iin((iz-1)*Npix+ipix)
+    ! Normalization factors
+    if (lc_nidx >1) then
+      norm = sum(Iin((iz-1)*Npix+1:iz*Npix))
+      if (iz > 1) then
+        norm_l = sum(Iin((iz-2)*Npix+1:(iz-1)*Npix))
+      else
+        norm_l = 0
+      end if
       if (iz < Nz) then
-        Iu = Iin(iz*Npix+ipix)
+        norm_u = sum(Iin(iz*Npix+1:(iz+1)*Npix))
+      else
+        norm_u = 0
+      end if
+    else
+      norm = totalflux
+      norm_l = totalflux
+      norm_u = totalflux
+    end if
+
+    do ipix=1,Npix
+      if (norm>zeroeps) then
+        II = Iin((iz-1)*Npix+ipix)/norm
+      else
+        II = 0
+      end if
+      if (iz < Nz .and. norm_u>zeroeps) then
+        Iu = Iin(iz*Npix+ipix)/norm_u
       else
         Iu = 0
       end if
-      if (iz > 1) then
-        Il = Iin((iz-2)*Npix+ipix)
+      if (iz > 1 .and. norm_l>zeroeps) then
+        Il = Iin((iz-2)*Npix+ipix)/norm_l
       else
         Il = 0
       end if
@@ -395,7 +421,7 @@ subroutine calc_cost_dynamical(&
       if (rt_l > 0 .and. iz < Nz ) then
         rt_cost  = rt_cost + rt_l * rt_wgt(ipix) * Fnorm * rt_e(II, Iu)
         gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                  rt_l * rt_wgt(ipix) * Fnorm  * rt_grade(II, Il, Iu, iz, Nz)
+                  rt_l * rt_wgt(ipix) * Fnorm * rt_grade(II, Il, Iu, iz, Nz)
       end if
 
       ! Ri regularizer
@@ -403,43 +429,6 @@ subroutine calc_cost_dynamical(&
         ri_cost     = ri_cost + ri_l * ri_wgt(ipix) * Fnorm * ri_e(II, Iavg(ipix))
         gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
                           ri_l * ri_wgt(ipix) * Fnorm * ri_grade(II, Iavg(ipix))
-      end if
-
-      ! Rs and Rf regularizers
-      if (rs_l > 0 .or. rf_l > 0) then
-        s  = s_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
-        f  = f_e(Iin((iz-1)*Npix+1:iz*Npix),Npix)
-        if (iz < Nz) then
-          su = s_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
-          fu = f_e(Iin(iz*Npix+1:(iz+1)*Npix),Npix)
-        else
-          su = 0
-          fu = 0
-        end if
-        if (iz > 1) then
-          sl = s_e(Iin((iz-2)*Npix+1:(iz-1)*Npix),Npix)
-          fl = f_e(Iin((iz-2)*Npix+1:(iz-1)*Npix),Npix)
-        else
-          sl = 0
-          fl = 0
-        end if
-
-        if (rs_l > 0) then
-          if (iz < Nz-1 .and. iz>1) then
-            rs_cost  = rs_cost + rs_l * rs_wgt(ipix) * Fnorm * rs_e(s, su)
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rs_l * rs_wgt(ipix) * Fnorm * rs_grade(s, sl, su, Iin_frm(ipix))
-          end if
-        end if
-
-        if (rf_l > 0) then
-          if (iz < Nz-1 .and. iz>1) then
-            rf_cost  = rf_cost + rf_l * rf_wgt(ipix) * Fnorm * rf_e(f, fu)
-            gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                      rf_l * rf_wgt(ipix) * Fnorm * rf_grade(f, fl, fu, Iin_frm(ipix))
-          end if
-        end if
-
       end if
 
     end do
@@ -456,6 +445,7 @@ end subroutine
 real(dp) function rt_e(I, Iu)
   implicit none
   real(dp), intent(in) :: I, Iu      ! pixel intensity of two time frames
+
 
   rt_e = (Iu - I)**2
 end function

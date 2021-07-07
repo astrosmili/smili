@@ -278,6 +278,7 @@ def imaging3d(
         print("Warning: No absolute amplitude information in the input data.")
         print("         The total flux must be constrained")
         return -1
+
     # Guess the Total flux
     elif ((totalflux is None) and (lc_array is not None)):
         totalflux = np.median(lc_array)
@@ -564,18 +565,19 @@ def imaging3d(
         print("  Initialize Rt regularization")
         if rt_prior is None:
             rt_priorarr = copy.deepcopy(Iin[0])
-            rt_priorarr[:] = totalflux_scaled/Npix
+            rt_priorarr[:] = 1./Npix
         else:
             if imregion is None:
                 rt_priorarr = rt_prior.data[0,0].reshape(Nyx)
             else:
                 rt_priorarr = rt_prior.data[0,0][winidx]
 
-            rt_priorarr *= totalflux_scaled/rt_priorarr.sum()
-            zeroeps = np.float64(1.e-10)
-            rt_priorarr = np.sqrt(np.float64(rt_priorarr**2 + zeroeps))
+            rt_priorarr *= 1./rt_priorarr.sum()
+            zeroeps = np.float64(1.e-5)
+            rt_priorarr = np.sqrt(np.float64(rt_priorarr**2 + zeroeps**2))
 
-        rt_wgt = 1. / (Nt * (Npix * rt_priorarr)**2)
+        #rt_priorarr /= rt_priorarr.sum()
+        rt_wgt = 1. / (Nt * Npix * rt_priorarr)
         rt_nwgt = len(rt_wgt)
         rt_l = rt_lambda
         del rt_priorarr
@@ -589,18 +591,20 @@ def imaging3d(
         print("  Initialize Ri regularization")
         if ri_prior is None:
             ri_priorarr = copy.deepcopy(Iin[0])
-            ri_priorarr[:] = totalflux_scaled/Npix
+            ri_priorarr[:] = 1./Npix
         else:
             if imregion is None:
                 ri_priorarr = ri_prior.data[0,0].reshape(Nyx)
             else:
                 ri_priorarr = ri_prior.data[0,0][winidx]
 
-            ri_priorarr *= totalflux_scaled/ri_priorarr.sum()
-            zeroeps = np.float64(1.e-10)
-            ri_priorarr = np.sqrt(np.float64(ri_priorarr**2 + zeroeps))
+            ri_priorarr *= 1./ri_priorarr.sum()
+            zeroeps = np.float64(1.e-5)
+            ri_priorarr = np.sqrt(np.float64(ri_priorarr**2 + zeroeps**2))
 
-        ri_wgt = 1. / (Nt * (Npix * ri_priorarr)**2)
+        #ri_priorarr /= ri_priorarr.sum()
+
+        ri_wgt = 1. / (Nt * Npix * ri_priorarr)
         ri_nwgt = len(ri_wgt)
         ri_l = ri_lambda
         del ri_priorarr
@@ -625,6 +629,7 @@ def imaging3d(
             zeroeps = np.float64(1.e-10)
             rs_priorarr = np.sqrt(np.float64(rs_priorarr**2 + zeroeps))
 
+        rs_priorarr /= rs_priorarr.sum()
         rs_wgt = 1. / (Nt * Npix * rs_priorarr)
         rs_nwgt = len(rs_wgt)
         rs_l = rs_lambda
@@ -649,6 +654,7 @@ def imaging3d(
             zeroeps = np.float64(1.e-10)
             rf_priorarr = np.sqrt(np.float64(rf_priorarr**2 + zeroeps))
 
+        #rf_priorarr /= rf_priorarr.sum()
         rf_wgt = 1. / (Nt * Npix * rf_priorarr)
         rf_nwgt = len(rf_wgt)
         rf_l = rf_lambda
