@@ -793,7 +793,10 @@ class VisTable(UVTable):
         for idata in tqdm.tqdm(list(range(1,Ndata))):
             flag = vistable.loc[idata, "utc"] == vistable.loc[idata-1, "utc"]
             flag&= vistable.loc[idata, "stokesid"] == vistable.loc[idata-1, "stokesid"]
-            flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
+            #flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
+            #flag&= vistable.loc[idata, "freq"] == vistable.loc[idata-1, "freq"]
+            flag&= np.int32(vistable.loc[idata, "freq"]) == np.int32(vistable.loc[idata-1, "freq"])
+
             if flag:
                 vistable.loc[idata,"tag"] = vistable.loc[idata-1,"tag"]
             else:
@@ -1024,7 +1027,10 @@ class VisTable(UVTable):
         for idata in tqdm.tqdm(list(range(1,Ndata))):
             flag = vistable.loc[idata, "utc"] == vistable.loc[idata-1, "utc"]
             flag&= vistable.loc[idata, "stokesid"] == vistable.loc[idata-1, "stokesid"]
-            flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
+            #flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
+            #flag&= vistable.loc[idata, "freq"] == vistable.loc[idata-1, "freq"]
+            flag&= np.int32(vistable.loc[idata, "freq"]) == np.int32(vistable.loc[idata-1, "freq"])
+
             if flag:
                 vistable.loc[idata,"tag"] = vistable.loc[idata-1,"tag"]
             else:
@@ -1582,7 +1588,10 @@ class VisTable(UVTable):
         for idata in tqdm.tqdm(list(range(1,Ndata))):
             flag = vistable.loc[idata, "utc"] == vistable.loc[idata-1, "utc"]
             flag&= vistable.loc[idata, "stokesid"] == vistable.loc[idata-1, "stokesid"]
-            flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
+            #flag&= vistable.loc[idata, "ch"] == vistable.loc[idata-1, "ch"]
+            #flag&= vistable.loc[idata, "freq"] == vistable.loc[idata-1, "freq"]
+            flag&= np.int32(vistable.loc[idata, "freq"]) == np.int32(vistable.loc[idata-1, "freq"])
+
             if flag:
                 vistable.loc[idata,"tag"] = vistable.loc[idata-1,"tag"]
             else:
@@ -1839,29 +1848,33 @@ class VisTable(UVTable):
 
         Args:
             baseline_list (list):
-                selected pairs of stations composing baselines
+                selected pairs of stations composing baselines, (e.g., [["AA", "AP"], ["JC", "SM"]])
             uvdistmin (float):
                 extract visibility amplitudes with uvdist<=uvdistmax
         Returns:
             Lightcurve object
         '''
 
+        outtab_list = []
         if baseline_list is not None:
-
-            for baseline in baseline_list:
-                self = copy.deepcopy(self.query("st1name == '%s' or st2name == '%s'"%(baseline,baseline)))
+            for baselines in baseline_list:
+                tmptab = copy.deepcopy(self.query("st1name == '%s' and st2name == '%s'"%(baselines[0],baselines[1])))
+                outtab = pd.DataFrame()
+                outtab["utc"]=copy.deepcopy(tmptab["utc"])
+                outtab["gsthour"] = copy.deepcopy(tmptab["gsthour"])
+                outtab["flux"] = copy.deepcopy(tmptab["amp"])
+                outtab_list.append(outtab)
 
         if uvdistmax is not None:
-            self = copy.deepcopy(self.query("uvdist <= %e"%(uvdistmax)))
+            outtab_list.append(copy.deepcopy(self.query("uvdist <= %e"%(uvdistmax))))
 
-        tmptab = copy.deepcopy(self)
-
-        outtab = lightcurve.Lightcurve()
-        outtab["utc"]=copy.deepcopy(tmptab["utc"])
-        outtab["gsthour"] = copy.deepcopy(tmptab["gsthour"])
-        outtab["flux"] = copy.deepcopy(tmptab["amp"])
-
-        return outtab
+        outtab = pd.concat(outtab_list)
+        newlc = lightcurve.Lightcurve()
+        newlc["utc"]=copy.deepcopy(outtab["utc"])
+        newlc["gsthour"] = copy.deepcopy(outtab["gsthour"])
+        newlc["flux"] = copy.deepcopy(outtab["flux"])
+        newlc = newlc.sort_values("utc")
+        return newlc
 
 
     def gridding(self, fitsdata, conj=False, j=3., beta=2.34):
