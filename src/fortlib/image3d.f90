@@ -323,7 +323,7 @@ subroutine calc_cost_dynamical(&
 
   integer :: ipix, iz
   real(dp) :: totalflux, stotal
-  real(dp) :: gradcost_cen(Npix), Fnorm, norm, norm_l, norm_u
+  real(dp) :: gradcost_cen(Npix), Fnorm, norm, norm_l, norm_u, norm_lc(Nz)
 
   real(dp)  :: tmp
   real(dp), allocatable :: tmp1d(:)
@@ -343,98 +343,52 @@ subroutine calc_cost_dynamical(&
   ! Averaged intensity
   Iavg(:)     = 0d0
   do iz=1,Nz
-    Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)
+    Iin_frm = Iin((iz-1)*Npix+1:iz*Npix)/lc_tgtfd(iz)
     Iavg = Iavg + Iin_frm / Nz
   end do
-  norm = sum(Iavg)
-  if (norm>zeroeps) then
-    Iavg = Iavg/norm
-  end if
+
   ! Calculate each cost
-  ! Center of the mass regularizer
-  if (cen_l > 0) then
-    allocate(tmp1d(Npix))
-    call calc_cenreg(Iavg,xidx,yidx,Nxref,Nyref,cen_alpha,tmp,tmp1d,Npix)
-    cen_cost = cen_l * tmp
-
-    do iz=1, Nz
-      gradcost((iz-1)*Npix+1:iz*Npix) = gradcost((iz-1)*Npix+ipix) + &
-                                        cen_l * tmp1d / Nz
-    end do
-    deallocate(tmp1d)
-    cost = cost + cen_cost
-  end if
-
   !$OMP PARALLEL DO DEFAULT(SHARED) &
   !$OMP FIRSTPRIVATE(Nz, Npix, Iin, Iavg, rt_l, ri_l, rt_wgt, ri_wgt, &
-  !$OMP              rs_l, rf_l, rs_wgt, rf_wgt, lc_nidx) &
-  !$OMP PRIVATE(iz, ipix, II, Iu, Il, Fnorm, norm, norm_l, norm_u, su, sl, fu, fl, s, f) &
-  !$OMP REDUCTION(+: rt_cost, ri_cost, rs_cost, rf_cost, gradcost)
+  !$OMP              lc_nidx) &
+  !$OMP PRIVATE(iz, ipix, II, Iu, Il) &
+  !$OMP REDUCTION(+: rt_cost, ri_cost, gradcost)
 
   ! Rt and Ri regularizers
   do iz=1,Nz
-    if (lc_nidx >1) then
-      Fnorm = totalflux / lc_tgtfd(iz)
-      Fnorm = totalflux / lc_tgtfd(iz)
-    else
-      Fnorm = 1.
-      Fnorm = 1.
-    end if
-
-    ! Normalization factors
-    if (lc_nidx >1) then
-      norm = sum(Iin((iz-1)*Npix+1:iz*Npix))
-      if (iz > 1) then
-        norm_l = sum(Iin((iz-2)*Npix+1:(iz-1)*Npix))
-      else
-        norm_l = 0
-      end if
-      if (iz < Nz) then
-        norm_u = sum(Iin(iz*Npix+1:(iz+1)*Npix))
-      else
-        norm_u = 0
-      end if
-    else
-      norm = totalflux
-      norm_l = totalflux
-      norm_u = totalflux
-    end if
-
     do ipix=1,Npix
-      if (norm>zeroeps) then
-        II = Iin((iz-1)*Npix+ipix)/norm
-      else
-        II = 0
-      end if
-      if (iz < Nz .and. norm_u>zeroeps) then
-        Iu = Iin(iz*Npix+ipix)/norm_u
+      ! Normalization factors
+      II = Iin((iz-1)*Npix+ipix)/lc_tgtfd(iz)
+      if (iz < Nz) then
+        Iu = Iin(iz*Npix+ipix)/lc_tgtfd(iz+1)
       else
         Iu = 0
       end if
-      if (iz > 1 .and. norm_l>zeroeps) then
-        Il = Iin((iz-2)*Npix+ipix)/norm_l
+      if (iz > 1) then
+        Il = Iin((iz-2)*Npix+ipix)/lc_tgtfd(iz-1)
       else
         Il = 0
       end if
 
       ! Rt regularizer
-      if (rt_l > 0 .and. iz < Nz ) then
-        rt_cost  = rt_cost + rt_l * rt_wgt(ipix) * Fnorm * rt_e(II, Iu)
+      if (rt_l > 0 .and. iz < Nz) then
+        rt_cost  = rt_cost + rt_l * rt_wgt(ipix) * rt_e(II, Iu)
         gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                  rt_l * rt_wgt(ipix) * Fnorm * rt_grade(II, Il, Iu, iz, Nz)
+                  rt_l * rt_wgt(ipix) * rt_grade(II, Il, Iu, iz, Nz) / lc_tgtfd(iz)
       end if
 
       ! Ri regularizer
       if (ri_l > 0) then
-        ri_cost     = ri_cost + ri_l * ri_wgt(ipix) * Fnorm * ri_e(II, Iavg(ipix))
+        ri_cost     = ri_cost + ri_l * ri_wgt(ipix) * ri_e(II, Iavg(ipix))
         gradcost((iz-1)*Npix+ipix) = gradcost((iz-1)*Npix+ipix) + &
-                          ri_l * ri_wgt(ipix) * Fnorm * ri_grade(II, Iavg(ipix))
+                          ri_l * ri_wgt(ipix) * ri_grade(II, Iavg(ipix)) / lc_tgtfd(iz)
       end if
-
     end do
   end do
   !$OMP END PARALLEL DO
-  cost = cost + rt_cost + ri_cost + rs_cost + rf_cost
+
+  cost = cost + ri_cost +rt_cost
+
 end subroutine
 
 
