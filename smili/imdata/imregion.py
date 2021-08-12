@@ -548,7 +548,7 @@ class IMRegion(pd.DataFrame):
         ygrid = np.arange(image.header["ny"])
         X, Y = np.meshgrid(xgrid, ygrid)
 
-        area = np.zeros(X.shape, dtype="Bool")
+        area = np.zeros(X.shape, dtype="bool")
         for index, row in self.iterrows():
             angconv = util.angconv(row["angunit"],"deg")
             x0 = row["xc"]*angconv/image.header["dx"]+image.header["nxref"]-1
@@ -598,7 +598,7 @@ class IMRegion(pd.DataFrame):
         ygrid = np.arange(image.header["ny"])
         X, Y = np.meshgrid(xgrid, ygrid)
 
-        area = np.zeros(X.shape, dtype="Bool")
+        area = np.zeros(X.shape, dtype="bool")
         for index, row in self.iterrows():
             angconv = util.angconv(row["angunit"],"deg")
             x0 = row["xc"]*angconv/image.header["dx"]+image.header["nxref"]-1
