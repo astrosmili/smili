@@ -16,11 +16,11 @@ Please contact to `Kazu Akiyama at MIT Haystack Observatory <http://kazuakiyama.
 if you have any questions about this library. You may contact with following
 other core developers, too.
 
-- `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_ at MIT Haystack Observatory
-- Kotaro Moriyama at Goethe-Universität Frankfurt am Main
-- `Fumie Tazaki <https://ftazaki.github.io/webpage>`_ (JP Only) at National Astronomical Observatory of Japan
-- `Ilje Cho <https://iljecho.github.io/>`_ at Instituto de Astrofísica de Andalucía
-- `Shiro Ikeda <https://www.ism.ac.jp/~shiro>`_ at Institue of Statistical Mathematics
+* `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_ at MIT Haystack Observatory
+* Kotaro Moriyama at Goethe-Universität Frankfurt am Main
+* `Fumie Tazaki <https://ftazaki.github.io/webpage>`_ (JP Only) at National Astronomical Observatory of Japan
+* `Ilje Cho <https://iljecho.github.io/>`_ at Instituto de Astrofísica de Andalucía
+* `Shiro Ikeda <https://www.ism.ac.jp/~shiro>`_ at Institue of Statistical Mathematics
 
 Table of Contents
 =================

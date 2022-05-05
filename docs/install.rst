@@ -11,9 +11,9 @@ for SMILI.
 
 This installation path has been tested for
 
-- macOS 10.12/10.13/10.14 with MacPort's GCC 8
-- macOS 10.14/10.15 with homebrew's gcc
-- Ubuntu 2020LTS.
+* macOS 10.12/10.13/10.14 with MacPort's GCC 8
+* macOS 10.14/10.15 with homebrew's gcc
+* Ubuntu 2020LTS.
 
 
 Python Environments and Packages
@@ -30,8 +30,8 @@ We recommend using pyenv or an enviroment creaed by conda not to affect any syst
 All of mandatory python packages will be automatically installed during installation.
 There are some optional packages that may be used for SMILI.
 
- - ehtim: https://github.com/achael/eht-imaging
- - ehtplot: https://github.com/chanchikwan/ehtplot
+ * ehtim: https://github.com/achael/eht-imaging
+ * ehtplot: https://github.com/chanchikwan/ehtplot
 
 
 Preparation
