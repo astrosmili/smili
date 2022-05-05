@@ -4,6 +4,7 @@ Developer Team and Related Links
 Main members of the Developer Team
 ----------------------------------
 In alphabetical order:
+
 - `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_ at MIT Haystack Observatory
 - `Ilje Cho <https://iljecho.github.io/>`_ at Instituto de Astrofísica de Andalucía
 - `Mareki Honma <https://guas-astronomy.jp/eng/Supervisors/m-honma.html>`_ at National Astronomical Observatory of Japan

@@ -18,7 +18,7 @@ other core developers, too.
 
 - `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_ at MIT Haystack Observatory
 - Kotaro Moriyama at Goethe-Universität Frankfurt am Main
-- `Fumie Tazaki <https://ftazaki.github.io/webpage>`_ (Japanese Only) at National Astronomical Observatory of Japan
+- `Fumie Tazaki <https://ftazaki.github.io/webpage>`_ (JP Only) at National Astronomical Observatory of Japan
 - `Ilje Cho <https://iljecho.github.io/>`_ at Instituto de Astrofísica de Andalucía
 - `Shiro Ikeda <https://www.ism.ac.jp/~shiro>`_ at Institue of Statistical Mathematics
 
