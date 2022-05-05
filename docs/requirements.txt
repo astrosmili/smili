@@ -1,5 +1,5 @@
 sphinx>4.3
-docutils=0.16
+docutils==0.16
 nbsphinx
 ipykernel
 numpy
