@@ -43,6 +43,7 @@ or which corresponding LICENSE files are included.
 - [Shiro Ikeda (Developer)](https://www.ism.ac.jp/~shiro)
 - [Fumie Tazaki (Developer)](https://ftazaki.github.io/webpage) (Japanese Only)
 - [Mareki Honma (Developer)](https://guas-astronomy.jp/eng/Supervisors/m-honma.html)
+- [Guangyao Zhao (Developer)](https://gyzhao060.github.io/)
 - [Event Horizon Telescope Official](https://eventhorizontelescope.org)
 - [Event Horizon Telescope Japan Official](https://www.miz.nao.ac.jp/eht-j) (Japanese Only)
 - [MIT Haystack Observatory](https://www.haystack.mit.edu)

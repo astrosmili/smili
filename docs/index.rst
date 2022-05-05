@@ -1,8 +1,6 @@
 =========
 SMILI
 =========
-**Sparse Modeling Imaging Library for Interferometry**
-
 This website is the documentation for `SMILI <https://github.com/astrosmili/smili>`_.
 SMILI is a python-interfaced library for interferometric imaging using sparse
 sampling techniques. SMILI is mainly designed for very long baseline interferometry,
@@ -14,14 +12,15 @@ However, SMILI has yet been actively and dynamically developed for many new topi
 and challenges of the EHT. The documentation is not perfect and
 sometimes outdated due to dynamical changes in the data structure.
 
-Please contact to `Kazu Akiyama at NRAO/MIT Haystack Observatory <http://kazuakiyama.github.io/>`_
+Please contact to `Kazu Akiyama at MIT Haystack Observatory <http://kazuakiyama.github.io/>`_
 if you have any questions about this library. You may contact with following
 other core developers, too.
 
-- `Kazu Akiyama (The Main Developer) <http://kazuakiyama.github.io>`_ at NRAO/MIT Haystack Observatory
-- `Fumie Tazaki (Developer) <https://ftazaki.github.io/webpage>`_ (Japanese Only) at NAOJ
-- `Shiro Ikeda (Developer) <https://www.ism.ac.jp/~shiro>`_  at the Institute of Statistical Mathematics
-- Kotaro Moriyama (Developer) at NAOJ/MIT Haystack Observatory
+- `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_ at MIT Haystack Observatory
+- Kotaro Moriyama at Goethe-Universität Frankfurt am Main
+- `Fumie Tazaki <https://ftazaki.github.io/webpage>`_ (Japanese Only) at National Astronomical Observatory of Japan
+- `Ilje Cho <https://iljecho.github.io/>`_ at Instituto de Astrofísica de Andalucía
+- `Shiro Ikeda <https://www.ism.ac.jp/~shiro>`_ at Institue of Statistical Mathematics
 
 Table of Contents
 =================
