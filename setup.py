@@ -14,7 +14,7 @@ with open(path.join(here, "README.md"), encoding='utf-8') as f:
 
 setup(
     name="smili",
-    version = "0.1.0alpha",
+    version = "0.2.0",
     description = "Sparse Modeling Imaging library for Interferometry",
     long_description = long_description,
     url = "https://smili.github.io/smili",
