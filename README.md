@@ -7,7 +7,7 @@ Here is [the SMILI documentation](https://smili.readthedocs.io). Since SMILI has
 
 Please contact with Kazu Akiyama at MIT Haystack Observatory if you have any questions about this library. You may contact with following other core developers, too.
 - [Kazu Akiyama](http://kazuakiyama.github.io) at MIT Haystack Observatory, Primary Developer
-- Kotaro Moriyama at Goethe-Universität Frankfurt am Main
+- [Kotaro Moriyama](https://itp.uni-frankfurt.de/~moriyama/main/) at Goethe-Universität Frankfurt am Main
 - [Fumie Tazaki](https://ftazaki.github.io/webpage) at National Astronomical Observatory of Japan
 - [Ilje Cho](https://iljecho.github.io/) at Instituto de Astrofísica de Andalucía
 - [Shiro Ikeda](https://www.ism.ac.jp/~shiro) at the Institute of Statistical Mathematics
@@ -41,6 +41,7 @@ or which corresponding LICENSE files are included.
 - [Ilje Cho (Developer)](https://iljecho.github.io/)
 - [Mareki Honma (Developer)](https://guas-astronomy.jp/eng/Supervisors/m-honma.html)
 - [Shiro Ikeda (Developer)](https://www.ism.ac.jp/~shiro)
+- [Kotaro Moriyama (Developer)](https://itp.uni-frankfurt.de/~moriyama/main/)
 - [Fumie Tazaki (Developer)](https://ftazaki.github.io/webpage) (Japanese Only)
 - [Mareki Honma (Developer)](https://guas-astronomy.jp/eng/Supervisors/m-honma.html)
 - [Guangyao Zhao (Developer)](https://gyzhao060.github.io/)

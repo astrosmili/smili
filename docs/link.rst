@@ -10,7 +10,7 @@ In alphabetical order:
 * `Mareki Honma <https://guas-astronomy.jp/eng/Supervisors/m-honma.html>`_ at National Astronomical Observatory of Japan
 * `Shiro Ikeda <https://www.ism.ac.jp/~shiro>`_ at Institue of Statistical Mathematics
 * Yutaro Kofuji at University of Tokyo / National Astronomical Observatory of Japan
-* Kotaro Moriyama at Goethe-Universität Frankfurt am Main
+* `Kotaro Moriyama <https://itp.uni-frankfurt.de/~moriyama/main/>`_  at Goethe-Universität Frankfurt am Main
 * Mahito Sasada at Tokyo Institute of Technology
 * `Fumie Tazaki <https://ftazaki.github.io/webpage>`_ (Japanese Only) at National Astronomical Observatory of Japan
 * `Guangyao Zhao <https://gyzhao060.github.io/>`_ at Instituto de Astrofísica de Andalucía

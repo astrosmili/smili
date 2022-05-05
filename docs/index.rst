@@ -17,7 +17,7 @@ if you have any questions about this library. You may contact with following
 other core developers, too.
 
 * `Kazu Akiyama (Primary Developer) <http://kazuakiyama.github.io>`_ at MIT Haystack Observatory
-* Kotaro Moriyama at Goethe-Universität Frankfurt am Main
+* `Kotaro Moriyama <https://itp.uni-frankfurt.de/~moriyama/main/>`_ at Goethe-Universität Frankfurt am Main
 * `Fumie Tazaki <https://ftazaki.github.io/webpage>`_ (JP Only) at National Astronomical Observatory of Japan
 * `Ilje Cho <https://iljecho.github.io/>`_ at Instituto de Astrofísica de Andalucía
 * `Shiro Ikeda <https://www.ism.ac.jp/~shiro>`_ at Institue of Statistical Mathematics
