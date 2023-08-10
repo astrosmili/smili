@@ -28,6 +28,6 @@ setup(
     install_requires = [
         "numpy","scipy","matplotlib","pandas",
         "scikit-image","astropy","tqdm","theano",
-        "pyds9","colored", "scikit-learn"
+        "colored", "scikit-learn"
     ]
 )
