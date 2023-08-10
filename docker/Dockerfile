@@ -1,5 +1,5 @@
 # We will use ubuntu 18.04 as the base image
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 # use bash to setup
 SHELL ["/bin/bash", "-c"]
