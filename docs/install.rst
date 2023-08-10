@@ -12,16 +12,16 @@ for SMILI.
 This installation path has been tested for
 
 - macOS 10.12/10.13/10.14 with MacPort's GCC 8
-- macOS 10.14 with homebrew's gcc
-- Ubuntu 2016LTS & 2018LTS.
+- macOS 10.14/10.15 with homebrew's gcc
+- Ubuntu 2020LTS.
 
 
 Python Environments and Packages
 ================================
 **SMILI has been transferred to Python 3 after verion 0.1.0**.
-This version has been tested and developed in `pyenv`_. In particular, we use
-Python 3.7 environments provided by the `Anaconda`_ package.
-We recommend using pyenv not to affect any system-related python environments.
+This version has been tested and developed in `pyenv`_ and also `conda` enviroment.
+In particular, we use Python 3.7 or 3.7 environments provided by the `Anaconda`_ package.
+We recommend using pyenv or an enviroment creaed by conda not to affect any system-related python environments.
 
 .. _pyenv: https://github.com/pyenv/pyenv
 
@@ -38,7 +38,7 @@ Preparation
 ===========================================================
 
 
-1) Ubuntu 2016LTS / 2018LTS users
+1) Ubuntu 2016LTS / 2018 / 2020 LTS users
 
   .. code-block:: Bash
 
