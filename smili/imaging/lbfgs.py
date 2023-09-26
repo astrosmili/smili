@@ -559,7 +559,8 @@ def imaging(
         inormfactr=np.float64(inormfactr),
         # Following 3 parameters are for L-BFGS-B
         m=np.int32(lbfgsbprms["m"]), factr=np.float64(lbfgsbprms["factr"]),
-        pgtol=np.float64(lbfgsbprms["pgtol"])
+        pgtol=np.float64(lbfgsbprms["pgtol"]),
+        npix=xidx.shape[0]
     )
     Iout = output[0]/inormfactr
 
