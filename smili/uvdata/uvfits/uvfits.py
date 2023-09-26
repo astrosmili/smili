@@ -596,8 +596,8 @@ class UVFITS(object):
         # DATE
         parnames.append("DATE")
         parnames.append("DATE")
-        pardata.append(np.asarray(utc.jd1-utc_ref.jd1, dtype=np.float64))
-        pardata.append(np.asarray(utc.jd2-utc_ref.jd2, dtype=np.float64))
+        pardata.append(np.asarray(utc.jd1, dtype=np.float64))
+        pardata.append(np.asarray(utc.jd2, dtype=np.float64))
         # inttime
         if self.visdata.coord["inttim"].max() > 0:
             parnames.append("INTTIM")
@@ -667,9 +667,9 @@ class UVFITS(object):
         # PTYPE HEADER
         for i in range(len(parnames)):
             if i == 4:
-                pzero = utc_ref.jd1 - 0.5
+                pzero = 0.0 #utc_ref.jd1 - 0.5
             elif i == 5:
-                pzero = utc_ref.jd2 + 0.5
+                pzero = 0.0 #utc_ref.jd2 + 0.5
             else:
                 pzero = 0.0
             card = ("PZERO%d"%(i+1), pzero)
