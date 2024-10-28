@@ -503,7 +503,7 @@ class IMFITS(object):
 
     def read_fits_ehtim(self, imfits):
         '''
-        Read data from the image FITS file geneated from the eht-imaging library
+        Read data from the image FITS file generated from the eht-imaging library
 
         Args:
             imfits (string or hdulist, optional):
