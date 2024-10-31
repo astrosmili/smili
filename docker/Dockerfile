@@ -1,11 +1,13 @@
-# We will use ubuntu 18.04 as the base image
+# We will use ubuntu 20.04 as the base image
 FROM ubuntu:20.04
 
 # use bash to setup
-SHELL ["/bin/bash", "-c"]
+# SHELL ["/usr/bin/bash", "-c"]
 
 # apt update and install commands
+RUN set -xe
 RUN apt-get update -y
+RUN apt-get install -y python3-pip
 RUN apt-get install -y sudo
 RUN apt-get install -y wget
 RUN apt-get install -y build-essential
@@ -30,18 +32,7 @@ ENV HOME /home/smiliuser
 RUN mkdir $HOME/local
 RUN mkdir $HOME/local/lib
 RUN mkdir $HOME/local/bin
-
-# install pyenv
-RUN cd $HOME/local && \
-    git clone https://github.com/pyenv/pyenv && \
-    cd $HOME && \
-    ln -s $HOME/local/pyenv .pyenv
-ENV PYENV_ROOT $HOME/.pyenv
-ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
-RUN echo 'export PYENV_ROOT=$HOME/.pyenv' >> ~/.bashrc && \
-    echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-
+RUN sudo ln -s /usr/bin/python3 /usr/bin/python
 # create a path to $HOME/local
 ENV LD_LIBRARY_PATH $HOME/local/lib:$LD_LIBRARY_PATH
 ENV PKG_CONFIG_PATH $HOME/local/lib/pkgconfig:$PKG_CONFIG_PATH
@@ -50,10 +41,9 @@ RUN echo 'export PATH=$HOME/local/bin:$PATH' >> ~/.bashrc  && \
     echo 'export LD_LIBRARY_PATH=$HOME/local/lib:$LD_LIBRARY_PATH' >> ~/.bashrc  && \
     echo 'export PKG_CONFIG_PATH=$HOME/local/lib/pkgconfig:$PKG_CONFIG_PATH' >> ~/.bashrc
 
-
-# miniconda3
-RUN pyenv install miniconda3-latest && \
-    pyenv global  miniconda3-latest
+# python packages
+RUN pip install tqdm numpy scipy matplotlib pandas astropy seaborn h5py xarray
+RUN pip install ephem scikit-image scikit-learn # extras utils
 
 # OpenBLAS
 RUN cd $HOME/local && \
@@ -72,6 +62,15 @@ RUN cd $HOME/local && \
     make install && \
     make clean && \
     ./configure --prefix=$HOME/local --enable-openmp --enable-threads --enable-shared --enable-type-prefix && \
+    make && \
+    make install
+
+# NFFT
+RUN cd $HOME/local && \
+    wget https://www-user.tu-chemnitz.de/~potts/nfft/download/nfft-3.5.3.tar.gz && \
+    tar -zxf nfft-3.5.3.tar.gz && \
+    cd nfft-3.5.3 && \
+    ./configure --prefix=$HOME/local --enable-all --enable-openmp --enable-shared --with-fftw3=$HOME/local && \
     make && \
     make install
 
@@ -99,27 +98,30 @@ RUN cd $HOME/local && \
     echo 'Libs: -L${libdir} -lfinufft'                                                 >> $HOME/local/lib/pkgconfig/finufft.pc && \
     echo 'Cflags: -I${includedir}'                                                     >> $HOME/local/lib/pkgconfig/finufft.pc
 
-# python packages
-RUN conda install ipython jupyter numpy scipy matplotlib pandas astropy seaborn h5py xarray # basic scientific python
-RUN conda install ephem scikit-image scikit-learn # extras utils
-RUN conda install tqdm # extras utils
+
+RUN pip install Cython
+RUN cd $HOME/local && \
+    git clone https://github.com/pyNFFT/pyNFFT.git && \
+    cd pyNFFT && \
+    CFLAGS='-I/home/smiliuser/local/include' LDFLAGS='-L/home/smiliuser/local/lib' python3 setup.py build && \
+    sudo -E python3 setup.py install && \
+    CFLAGS='-I/home/smiliuser/local/include' LDFLAGS='-L/home/smiliuser/local/lib' python3 setup.py build_ext --inplace
 
 # ehtim
 RUN cd $HOME/local && \
     git clone https://github.com/achael/eht-imaging && \
     cd eht-imaging && \
-    conda install -c conda-forge pynfft && \
     pip install .
 
 # ehtplot
 RUN cd $HOME/local && \
     git clone https://github.com/liamedeiros/ehtplot && \
     cd ehtplot && \
-    python setup.py install
+    sudo -E python setup.py install
 
-# smili
+# # smili
 RUN cd $HOME/local && \
     git clone https://github.com/astrosmili/smili && \
     cd smili && \
     ./configure && \
-    make install
+    sudo -E make install
